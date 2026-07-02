@@ -1,0 +1,1442 @@
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  :root{
+    --bg:#F2F5F2; --panel:#FFFFFF; --ink:#16241F; --ink-soft:#52645B;
+    --teal:#0F3D3E; --teal-dk:#082426; --teal-soft:#DCEAE7;
+    --amber:#E8A33D; --amber-dk:#B97A1F; --amber-soft:#FBE7C5;
+    --green:#4C9A6B; --green-soft:#DCEFE2;
+    --red:#C44536; --red-soft:#F6DAD5;
+    --gray:#8B958F; --gray-soft:#E9EDEA;
+    --line:#DDE5E1; --radius:14px; --shadow:0 2px 14px rgba(15,61,62,.10);
+  }
+  *{box-sizing:border-box;}
+  #app{font-family:'Inter',sans-serif;color:var(--ink);background:var(--bg);border-radius:18px;overflow:hidden;position:relative;min-height:600px;}
+  .dsp{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{cursor:pointer;font-family:inherit;}
+  input,select,textarea{font-family:inherit;font-size:14px;}
+  ::selection{background:var(--amber-soft);}
+
+  /* loading */
+  #loading{position:absolute;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:50;}
+  .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--teal-soft);border-top-color:var(--teal);animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* header */
+  .hdr{background:linear-gradient(135deg,var(--teal-dk),var(--teal));color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border-bottom:4px solid var(--amber);}
+  .hdr h1{margin:0;font-size:19px;letter-spacing:.3px;}
+  .hdr .sub{font-size:12px;color:#BFD8D3;margin-top:2px;}
+  .profile{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:30px;padding:6px 8px 6px 14px;}
+  .profile .who{font-size:12.5px;line-height:1.2;text-align:right;}
+  .profile .who b{display:block;font-size:13px;}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--amber);color:var(--teal-dk);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:'Space Grotesk',sans-serif;}
+  .lnk-btn{background:none;border:none;color:#fff;text-decoration:underline;font-size:11.5px;opacity:.85;}
+
+  /* nav */
+  .nav{display:flex;gap:4px;background:var(--teal-dk);padding:0 16px;overflow-x:auto;}
+  .nav button{background:none;border:none;color:#AFCBC5;padding:13px 16px;font-size:13.5px;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap;}
+  .nav button.active{color:#fff;border-bottom-color:var(--amber);}
+  .nav button:hover{color:#fff;}
+
+  #tabContent{padding:20px;}
+
+  /* generic */
+  .card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;}
+  .grid{display:grid;gap:14px;}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px;}
+  .kpi .num{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;}
+  .kpi .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .kpi{border-left:4px solid var(--teal);}
+  .kpi.aberto{border-left-color:var(--red);}
+  .kpi.andamento{border-left-color:var(--amber);}
+  .kpi.resolvido{border-left-color:var(--green);}
+
+  .section-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:30px;font-size:11.5px;font-weight:600;}
+  .pill.red{background:var(--red-soft);color:var(--red);}
+  .pill.amber{background:var(--amber-soft);color:var(--amber-dk);}
+  .pill.green{background:var(--green-soft);color:#2E6B49;}
+  .pill.gray{background:var(--gray-soft);color:var(--ink-soft);}
+  .pill.teal{background:var(--teal-soft);color:var(--teal-dk);}
+
+  .bars{display:flex;flex-direction:column;gap:9px;}
+  .bar-row{display:grid;grid-template-columns:120px 1fr 46px;gap:10px;align-items:center;font-size:12.5px;}
+  .bar-track{height:9px;background:var(--gray-soft);border-radius:6px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:6px;}
+
+  .two-col{grid-template-columns:1.3fr 1fr;}
+  @media(max-width:820px){.two-col{grid-template-columns:1fr;}}
+
+  /* mapa / polos */
+  .cat-edit-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  .cat-edit-row input{width:118px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12.5px;}
+  .polos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;}
+  .polo-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+  .polo-sign{background:var(--teal);color:#fff;padding:11px 14px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;border-bottom:3px solid var(--amber);}
+  .polo-body{padding:12px 14px;display:flex;flex-direction:column;gap:7px;}
+  .city-pin{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;text-align:left;width:100%;}
+  .city-pin:hover{border-color:var(--teal);}
+  .pin-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .pin-name{flex:1;font-size:13px;font-weight:500;}
+  .pin-count{font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);}
+
+  /* filters */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .filters select, .filters input[type=text]{border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:#fff;}
+  .btn{border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:600;border:none;}
+  .btn-primary{background:var(--teal);color:#fff;}
+  .btn-primary:hover{background:var(--teal-dk);}
+  .btn-ghost{background:var(--gray-soft);color:var(--ink);}
+  .btn-ghost:hover{background:var(--line);}
+  .btn-amber{background:var(--amber);color:var(--teal-dk);}
+
+  /* form */
+  .form-card{display:none;margin-bottom:16px;}
+  .form-card.open{display:block;}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;}
+  .form-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft);font-weight:600;}
+  .form-grid input,.form-grid select,.form-grid textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;color:var(--ink);}
+  .form-grid textarea{resize:vertical;min-height:54px;}
+  .full{grid-column:1/-1;}
+
+  /* chamados list */
+  .ticket{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff;}
+  .ticket-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+  .ticket-id{font-size:11px;color:var(--ink-soft);}
+  .ticket-title{font-weight:700;font-size:14.5px;margin:2px 0 4px;}
+  .ticket-meta{font-size:12px;color:var(--ink-soft);display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .ticket-desc{font-size:13px;color:var(--ink-soft);margin-top:6px;line-height:1.45;}
+  .ticket-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+  .status-select{border:1px solid var(--line);border-radius:30px;padding:5px 10px;font-size:12px;font-weight:700;}
+  .icon-btn{background:none;border:none;color:var(--ink-soft);font-size:12px;text-decoration:underline;}
+  .empty{text-align:center;padding:40px 20px;color:var(--ink-soft);}
+  .empty b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px;}
+
+  /* planejamento table */
+  .table-wrap{overflow-x:auto;border-radius:var(--radius);box-shadow:var(--shadow);background:#fff;}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:980px;}
+  thead th{background:var(--teal);color:#fff;text-align:left;padding:10px 10px;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;}
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:nth-child(even){background:#FAFBFA;}
+  tbody input,tbody select{width:100%;border:1px solid transparent;border-radius:6px;padding:5px 6px;background:transparent;}
+  tbody input:hover,tbody select:hover{border-color:var(--line);background:#fff;}
+  tbody input:focus,tbody select:focus{border-color:var(--teal);background:#fff;outline:none;}
+  .pct{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .polo-tag{font-size:10.5px;color:var(--ink-soft);}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--teal-dk);color:#fff;padding:9px 18px;border-radius:30px;font-size:12.5px;box-shadow:0 4px 16px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;z-index:60;}
+  .toast.show{opacity:1;}
+
+  /* alertas */
+  .alert-banner{display:flex;align-items:center;gap:10px;background:var(--red-soft);border:1px solid #E8B6AC;color:var(--red);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:600;}
+  .alert-banner .x{margin-left:auto;background:none;border:none;color:var(--red);font-size:13px;text-decoration:underline;font-weight:600;}
+  .alert-mini{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 0;border-bottom:1px dashed var(--line);}
+  .alert-mini:last-child{border-bottom:none;}
+
+  /* agenda semanal */
+  .week-card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden;}
+  .week-head{background:var(--teal);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .week-head .wtitle{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;}
+  .week-head .wdates{font-size:12px;color:#BFD8D3;}
+  .week-body{padding:14px 16px;}
+  .entry-row{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:9px;}
+  .entry-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .cat-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;}
+  .cat-tag{background:var(--teal-soft);color:var(--teal-dk);font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;}
+  .entry-status-row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+  .reason-box{margin-top:8px;background:var(--bg);border-radius:8px;padding:8px 10px;display:none;}
+  .reason-box.show{display:block;}
+  .small-select,.small-input{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;}
+  .week-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
+  .week-form label{display:flex;flex-direction:column;font-size:11.5px;color:var(--ink-soft);font-weight:600;gap:3px;}
+  .week-form input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;}
+  .entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end;background:var(--bg);border-radius:10px;padding:10px;margin-bottom:12px;}
+  .entry-form label{display:flex;flex-direction:column;font-size:11px;color:var(--ink-soft);font-weight:600;gap:3px;}
+  .chip-check{display:flex;gap:5px;flex-wrap:wrap;}
+  .chip-check label{flex-direction:row;align-items:center;gap:4px;background:#fff;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-weight:600;cursor:pointer;}
+  .chip-check input{width:auto;}
+
+  /* veiculos */
+  .vfilters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .vehicle-card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px;}
+  .vehicle-head{background:var(--teal);color:#fff;padding:10px 14px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .vehicle-body{padding:12px 14px;}
+  .vrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px;flex-wrap:wrap;}
+  .vrow .dotbtn{font-size:12px;font-weight:700;border:none;border-radius:30px;padding:6px 12px;line-height:1;color:#fff;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+  .vrow .dotbtn.on{background:var(--green);}
+  .vrow .dotbtn.on:hover{background:#3D7F58;}
+  .vrow .dotbtn.off{background:var(--red);}
+  .vrow .dotbtn.off:hover{background:#A8392C;}
+  .vrow .dotbtn .dot{width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;}
+  .vrow .vinfo{flex:1;min-width:140px;}
+  .vrow .vname{font-weight:700;font-size:13px;}
+  .vrow .vsub{font-size:11px;color:var(--ink-soft);}
+  .add-vehicle-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;background:var(--bg);border-radius:10px;padding:10px;margin-top:6px;}
+  .add-vehicle-form label{display:flex;flex-direction:column;font-size:11px;color:var(--ink-soft);font-weight:600;gap:3px;}
+
+  /* lançamento diário */
+  .diario-sep{border:none;border-top:2px dashed var(--line);margin:22px 0 18px;}
+  .prog-city{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+  .prog-city-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .prog-city-name{font-weight:700;font-size:14px;}
+  .prog-bar-wrap{height:10px;background:var(--gray-soft);border-radius:6px;overflow:hidden;margin:6px 0 4px;}
+  .prog-bar-fill{height:100%;border-radius:6px;transition:width .4s;}
+  .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-top:8px;}
+  .cat-cell{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;}
+  .cat-cell b{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:2px;}
+  .diario-table-wrap{overflow-x:auto;border-radius:var(--radius);box-shadow:var(--shadow);background:#fff;margin-top:12px;}
+  .nav-mes{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .nav-mes button{background:var(--teal-soft);border:none;border-radius:8px;padding:6px 12px;font-weight:700;color:var(--teal-dk);font-size:13px;}
+  .nav-mes .mes-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;min-width:130px;text-align:center;}
+
+  .login-wrap{padding:60px 20px;display:flex;justify-content:center;}
+  .login-card{max-width:380px;width:100%;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;text-align:center;}
+  .login-card h2{font-family:'Space Grotesk',sans-serif;margin:8px 0 4px;font-size:18px;}
+  .login-card p{color:var(--ink-soft);font-size:13px;margin-bottom:18px;}
+  .login-card label{display:block;text-align:left;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;margin-top:12px;}
+  .login-card input,.login-card select{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;}
+  .badge-top{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--teal-soft);color:var(--teal-dk);font-family:'Space Grotesk',sans-serif;font-weight:700;}
+</style>
+
+<div id="app">
+  <div id="loading"><div class="spin"></div><div style="font-size:12.5px;color:var(--ink-soft)">Carregando painel operacional…</div></div>
+  <div id="shell" style="display:none;">
+    <div class="hdr">
+      <div>
+        <h1 class="dsp">Central de Operações — Exames PE</h1>
+        <div class="sub">18 cidades · 4 polos · categorias A–E</div>
+      </div>
+      <div id="profileBox"></div>
+    </div>
+    <div class="nav" id="navBar"></div>
+    <div id="configBanner"></div>
+    <div id="tabContent"></div>
+  </div>
+  <div id="toast" class="toast"></div>
+</div>
+
+<script>
+(function(){
+
+/* ---------------- dados fixos ---------------- */
+var POLOS = [
+  {id:'p1', nome:'Polo 1', regiao:'Recife', cidades:['Recife']},
+  {id:'p2', nome:'Polo 2', regiao:'Mata / Agreste Norte', cidades:['Vitória','Limoeiro','Timbaúba','Surubim','Santa Cruz','Palmares']},
+  {id:'p3', nome:'Polo 3', regiao:'Agreste', cidades:['Arcoverde','Afogados','Belo Jardim','Caruaru','Garanhuns','Pesqueira']},
+  {id:'p4', nome:'Polo 4', regiao:'Sertão', cidades:['Araripina','Ouricuri','Petrolina','Salgueiro','Serra Talhada']}
+];
+var CIDADE_POLO = {};
+POLOS.forEach(function(p){ p.cidades.forEach(function(c){ CIDADE_POLO[c]=p; }); });
+var TODAS_CIDADES = POLOS.reduce(function(a,p){return a.concat(p.cidades);},[]);
+
+var CAT_KEYS = ['A','B','C','D','E'];
+var DEFAULT_CAT_LABELS = {A:'Categoria A',B:'Categoria B',C:'Categoria C',D:'Categoria D',E:'Categoria E'};
+
+var PAPEIS = ['Coordenador','Supervisor','Líder de Operação'];
+var PRIORIDADES = ['Baixa','Média','Alta','Crítica'];
+var STATUS_CHAMADO = ['Aberto','Em andamento','Resolvido','Cancelado'];
+var TIPOS_PROBLEMA = ['Problema mecânico','Infraestrutura do pátio de exame','Equipamento eletrônico embarcado','Falha de sistema/software','Outro'];
+var STATUS_PLAN = ['Planejado','Em execução','Concluído','Atrasado'];
+var MOTIVOS_INTERRUPCAO = ['Falha operacional','Veículo quebrado','Cancelamento pelo Detran','Outro'];
+var STATUS_ENTRADA = ['Planejado','Realizado','Interrompido'];
+var MOTIVOS_INDISPONIVEL = ['Manutenção / quebra','Revisão programada','Acidente','Documentação vencida','Em deslocamento para outra cidade','Outro'];
+
+/* ---------------- estado ---------------- */
+var state = {
+  chamados: [],
+  planejamento: [],
+  semanas: [],
+  veiculos: [],
+  catLabels: Object.assign({}, DEFAULT_CAT_LABELS),
+  perfil: null,
+  activeTab: 'overview',
+  filtros: {polo:'', cidade:'', categoria:'', status:'', tipoProblema:'', q:''},
+  draftChamado: {polo:'', cidade:'', categoria:'A', tipoProblema:'', prioridade:'Média', titulo:'', descricao:''},
+  diarios: [],
+  mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
+  draftWeek: {label:'', inicio:'', fim:''},
+  formOpen: false,
+  alertasFechados: false
+};
+window.state = state;
+
+/* ====================================================================
+   SUPABASE — credenciais lidas do localStorage (configuradas na tela)
+==================================================================== */
+var SUPA_URL = '';
+var SUPA_KEY  = '';
+var sb = null;
+
+function loadSupaCredentials(){
+  try{
+    SUPA_URL = localStorage.getItem('painelpe_supa_url') || '';
+    SUPA_KEY  = localStorage.getItem('painelpe_supa_key') || '';
+  }catch(e){}
+}
+
+var _supaLastUrl = '';
+var _supaLastKey = '';
+
+function initSupaClient(){
+  if(!SUPA_URL || !SUPA_KEY) return;
+  // Já existe um cliente com as mesmas credenciais — reutiliza
+  if(sb && SUPA_URL === _supaLastUrl && SUPA_KEY === _supaLastKey) return;
+  if(window.supabase && window.supabase.createClient){
+    try{
+      sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+      });
+      _supaLastUrl = SUPA_URL;
+      _supaLastKey = SUPA_KEY;
+    }
+    catch(e){ sb = null; }
+  }
+}
+
+function supabaseConfigured(){ return !!(SUPA_URL && SUPA_KEY && sb); }
+
+/* ---------------- storage helpers (Supabase → localStorage) ---------------- */
+var LS_PREFIX = 'painelpe_';
+
+async function storageGet(key, shared){
+  if(shared && supabaseConfigured()){
+    try{
+      var res = await sb.from('kv_store').select('value').eq('key', key).maybeSingle();
+      if(res.error) throw res.error;
+      return res.data ? res.data.value : null;
+    }catch(e){ console.error('storageGet', e); return null; }
+  }
+  try{ var raw = localStorage.getItem(LS_PREFIX + key); return raw === null ? null : raw; }
+  catch(e){ return null; }
+}
+
+async function storageSet(key, value, shared){
+  if(shared && supabaseConfigured()){
+    try{
+      var res = await sb.from('kv_store').upsert({key:key, value:value, updated_at: new Date().toISOString()},{onConflict:'key'});
+      if(res.error) throw res.error;
+      return true;
+    }catch(e){ console.error('storageSet', e); showToast('Erro ao salvar no banco. Verifique as credenciais.'); return false; }
+  }
+  try{ localStorage.setItem(LS_PREFIX + key, value); return true; }
+  catch(e){ showToast('Não foi possível salvar neste navegador.'); return false; }
+}
+
+function showToast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+/* ---------------- init ---------------- */
+async function init(){
+  loadSupaCredentials();
+  initSupaClient();
+
+  var [ch, pl, cl, pf, sm, vc, di] = await Promise.all([
+    storageGet('chamados-lista', true),
+    storageGet('planejamento-lista', true),
+    storageGet('categoria-labels', true),
+    storageGet('meu-perfil', false),
+    storageGet('semanas-lista', true),
+    storageGet('veiculos-lista', true),
+    storageGet('diarios-lista', true)
+  ]);
+
+  state.chamados = ch ? JSON.parse(ch) : [];
+  state.catLabels = cl ? JSON.parse(cl) : Object.assign({}, DEFAULT_CAT_LABELS);
+  state.semanas = sm ? JSON.parse(sm) : [];
+  state.veiculos = vc ? JSON.parse(vc) : [];
+  state.diarios = di ? JSON.parse(di) : [];
+
+  if(pl){
+    state.planejamento = JSON.parse(pl);
+  } else {
+    state.planejamento = TODAS_CIDADES.map(function(c){
+      var p = CIDADE_POLO[c];
+      return {cidade:c, poloId:p.id, poloNome:p.nome+' — '+p.regiao, responsavel:'', papel:'', metaMensal:0, diasPrevistos:'', qtdRealizada:0, status:'Planejado', observacoes:'', atualizadoPor:'', atualizadoEm:''};
+    });
+    await storageSet('planejamento-lista', JSON.stringify(state.planejamento), true);
+  }
+
+  state.perfil = pf ? JSON.parse(pf) : null;
+
+  document.getElementById('loading').style.display='none';
+  document.getElementById('shell').style.display='block';
+
+  if(!state.perfil){ renderLogin(); }
+  else { renderShellForUser(); }
+}
+
+/* ---------------- login / perfil ---------------- */
+function renderLogin(){
+  document.getElementById('navBar').innerHTML='';
+  document.getElementById('tabContent').innerHTML =
+    '<div class="login-wrap"><div class="login-card">'+
+      '<div class="badge-top dsp">PE</div>'+
+      '<h2 class="dsp">Identifique-se</h2>'+
+      '<p>Seu nome e perfil ficam registrados nos chamados e no planejamento que você atualizar.</p>'+
+      '<label>Seu nome</label>'+
+      '<input id="loginNome" type="text" placeholder="Ex: Maria Souza">'+
+      '<label>Perfil</label>'+
+      '<select id="loginPapel">'+ PAPEIS.map(function(p){return '<option value="'+p+'">'+p+'</option>';}).join('') +'</select>'+
+      '<button class="btn btn-primary" style="width:100%;margin-top:18px;" onclick="window.__entrar()">Entrar no painel</button>'+
+    '</div></div>';
+  document.getElementById('profileBox').innerHTML='';
+}
+
+window.__entrar = async function(){
+  var nome = document.getElementById('loginNome').value.trim();
+  var papel = document.getElementById('loginPapel').value;
+  if(!nome){ showToast('Digite seu nome para continuar.'); return; }
+  state.perfil = {nome:nome, papel:papel};
+  await storageSet('meu-perfil', JSON.stringify(state.perfil), false);
+  renderShellForUser();
+};
+
+window.__trocarPerfil = function(){
+  state.perfil = null;
+  renderLogin();
+};
+
+function renderShellForUser(){
+  renderProfileBox();
+  renderNav();
+  renderConfigBanner();
+  setTab('overview');
+}
+
+function renderConfigBanner(){
+  var el = document.getElementById('configBanner');
+  if(supabaseConfigured()){
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = '<div style="margin:14px 20px 0;background:#fff;border:2px dashed var(--amber);border-radius:14px;padding:16px 18px;">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'+
+      '<div>'+
+        '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:14px;color:var(--amber-dk);">⚠️ Banco compartilhado não configurado</div>'+
+        '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">Dados salvos só neste navegador. Configure o Supabase para sincronizar com todos os computadores.</div>'+
+      '</div>'+
+      '<button class="btn btn-amber" onclick="window.__showSetupModal()">Configurar agora</button>'+
+    '</div>'+
+  '</div>';
+}
+
+window.__showSetupModal = function(){
+  var el = document.getElementById('configBanner');
+  el.innerHTML = '<div style="margin:14px 20px 0;background:#fff;border:2px solid var(--teal);border-radius:14px;padding:18px 20px;">'+
+    '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:15px;margin-bottom:4px;">🔌 Conectar ao Supabase</div>'+
+    '<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;">Cole as informações do seu projeto Supabase abaixo. Você encontra tudo em <b>Project Settings → API</b> no site supabase.com.</div>'+
+    '<div style="display:grid;gap:8px;grid-template-columns:1fr 1fr;">'+
+      '<label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:700;color:var(--ink-soft);">Project URL<input id="supa-url-input" type="text" placeholder="https://xyzabcd.supabase.co" style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;" value="'+esc(SUPA_URL)+'"></label>'+
+      '<label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:700;color:var(--ink-soft);">anon / public key<input id="supa-key-input" type="text" placeholder="eyJhbGciOiJIUzI1N..." style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;" value="'+esc(SUPA_KEY)+'"></label>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center;">'+
+      '<button class="btn btn-primary" onclick="window.__salvarSupaConfig()">Salvar e conectar</button>'+
+      '<button class="btn btn-ghost" onclick="window.__fecharSetup()">Cancelar</button>'+
+      '<span style="font-size:11.5px;color:var(--ink-soft);">Ainda não tem conta? <a href="https://supabase.com" target="_blank" style="color:var(--teal);">Criar conta gratuita →</a></span>'+
+    '</div>'+
+  '</div>';
+};
+
+window.__fecharSetup = function(){
+  renderConfigBanner();
+};
+
+window.__salvarSupaConfig = async function(){
+  var url = (document.getElementById('supa-url-input').value || '').trim();
+  var key = (document.getElementById('supa-key-input').value || '').trim();
+  if(!url || !key){ showToast('Preencha os dois campos.'); return; }
+  if(!url.startsWith('https://')){ showToast('A URL deve começar com https://'); return; }
+  try{
+    localStorage.setItem('painelpe_supa_url', url);
+    localStorage.setItem('painelpe_supa_key', key);
+  }catch(e){}
+  SUPA_URL = url; SUPA_KEY = key;
+  initSupaClient();
+  if(!sb){ showToast('Não foi possível iniciar o cliente Supabase. Verifique os dados.'); return; }
+  showToast('Conectando ao banco…');
+  // test connection
+  try{
+    var test = await sb.from('kv_store').select('key').limit(1);
+    if(test.error) throw test.error;
+  }catch(e){
+    showToast('Erro ao conectar: ' + (e.message||'verifique URL e chave'));
+    return;
+  }
+  showToast('Conectado! Sincronizando dados…');
+  renderConfigBanner();
+  renderProfileBox();
+  startAutoSync();
+  await window.__sincronizar(true);
+  showToast('✅ Banco conectado com sucesso!');
+};
+
+function renderProfileBox(){
+  var iniciais = state.perfil.nome.trim().split(/\s+/).map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
+  var syncBtn = supabaseConfigured()
+    ? '<button class="lnk-btn" style="text-decoration:none;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:30px;padding:6px 12px;font-size:12px;" onclick="window.__sincronizar()">🔄 Sincronizar</button>'
+    : '<button class="lnk-btn" style="text-decoration:none;background:var(--amber);color:var(--teal-dk);border-radius:30px;padding:6px 12px;font-size:12px;border:none;" onclick="window.__showSetupModal()">🔌 Configurar banco</button>';
+  document.getElementById('profileBox').innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;">'+ syncBtn +
+    '<div class="profile">'+
+      '<div class="who"><b>'+esc(state.perfil.nome)+'</b>'+esc(state.perfil.papel)+'</div>'+
+      '<div class="avatar">'+iniciais+'</div>'+
+    '</div></div>'+
+    '<div style="text-align:right;margin-top:4px;"><button class="lnk-btn" onclick="window.__trocarPerfil()">trocar perfil</button></div>';
+}
+
+function startAutoSync(){
+  if(window._autoSyncInterval) clearInterval(window._autoSyncInterval);
+  if(!supabaseConfigured()) return;
+  window._autoSyncInterval = setInterval(function(){
+    if(state.perfil && !state.formOpen && document.visibilityState==='visible'){
+      window.__sincronizar(true);
+    }
+  }, 30000);
+}
+
+window.__sincronizar = async function(silent){
+  if(!silent) showToast('Sincronizando com o banco…');
+  var [ch, pl, cl, sm, vc, di] = await Promise.all([
+    storageGet('chamados-lista', true),
+    storageGet('planejamento-lista', true),
+    storageGet('categoria-labels', true),
+    storageGet('semanas-lista', true),
+    storageGet('veiculos-lista', true),
+    storageGet('diarios-lista', true)
+  ]);
+  if(ch) state.chamados = JSON.parse(ch);
+  if(pl) state.planejamento = JSON.parse(pl);
+  if(cl) state.catLabels = JSON.parse(cl);
+  if(sm) state.semanas = JSON.parse(sm);
+  if(vc) state.veiculos = JSON.parse(vc);
+  if(di) state.diarios = JSON.parse(di);
+  if(!silent) showToast('Dados atualizados.');
+  setTab(state.activeTab);
+};
+if(sb){
+  setInterval(function(){
+    if(state.perfil && !state.formOpen && document.visibilityState==='visible'){ window.__sincronizar(true); }
+  }, 25000);
+}
+
+/* ---------------- nav ---------------- */
+var TABS = [
+  {id:'overview', label:'Visão geral'},
+  {id:'mapa', label:'Mapa & Polos'},
+  {id:'agenda', label:'Agenda semanal'},
+  {id:'chamados', label:'Chamados'},
+  {id:'planejamento', label:'Planejamento'},
+  {id:'veiculos', label:'Veículos'}
+];
+function renderNav(){
+  document.getElementById('navBar').innerHTML = TABS.map(function(t){
+    return '<button id="navbtn-'+t.id+'" onclick="window.__setTab(\''+t.id+'\')">'+t.label+'</button>';
+  }).join('');
+}
+window.__setTab = function(id){ setTab(id); };
+function setTab(id){
+  state.activeTab = id;
+  TABS.forEach(function(t){
+    document.getElementById('navbtn-'+t.id).className = (t.id===id?'active':'');
+  });
+  if(id==='overview') renderOverview();
+  else if(id==='mapa') renderMapa();
+  else if(id==='agenda') renderAgendaTab();
+  else if(id==='chamados') renderChamadosTab();
+  else if(id==='planejamento') renderPlanejamentoTab();
+  else if(id==='veiculos') renderVeiculosTab();
+}
+
+/* ---------------- util ---------------- */
+function esc(s){ return (s||'').toString().replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function nowStr(){ var d=new Date(); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function genId(){ return 'CH'+Date.now().toString(36).toUpperCase().slice(-5)+Math.random().toString(36).slice(2,4).toUpperCase(); }
+function isOpenStatus(s){ return s==='Aberto' || s==='Em andamento'; }
+function statusPillClass(s){
+  if(s==='Aberto') return 'red'; if(s==='Em andamento') return 'amber';
+  if(s==='Resolvido') return 'green'; return 'gray';
+}
+function prioridadePillClass(p){
+  if(p==='Crítica') return 'red'; if(p==='Alta') return 'amber'; if(p==='Média') return 'teal'; return 'gray';
+}
+function planStatusClass(s){
+  if(s==='Atrasado') return 'red'; if(s==='Em execução') return 'amber'; if(s==='Concluído') return 'green'; return 'gray';
+}
+function catLabel(k){ return state.catLabels[k] || DEFAULT_CAT_LABELS[k]; }
+function selectOptions(arr, current){
+  return arr.map(function(v){ return '<option value="'+esc(v)+'"'+(v===current?' selected':'')+'>'+esc(v)+'</option>'; }).join('');
+}
+var SLA_HORAS = {'Crítica':6,'Alta':24,'Média':48,'Baixa':72};
+function isAtrasado(c){
+  if(!isOpenStatus(c.status)) return false;
+  if(!c.criadoTs) return false;
+  var sla = SLA_HORAS[c.prioridade] || 48;
+  return (Date.now() - c.criadoTs) > sla*3600*1000;
+}
+function horasAberto(c){
+  if(!c.criadoTs) return 0;
+  return Math.floor((Date.now()-c.criadoTs)/3600000);
+}
+function chamadosAtrasados(){ return state.chamados.filter(isAtrasado); }
+function renderAlertBanner(){
+  var atrasados = chamadosAtrasados();
+  if(!atrasados.length || state.alertasFechados) return '';
+  var amostra = atrasados.slice(0,3);
+  return '<div class="alert-banner">⚠️ '+
+    '<div><b>'+atrasados.length+' chamado(s) sem atendimento dentro do prazo.</b>'+
+    '<div style="font-weight:400;margin-top:2px;">'+ amostra.map(function(c){return esc(c.titulo)+' — '+esc(c.cidade)+' ('+horasAberto(c)+'h aberto)';}).join(' · ') + (atrasados.length>3?' e mais '+(atrasados.length-3)+'…':'') +'</div></div>'+
+    '<button class="x" onclick="window.__irParaAtrasados()">ver chamados</button>'+
+    '<button class="x" onclick="window.__fecharAlerta()">ocultar</button>'+
+  '</div>';
+}
+window.__fecharAlerta = function(){ state.alertasFechados = true; if(state.activeTab==='overview') renderOverview(); };
+window.__irParaAtrasados = function(){
+  state.filtros = {polo:'', cidade:'', categoria:'', status:'', tipoProblema:'', q:''};
+  setTab('chamados');
+};
+
+/* ===================================================================
+   VISÃO GERAL
+=================================================================== */
+function renderOverview(){
+  var total = state.chamados.length;
+  var aberto = state.chamados.filter(function(c){return c.status==='Aberto';}).length;
+  var andamento = state.chamados.filter(function(c){return c.status==='Em andamento';}).length;
+  var resolvido = state.chamados.filter(function(c){return c.status==='Resolvido';}).length;
+
+  var porPolo = POLOS.map(function(p){
+    var n = state.chamados.filter(function(c){return c.poloId===p.id && isOpenStatus(c.status);}).length;
+    return {label:p.nome+' · '+p.regiao, n:n};
+  });
+  var maxPolo = Math.max(1, porPolo.reduce(function(m,x){return Math.max(m,x.n);},0));
+
+  var porCat = CAT_KEYS.map(function(k){
+    var n = state.chamados.filter(function(c){return c.categoria===k && isOpenStatus(c.status);}).length;
+    return {label:catLabel(k), n:n};
+  });
+  var maxCat = Math.max(1, porCat.reduce(function(m,x){return Math.max(m,x.n);},0));
+
+  var porTipo = TIPOS_PROBLEMA.map(function(t){
+    var n = state.chamados.filter(function(c){return c.tipoProblema===t && isOpenStatus(c.status);}).length;
+    return {label:t, n:n};
+  }).filter(function(x){return x.n>0;});
+  var maxTipo = Math.max(1, porTipo.reduce(function(m,x){return Math.max(m,x.n);},0));
+
+  var totalVeiculos = state.veiculos.length;
+  var veiculosDisponiveis = state.veiculos.filter(function(v){return v.status==='Disponível';}).length;
+
+  var cidadesComPlanoOk = state.planejamento.filter(function(p){return p.status==='Concluído' || p.status==='Em execução';}).length;
+  var cidadesAtrasadas = state.planejamento.filter(function(p){return p.status==='Atrasado';}).length;
+
+  var recentes = state.chamados.slice().sort(function(a,b){return (b.atualizadoEm||'').localeCompare(a.atualizadoEm||'');}).slice(0,5);
+
+  var html = renderAlertBanner();
+  html += '<div class="grid kpis">'+
+    '<div class="card kpi"><div class="num">'+total+'</div><div class="lbl">Chamados no total</div></div>'+
+    '<div class="card kpi aberto"><div class="num">'+aberto+'</div><div class="lbl">Abertos</div></div>'+
+    '<div class="card kpi andamento"><div class="num">'+andamento+'</div><div class="lbl">Em andamento</div></div>'+
+    '<div class="card kpi resolvido"><div class="num">'+resolvido+'</div><div class="lbl">Resolvidos</div></div>'+
+    '<div class="card kpi" style="border-left-color:var(--green);"><div class="num">'+veiculosDisponiveis+'<span style="font-size:15px;color:var(--ink-soft);"> / '+totalVeiculos+'</span></div><div class="lbl">Veículos disponíveis</div></div>'+
+  '</div>';
+
+  html += '<div class="grid two-col">';
+  html += '<div class="card">'+
+    '<div class="section-title">📍 Chamados em aberto por polo</div>'+
+    '<div class="bars">'+ porPolo.map(function(x){
+      return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxPolo*100)+'%;background:var(--teal);"></div></div><span class="mono">'+x.n+'</span></div>';
+    }).join('') + '</div></div>';
+  html += '<div class="card">'+
+    '<div class="section-title">🏷️ Chamados em aberto por categoria</div>'+
+    '<div class="bars">'+ porCat.map(function(x){
+      return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxCat*100)+'%;background:var(--amber);"></div></div><span class="mono">'+x.n+'</span></div>';
+    }).join('') + '</div></div>';
+  html += '</div>';
+
+  html += '<div class="grid two-col" style="margin-top:14px;">';
+  html += '<div class="card">'+
+    '<div class="section-title">🛠️ Chamados em aberto por tipo de problema</div>'+
+    (porTipo.length ? '<div class="bars">'+ porTipo.map(function(x){
+      return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxTipo*100)+'%;background:var(--red);"></div></div><span class="mono">'+x.n+'</span></div>';
+    }).join('') + '</div>' : '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum chamado em aberto com tipo de problema definido.</div>')+
+  '</div>';
+  html += '<div class="card">'+
+    '<div class="section-title">🚐 Frota por status</div>'+
+    '<div class="bars">'+
+      '<div class="bar-row"><span>Disponíveis</span><div class="bar-track"><div class="bar-fill" style="width:'+(totalVeiculos? veiculosDisponiveis/totalVeiculos*100:0)+'%;background:var(--green);"></div></div><span class="mono">'+veiculosDisponiveis+'</span></div>'+
+      '<div class="bar-row"><span>Indisponíveis</span><div class="bar-track"><div class="bar-fill" style="width:'+(totalVeiculos? (totalVeiculos-veiculosDisponiveis)/totalVeiculos*100:0)+'%;background:var(--red);"></div></div><span class="mono">'+(totalVeiculos-veiculosDisponiveis)+'</span></div>'+
+    '</div>'+
+    (function(){
+      var indisponiveis = state.veiculos.filter(function(v){ return v.status==='Indisponível'; });
+      if(!indisponiveis.length) return '<div style="font-size:12px;color:var(--green);margin-top:10px;font-weight:600;">✅ Todos os veículos disponíveis</div>';
+      // agrupar por cidade
+      var porCidade = {};
+      indisponiveis.forEach(function(v){
+        if(!porCidade[v.cidade]) porCidade[v.cidade] = [];
+        porCidade[v.cidade].push(v);
+      });
+      var html2 = '<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px;">';
+      html2 += '<div style="font-size:11.5px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Veículos indisponíveis por cidade</div>';
+      Object.keys(porCidade).sort().forEach(function(cidade){
+        var lista = porCidade[cidade];
+        var polo = CIDADE_POLO[cidade];
+        // agrupar por categoria dentro da cidade
+        var porCat = {};
+        lista.forEach(function(v){
+          if(!porCat[v.categoria]) porCat[v.categoria] = [];
+          porCat[v.categoria].push(v);
+        });
+        html2 += '<div style="background:var(--red-soft);border:1px solid #E8B6AC;border-radius:10px;padding:8px 10px;margin-bottom:7px;">';
+        html2 += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">';
+        html2 += '<span style="font-weight:700;font-size:13px;">'+esc(cidade)+'</span>';
+        html2 += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(polo.nome)+' · <b style="color:var(--red);">'+lista.length+' indisponível(eis)</b></span>';
+        html2 += '</div>';
+        html2 += '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+        Object.keys(porCat).sort().forEach(function(cat){
+          var veics = porCat[cat];
+          var motivos = [...new Set(veics.map(function(v){ return v.motivo||'motivo não informado'; }))].join(', ');
+          html2 += '<span title="'+esc(motivos)+'" style="background:#fff;border:1px solid #E8B6AC;border-radius:7px;padding:3px 8px;font-size:11.5px;font-weight:700;color:var(--red);">'+
+            esc(catLabel(cat))+': <span style="font-family:\'IBM Plex Mono\',monospace;">'+veics.length+'</span>'+
+            ' <span style="font-weight:400;color:var(--ink-soft);font-size:10.5px;">— '+esc(motivos)+'</span></span>';
+        });
+        html2 += '</div></div>';
+      });
+      html2 += '</div>';
+      return html2;
+    })()+
+    '<button class="btn btn-ghost" style="margin-top:10px;" onclick="window.__setTab(\'veiculos\')">Ver frota completa →</button>'+
+  '</div>';
+  html += '</div>';
+
+  html += '<div class="grid two-col" style="margin-top:14px;">';
+  html += '<div class="card">'+
+    '<div class="section-title">🕒 Atividade recente</div>'+
+    (recentes.length? recentes.map(function(c){
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;">'+
+        '<span class="pill '+statusPillClass(c.status)+'">'+esc(c.status)+'</span> '+
+        '<b>'+esc(c.titulo)+'</b> <span style="color:var(--ink-soft);">— '+esc(c.cidade)+'</span>'+
+        '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">'+esc(c.atualizadoEm||c.criadoEm)+'</div></div>';
+    }).join('') : '<div class="empty"><b>Sem atividade ainda.</b>Abra o primeiro chamado na aba Chamados para começar.</div>')+
+  '</div>';
+  html += '<div class="card">'+
+    '<div class="section-title">🗺️ Planejamento operacional</div>'+
+    '<div class="bars">'+
+      '<div class="bar-row"><span>Cidades em dia</span><div class="bar-track"><div class="bar-fill" style="width:'+(cidadesComPlanoOk/18*100)+'%;background:var(--green);"></div></div><span class="mono">'+cidadesComPlanoOk+'/18</span></div>'+
+      '<div class="bar-row"><span>Cidades atrasadas</span><div class="bar-track"><div class="bar-fill" style="width:'+(cidadesAtrasadas/18*100)+'%;background:var(--red);"></div></div><span class="mono">'+cidadesAtrasadas+'/18</span></div>'+
+    '</div>'+
+    '<button class="btn btn-ghost" style="margin-top:12px;" onclick="window.__setTab(\'planejamento\')">Ver planejamento completo →</button>'+
+  '</div>';
+  html += '</div>';
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+/* ===================================================================
+   MAPA & POLOS
+=================================================================== */
+function renderMapa(){
+  var html = '<div class="card" style="margin-bottom:16px;">'+
+    '<div class="section-title">🏷️ Nomes das categorias de exame</div>'+
+    '<div class="cat-edit-row">'+ CAT_KEYS.map(function(k){
+      return '<input id="catinput-'+k+'" value="'+esc(catLabel(k))+'" onchange="window.__saveCatLabel(\''+k+'\', this.value)">';
+    }).join('') + '</div>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);">Ajuste os nomes acima conforme as categorias usadas na sua operação. A mudança vale para todos.</div>'+
+  '</div>';
+
+  html += '<div class="polos-grid">';
+  POLOS.forEach(function(p){
+    html += '<div class="polo-card"><div class="polo-sign">🛣️ '+esc(p.nome)+' — '+esc(p.regiao)+'</div><div class="polo-body">';
+    p.cidades.forEach(function(c){
+      var abertos = state.chamados.filter(function(x){return x.cidade===c && isOpenStatus(x.status);});
+      var criticos = abertos.filter(function(x){return x.prioridade==='Crítica';}).length;
+      var dot = criticos>0 ? 'var(--red)' : (abertos.length>0 ? 'var(--amber)' : 'var(--green)');
+      html += '<button class="city-pin" onclick="window.__filtrarCidade(\''+c.replace(/'/g,"\\'")+'\')">'+
+        '<span class="pin-dot" style="background:'+dot+';"></span>'+
+        '<span class="pin-name">'+esc(c)+'</span>'+
+        '<span class="pin-count">'+abertos.length+' aberto(s)</span>'+
+      '</button>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+window.__saveCatLabel = async function(k, val){
+  state.catLabels[k] = val || DEFAULT_CAT_LABELS[k];
+  await storageSet('categoria-labels', JSON.stringify(state.catLabels), true);
+  showToast('Nome da categoria atualizado.');
+};
+
+window.__filtrarCidade = function(cidade){
+  state.filtros = {polo:CIDADE_POLO[cidade].id, cidade:cidade, categoria:'', status:'', q:''};
+  setTab('chamados');
+};
+
+/* ===================================================================
+   CHAMADOS
+=================================================================== */
+function renderChamadosTab(){
+  var f = state.filtros;
+  var cidadesDisponiveis = f.polo ? POLOS.filter(function(p){return p.id===f.polo;})[0].cidades : TODAS_CIDADES;
+
+  var html = '<div class="filters">'+
+    '<select id="flt-polo" onchange="window.__setFiltro(\'polo\', this.value)">'+
+      '<option value="">Todos os polos</option>'+
+      POLOS.map(function(p){return '<option value="'+p.id+'"'+(p.id===f.polo?' selected':'')+'>'+esc(p.nome)+' — '+esc(p.regiao)+'</option>';}).join('')+
+    '</select>'+
+    '<select id="flt-cidade" onchange="window.__setFiltro(\'cidade\', this.value)">'+
+      '<option value="">Todas as cidades</option>'+
+      cidadesDisponiveis.map(function(c){return '<option value="'+esc(c)+'"'+(c===f.cidade?' selected':'')+'>'+esc(c)+'</option>';}).join('')+
+    '</select>'+
+    '<select id="flt-cat" onchange="window.__setFiltro(\'categoria\', this.value)">'+
+      '<option value="">Todas as categorias</option>'+
+      CAT_KEYS.map(function(k){return '<option value="'+k+'"'+(k===f.categoria?' selected':'')+'>'+esc(catLabel(k))+'</option>';}).join('')+
+    '</select>'+
+    '<select id="flt-status" onchange="window.__setFiltro(\'status\', this.value)">'+
+      '<option value="">Todos os status</option>'+
+      STATUS_CHAMADO.map(function(s){return '<option value="'+s+'"'+(s===f.status?' selected':'')+'>'+esc(s)+'</option>';}).join('')+
+    '</select>'+
+    '<select id="flt-tipo" onchange="window.__setFiltro(\'tipoProblema\', this.value)">'+
+      '<option value="">Todos os tipos de problema</option>'+
+      TIPOS_PROBLEMA.map(function(t){return '<option value="'+t+'"'+(t===f.tipoProblema?' selected':'')+'>'+esc(t)+'</option>';}).join('')+
+    '</select>'+
+    '<input id="flt-q" type="text" placeholder="Buscar por título… (Enter)" value="'+esc(f.q)+'" onkeyup="if(event.key===\'Enter\')window.__setFiltro(\'q\', this.value)">'+
+    '<button class="btn btn-ghost" onclick="window.__limparFiltros()">Limpar filtros</button>'+
+    '<button class="btn btn-amber" style="margin-left:auto;" onclick="window.__exportarChamados()">⬇ Exportar CSV</button>'+
+    '<button class="btn btn-primary" onclick="window.__toggleForm()">+ Abrir chamado</button>'+
+  '</div>';
+
+  html += '<div class="card form-card'+(state.formOpen?' open':'')+'" id="formCard">'+
+    '<div class="section-title">Novo chamado</div>'+
+    '<div class="form-grid">'+
+      '<label>Polo<select id="f-polo" onchange="window.__draftPolo(this.value)">'+
+        '<option value="">Selecione</option>'+ POLOS.map(function(p){return '<option value="'+p.id+'"'+(p.id===state.draftChamado.polo?' selected':'')+'>'+esc(p.nome)+' — '+esc(p.regiao)+'</option>';}).join('') +
+      '</select></label>'+
+      '<label>Cidade<select id="f-cidade" oninput="state.draftChamado.cidade=this.value">'+
+        '<option value="">Selecione</option>'+ (state.draftChamado.polo ? POLOS.filter(function(p){return p.id===state.draftChamado.polo;})[0].cidades : TODAS_CIDADES).map(function(c){return '<option value="'+esc(c)+'"'+(c===state.draftChamado.cidade?' selected':'')+'>'+esc(c)+'</option>';}).join('') +
+      '</select></label>'+
+      '<label>Categoria de exame<select id="f-cat" oninput="state.draftChamado.categoria=this.value">'+
+        CAT_KEYS.map(function(k){return '<option value="'+k+'"'+(k===state.draftChamado.categoria?' selected':'')+'>'+esc(catLabel(k))+'</option>';}).join('') +
+      '</select></label>'+
+      '<label>Tipo de problema<select id="f-tipo" oninput="state.draftChamado.tipoProblema=this.value">'+
+        '<option value="">Selecione</option>'+ TIPOS_PROBLEMA.map(function(t){return '<option value="'+t+'"'+(t===state.draftChamado.tipoProblema?' selected':'')+'>'+esc(t)+'</option>';}).join('') +
+      '</select></label>'+
+      '<label>Prioridade<select id="f-prio" oninput="state.draftChamado.prioridade=this.value">'+
+        PRIORIDADES.map(function(p){return '<option value="'+p+'"'+(p===state.draftChamado.prioridade?' selected':'')+'>'+esc(p)+'</option>';}).join('') +
+      '</select></label>'+
+      '<label class="full">Título<input id="f-titulo" type="text" placeholder="Ex: Falta de material para exames categoria B" value="'+esc(state.draftChamado.titulo)+'" oninput="state.draftChamado.titulo=this.value"></label>'+
+      '<label class="full">Descrição<textarea id="f-desc" placeholder="Detalhe o que está acontecendo…" oninput="state.draftChamado.descricao=this.value">'+esc(state.draftChamado.descricao)+'</textarea></label>'+
+    '</div>'+
+    '<button class="btn btn-primary" onclick="window.__criarChamado()">Abrir chamado</button> '+
+    '<button class="btn btn-ghost" onclick="window.__toggleForm()">Cancelar</button>'+
+  '</div>';
+
+  html += '<div id="chamadosList"></div>';
+
+  document.getElementById('tabContent').innerHTML = html;
+  renderChamadosList();
+}
+
+function filteredChamados(){
+  var f = state.filtros;
+  return state.chamados.filter(function(c){
+    if(f.polo && c.poloId!==f.polo) return false;
+    if(f.cidade && c.cidade!==f.cidade) return false;
+    if(f.categoria && c.categoria!==f.categoria) return false;
+    if(f.status && c.status!==f.status) return false;
+    if(f.tipoProblema && c.tipoProblema!==f.tipoProblema) return false;
+    if(f.q && c.titulo.toLowerCase().indexOf(f.q.toLowerCase())===-1) return false;
+    return true;
+  }).sort(function(a,b){ return (b.criadoEm||'').localeCompare(a.criadoEm||''); });
+}
+
+function renderChamadosList(){
+  var list = filteredChamados();
+  var el = document.getElementById('chamadosList');
+  if(!list.length){
+    el.innerHTML = '<div class="empty card"><b>Nenhum chamado por aqui.</b>'+
+      (state.chamados.length? 'Ajuste os filtros ou limpe-os para ver outros chamados.' : 'Abra o primeiro chamado para começar a acompanhar a operação.')+
+    '</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(c){
+    return '<div class="ticket">'+
+      '<div class="ticket-top">'+
+        '<div><div class="ticket-id mono">'+c.id+'</div><div class="ticket-title">'+esc(c.titulo)+'</div>'+
+        '<div class="ticket-meta">'+
+          '<span class="pill teal">'+esc(c.cidade)+'</span>'+
+          '<span class="pill gray">'+esc(catLabel(c.categoria))+'</span>'+
+          (c.tipoProblema ? '<span class="pill amber">'+esc(c.tipoProblema)+'</span>' : '')+
+          '<span class="pill '+prioridadePillClass(c.prioridade)+'">'+esc(c.prioridade)+'</span>'+
+          (isAtrasado(c) ? '<span class="pill red">⏰ atrasado · '+horasAberto(c)+'h</span>' : '')+
+        '</div></div>'+
+        '<select class="status-select" style="color:'+ (c.status==='Aberto'?'var(--red)':c.status==='Em andamento'?'var(--amber-dk)':c.status==='Resolvido'?'#2E6B49':'var(--ink-soft)') +';" onchange="window.__mudarStatus(\''+c.id+'\', this.value)">'+
+          STATUS_CHAMADO.map(function(s){return '<option value="'+s+'"'+(s===c.status?' selected':'')+'>'+esc(s)+'</option>';}).join('')+
+        '</select>'+
+      '</div>'+
+      (c.descricao? '<div class="ticket-desc">'+esc(c.descricao)+'</div>' : '')+
+      '<div class="ticket-actions">'+
+        '<span style="font-size:11.5px;color:var(--ink-soft);">aberto por '+esc(c.responsavelNome)+' ('+esc(c.responsavelPapel)+') em '+esc(c.criadoEm)+'</span>'+
+        '<button class="icon-btn" onclick="window.__excluirChamado(\''+c.id+'\')">excluir</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+window.__setFiltro = function(key, val){
+  state.filtros[key] = val;
+  if(key==='polo') state.filtros.cidade='';
+  if(state.activeTab==='chamados'){
+    if(key==='polo'){ renderChamadosTab(); } else { renderChamadosList(); }
+  }
+};
+window.__limparFiltros = function(){
+  state.filtros = {polo:'', cidade:'', categoria:'', status:'', tipoProblema:'', q:''};
+  renderChamadosTab();
+};
+window.__toggleForm = function(){
+  state.formOpen = !state.formOpen;
+  document.getElementById('formCard').className = 'card form-card'+(state.formOpen?' open':'');
+};
+window.__draftPolo = function(val){
+  state.draftChamado.polo = val;
+  state.draftChamado.cidade = '';
+  renderChamadosTab();
+  state.formOpen = true;
+  document.getElementById('formCard').className = 'card form-card open';
+};
+
+window.__criarChamado = async function(){
+  var d = state.draftChamado;
+  if(!d.polo || !d.cidade){ showToast('Selecione o polo e a cidade.'); return; }
+  if(!d.titulo.trim()){ showToast('Dê um título ao chamado.'); return; }
+  if(!d.tipoProblema){ showToast('Selecione o tipo de problema.'); return; }
+  var novo = {
+    id: genId(), polo:d.polo, poloId:d.polo, cidade:d.cidade, categoria:d.categoria, tipoProblema:d.tipoProblema,
+    prioridade:d.prioridade, titulo:d.titulo.trim(), descricao:d.descricao.trim(),
+    status:'Aberto', responsavelNome:state.perfil.nome, responsavelPapel:state.perfil.papel,
+    criadoEm:nowStr(), atualizadoEm:nowStr(), criadoTs:Date.now()
+  };
+  state.chamados.unshift(novo);
+  await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
+  state.draftChamado = {polo:'', cidade:'', categoria:'A', tipoProblema:'', prioridade:'Média', titulo:'', descricao:''};
+  state.formOpen = false;
+  showToast('Chamado '+novo.id+' aberto.');
+  renderChamadosTab();
+};
+
+window.__mudarStatus = async function(id, novoStatus){
+  var c = state.chamados.filter(function(x){return x.id===id;})[0];
+  if(!c) return;
+  c.status = novoStatus;
+  c.atualizadoEm = nowStr();
+  c.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
+  showToast('Status atualizado para "'+novoStatus+'".');
+  renderChamadosList();
+};
+
+window.__excluirChamado = async function(id){
+  if(!confirm('Excluir este chamado? Essa ação não pode ser desfeita.')) return;
+  state.chamados = state.chamados.filter(function(x){return x.id!==id;});
+  await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
+  showToast('Chamado excluído.');
+  renderChamadosList();
+};
+
+window.__exportarChamados = function(){
+  var rows = [['ID','Título','Cidade','Polo','Categoria','Tipo de problema','Prioridade','Status','Responsável','Papel','Criado em','Atualizado em','Descrição']];
+  filteredChamados().forEach(function(c){
+    rows.push([c.id,c.titulo,c.cidade,CIDADE_POLO[c.cidade].nome,catLabel(c.categoria),c.tipoProblema||'',c.prioridade,c.status,c.responsavelNome,c.responsavelPapel,c.criadoEm,c.atualizadoEm||'',c.descricao||'']);
+  });
+  downloadCSV(rows, 'chamados.csv');
+};
+
+/* ===================================================================
+   PLANEJAMENTO
+=================================================================== */
+function nomeMes(anoMes){
+  var partes = anoMes.split('-');
+  var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return meses[parseInt(partes[1],10)-1]+' / '+partes[0];
+}
+function mesAnterior(anoMes){
+  var d = new Date(anoMes+'-01'); d.setMonth(d.getMonth()-1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function mesProximo(anoMes){
+  var d = new Date(anoMes+'-01'); d.setMonth(d.getMonth()+1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function dataParaMes(dataISO){ return dataISO ? dataISO.slice(0,7) : ''; }
+function dataParaDisplay(dataISO){
+  if(!dataISO) return '';
+  var p = dataISO.split('-');
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+
+function renderPlanejamentoTab(){
+  var mes = state.mesSelecionado;
+  var diariosMes = state.diarios.filter(function(d){ return d.mes === mes; });
+
+  /* --- montagem HTML da tabela de metas --- */
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
+    '<div class="section-title" style="margin:0;">📋 Metas mensais por cidade</div>'+
+    '<button class="btn btn-amber" onclick="window.__exportarPlanejamento()">⬇ Exportar CSV</button>'+
+  '</div>';
+  html += '<div class="table-wrap"><table><thead><tr>'+
+    '<th>Cidade</th><th>Polo</th><th>Responsável</th><th>Papel</th><th>Meta mensal</th><th>Dias previstos</th><th>Status</th><th>Observações</th>'+
+  '</tr></thead><tbody>'+
+    state.planejamento.map(function(row, idx){
+      return '<tr>'+
+        '<td><b>'+esc(row.cidade)+'</b></td>'+
+        '<td class="polo-tag">'+esc(row.poloNome)+'</td>'+
+        '<td><input type="text" value="'+esc(row.responsavel)+'" placeholder="nome" onchange="window.__planUpdate('+idx+', \'responsavel\', this.value)"></td>'+
+        '<td><select onchange="window.__planUpdate('+idx+', \'papel\', this.value)">'+
+          '<option value="">—</option>'+ PAPEIS.map(function(p){return '<option value="'+p+'"'+(p===row.papel?' selected':'')+'>'+esc(p)+'</option>';}).join('') +
+        '</select></td>'+
+        '<td><input type="number" min="0" value="'+row.metaMensal+'" onchange="window.__planUpdate('+idx+', \'metaMensal\', this.value, true)"></td>'+
+        '<td><input type="text" value="'+esc(row.diasPrevistos)+'" placeholder="ex: 3x/sem" onchange="window.__planUpdate('+idx+', \'diasPrevistos\', this.value)"></td>'+
+        '<td><select style="font-weight:700;" onchange="window.__planUpdate('+idx+', \'status\', this.value)">'+
+          STATUS_PLAN.map(function(s){return '<option value="'+s+'"'+(s===row.status?' selected':'')+'>'+esc(s)+'</option>';}).join('') +
+        '</select></td>'+
+        '<td><input type="text" value="'+esc(row.observacoes)+'" placeholder="notas…" onchange="window.__planUpdate('+idx+', \'observacoes\', this.value)"></td>'+
+      '</tr>';
+    }).join('') +
+  '</tbody></table></div>';
+  html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:8px;">Alterações salvas automaticamente e visíveis para todos os perfis.</div>';
+
+  /* --- separador --- */
+  html += '<hr class="diario-sep">';
+
+  /* --- cabeçalho da seção diária --- */
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'+
+    '<div class="section-title" style="margin:0;">📊 Lançamento diário de exames</div>'+
+    '<button class="btn btn-amber" onclick="window.__exportarDiarios()">⬇ Exportar CSV diários</button>'+
+  '</div>';
+
+  /* --- formulário de lançamento --- */
+  html += '<div class="card" style="margin-bottom:16px;">'+
+    '<div class="section-title" style="font-size:13px;">Registrar exames do dia</div>'+
+    '<div class="form-grid">'+
+      '<label>Cidade<select id="di-cidade"><option value="">Selecione</option>'+
+        TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>';}).join('')+
+      '</select></label>'+
+      '<label>Data<input id="di-data" type="date" value="'+new Date().toISOString().slice(0,10)+'"></label>'+
+      '<label>Categoria<select id="di-cat">'+
+        CAT_KEYS.map(function(k){return '<option value="'+k+'">'+esc(catLabel(k))+'</option>';}).join('')+
+      '</select></label>'+
+      '<label>Agendados<input id="di-agend" type="number" min="0" placeholder="0" value="0"></label>'+
+      '<label>Realizados<input id="di-real" type="number" min="0" placeholder="0" value="0"></label>'+
+      '<label style="align-self:flex-end;"><button class="btn btn-primary" style="width:100%;" onclick="window.__addDiario()">+ Registrar</button></label>'+
+    '</div>'+
+  '</div>';
+
+  /* --- seletor de mês --- */
+  html += '<div class="nav-mes">'+
+    '<button onclick="window.__mesAnterior()">← Mês anterior</button>'+
+    '<span class="mes-label">'+nomeMes(mes)+'</span>'+
+    '<button onclick="window.__mesProximo()">Próximo mês →</button>'+
+  '</div>';
+
+  /* --- progresso por cidade --- */
+  html += '<div class="section-title" style="font-size:13px;">Progresso por cidade — '+nomeMes(mes)+'</div>';
+
+  var cidadesComLancamento = state.planejamento.filter(function(row){
+    return row.metaMensal > 0 || diariosMes.some(function(d){ return d.cidade===row.cidade; });
+  });
+
+  if(!cidadesComLancamento.length){
+    html += '<div class="empty card"><b>Nenhuma meta ou lançamento encontrado.</b>Configure a meta mensal na tabela acima e registre os exames do dia.</div>';
+  } else {
+    cidadesComLancamento.forEach(function(row){
+      var lancamentos = diariosMes.filter(function(d){ return d.cidade===row.cidade; });
+      var totalAgendados = lancamentos.reduce(function(s,d){ return s+d.agendados; }, 0);
+      var totalRealizados = lancamentos.reduce(function(s,d){ return s+d.realizados; }, 0);
+      var meta = row.metaMensal || 0;
+      var pct = meta > 0 ? Math.min(100, Math.round(totalRealizados/meta*100)) : 0;
+      var barColor = pct >= 100 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+
+      /* breakdown por categoria */
+      var porCatHTML = CAT_KEYS.map(function(k){
+        var lk = lancamentos.filter(function(d){ return d.categoria===k; });
+        if(!lk.length) return '';
+        var ag = lk.reduce(function(s,d){return s+d.agendados;},0);
+        var re = lk.reduce(function(s,d){return s+d.realizados;},0);
+        return '<div class="cat-cell"><b>'+esc(catLabel(k))+'</b>'+
+          '<span>Agend.: <b>'+ag+'</b></span> &nbsp; <span>Realiz.: <b>'+re+'</b></span>'+
+        '</div>';
+      }).join('');
+
+      html += '<div class="prog-city">'+
+        '<div class="prog-city-head">'+
+          '<div>'+
+            '<span class="prog-city-name">'+esc(row.cidade)+'</span>'+
+            ' <span class="polo-tag">'+esc(row.poloNome)+'</span>'+
+          '</div>'+
+          '<div style="text-align:right;font-size:12.5px;">'+
+            'Meta: <b>'+meta+'</b> &nbsp;|&nbsp; Agendados: <b>'+totalAgendados+'</b> &nbsp;|&nbsp; Realizados: <b>'+totalRealizados+'</b>'+
+            ' &nbsp;<span style="font-family:\'IBM Plex Mono\',monospace;font-size:13px;font-weight:700;color:'+barColor+';">'+pct+'%</span>'+
+          '</div>'+
+        '</div>'+
+        '<div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:'+pct+'%;background:'+barColor+';"></div></div>'+
+        (porCatHTML ? '<div class="cat-grid">'+porCatHTML+'</div>' : '')+
+      '</div>';
+    });
+  }
+
+  /* --- tabela de lançamentos do mês --- */
+  if(diariosMes.length){
+    var ordenados = diariosMes.slice().sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
+    html += '<div class="section-title" style="font-size:13px;margin-top:18px;">Lançamentos de '+nomeMes(mes)+'</div>';
+    html += '<div class="diario-table-wrap"><table><thead><tr>'+
+      '<th>Data</th><th>Cidade</th><th>Polo</th><th>Categoria</th><th>Agendados</th><th>Realizados</th><th>Registrado por</th><th></th>'+
+    '</tr></thead><tbody>'+
+    ordenados.map(function(d){
+      var taxa = d.agendados>0 ? Math.round(d.realizados/d.agendados*100) : 0;
+      return '<tr>'+
+        '<td>'+esc(dataParaDisplay(d.dataISO))+'</td>'+
+        '<td><b>'+esc(d.cidade)+'</b></td>'+
+        '<td class="polo-tag">'+esc(CIDADE_POLO[d.cidade].nome)+'</td>'+
+        '<td><span class="pill teal">'+esc(catLabel(d.categoria))+'</span></td>'+
+        '<td class="mono">'+d.agendados+'</td>'+
+        '<td class="mono">'+d.realizados+' <span style="font-size:11px;color:var(--ink-soft);">('+taxa+'%)</span></td>'+
+        '<td style="font-size:11.5px;color:var(--ink-soft);">'+esc(d.registradoPor)+'</td>'+
+        '<td><button class="icon-btn" onclick="window.__excluirDiario(\''+d.id+'\')">excluir</button></td>'+
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+  }
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+window.__mesAnterior = function(){ state.mesSelecionado = mesAnterior(state.mesSelecionado); renderPlanejamentoTab(); };
+window.__mesProximo  = function(){ state.mesSelecionado = mesProximo(state.mesSelecionado);  renderPlanejamentoTab(); };
+
+window.__addDiario = async function(){
+  var cidade   = document.getElementById('di-cidade').value;
+  var dataISO  = document.getElementById('di-data').value;
+  var cat      = document.getElementById('di-cat').value;
+  var agend    = parseInt(document.getElementById('di-agend').value,10) || 0;
+  var real     = parseInt(document.getElementById('di-real').value,10)  || 0;
+  if(!cidade)  { showToast('Selecione a cidade.'); return; }
+  if(!dataISO) { showToast('Informe a data.'); return; }
+  if(real > agend){ showToast('Realizados não pode ser maior que Agendados.'); return; }
+  var novo = {
+    id: 'DI'+Date.now().toString(36).toUpperCase(),
+    cidade: cidade,
+    dataISO: dataISO,
+    mes: dataParaMes(dataISO),
+    categoria: cat,
+    agendados: agend,
+    realizados: real,
+    registradoPor: state.perfil.nome+' ('+state.perfil.papel+')',
+    registradoEm: nowStr()
+  };
+  state.diarios.push(novo);
+  await storageSet('diarios-lista', JSON.stringify(state.diarios), true);
+  showToast('Lançamento registrado — '+esc(cidade)+' / '+esc(catLabel(cat))+' em '+dataParaDisplay(dataISO));
+  state.mesSelecionado = dataParaMes(dataISO);
+  renderPlanejamentoTab();
+};
+
+window.__excluirDiario = async function(id){
+  if(!confirm('Excluir este lançamento?')) return;
+  state.diarios = state.diarios.filter(function(d){ return d.id!==id; });
+  await storageSet('diarios-lista', JSON.stringify(state.diarios), true);
+  showToast('Lançamento excluído.');
+  renderPlanejamentoTab();
+};
+
+window.__exportarDiarios = function(){
+  var mes = state.mesSelecionado;
+  var lista = state.diarios.filter(function(d){ return d.mes===mes; })
+    .sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
+  var rows = [['Data','Cidade','Polo','Categoria','Agendados','Realizados','Taxa (%)','Registrado por','Registrado em']];
+  lista.forEach(function(d){
+    var taxa = d.agendados>0 ? Math.round(d.realizados/d.agendados*100) : 0;
+    rows.push([dataParaDisplay(d.dataISO),d.cidade,CIDADE_POLO[d.cidade].nome,catLabel(d.categoria),d.agendados,d.realizados,taxa+'%',d.registradoPor,d.registradoEm]);
+  });
+  downloadCSV(rows, 'diarios_'+mes+'.csv');
+};
+
+window.__planUpdate = async function(idx, field, value, isNumber){
+  var row = state.planejamento[idx];
+  row[field] = isNumber ? (parseInt(value,10)||0) : value;
+  row.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  row.atualizadoEm = nowStr();
+  if(field==='metaMensal' || field==='qtdRealizada'){
+    var pct = row.metaMensal>0 ? Math.round((row.qtdRealizada/row.metaMensal)*100) : 0;
+    var pctEl = document.getElementById('pct-'+idx);
+    if(pctEl) pctEl.textContent = pct+'%';
+  }
+  await storageSet('planejamento-lista', JSON.stringify(state.planejamento), true);
+  showToast('Planejamento de '+row.cidade+' atualizado.');
+};
+
+window.__exportarPlanejamento = function(){
+  var rows = [['Cidade','Polo','Responsável','Papel','Meta mensal','Dias previstos','Realizado','% atingido','Status','Observações']];
+  state.planejamento.forEach(function(r){
+    var pct = r.metaMensal>0 ? Math.round((r.qtdRealizada/r.metaMensal)*100) : 0;
+    rows.push([r.cidade,r.poloNome,r.responsavel,r.papel,r.metaMensal,r.diasPrevistos,r.qtdRealizada,pct+'%',r.status,r.observacoes]);
+  });
+  downloadCSV(rows, 'planejamento.csv');
+};
+
+/* ===================================================================
+   AGENDA SEMANAL
+=================================================================== */
+function renderAgendaTab(){
+  var html = '<div class="card" style="margin-bottom:16px;">'+
+    '<div class="section-title">📅 Nova semana</div>'+
+    '<div class="week-form">'+
+      '<label>Identificação<input id="w-label" type="text" placeholder="Ex: Semana 1" value="'+esc(state.draftWeek.label)+'" oninput="state.draftWeek.label=this.value"></label>'+
+      '<label>Início<input id="w-inicio" type="text" placeholder="29/06" value="'+esc(state.draftWeek.inicio)+'" oninput="state.draftWeek.inicio=this.value"></label>'+
+      '<label>Fim<input id="w-fim" type="text" placeholder="03/07" value="'+esc(state.draftWeek.fim)+'" oninput="state.draftWeek.fim=this.value"></label>'+
+      '<button class="btn btn-primary" onclick="window.__criarSemana()">+ Criar semana</button>'+
+    '</div>'+
+  '</div>';
+
+  if(!state.semanas.length){
+    html += '<div class="empty card"><b>Nenhuma semana cadastrada ainda.</b>Crie a primeira semana acima para começar a agendar as cidades e categorias.</div>';
+    document.getElementById('tabContent').innerHTML = html;
+    return;
+  }
+
+  var semanasOrd = state.semanas.slice().sort(function(a,b){ return b.criadoTs - a.criadoTs; });
+  html += semanasOrd.map(function(w){ return renderWeekCard(w); }).join('');
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+function renderWeekCard(w){
+  var entradas = w.entradas || [];
+  var draft = state.draftEntry[w.id] || {cidade:'', cats:[]};
+  var html = '<div class="week-card">'+
+    '<div class="week-head"><div><div class="wtitle dsp">'+esc(w.label)+'</div><div class="wdates">'+esc(w.inicio)+' a '+esc(w.fim)+'</div></div>'+
+    '<button class="icon-btn" style="color:#fff;" onclick="window.__excluirSemana(\''+w.id+'\')">excluir semana</button></div>'+
+    '<div class="week-body">';
+
+  html += '<div class="entry-form">'+
+    '<label class="full">Cidade<select onchange="window.__draftEntryCidade(\''+w.id+'\', this.value)">'+
+      '<option value="">Selecione</option>'+ TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'"'+(c===draft.cidade?' selected':'')+'>'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>';}).join('') +
+    '</select></label>'+
+    '<label class="full">Categorias do dia<div class="chip-check">'+
+      CAT_KEYS.map(function(k){
+        var checked = draft.cats && draft.cats.indexOf(k)>-1;
+        return '<label><input type="checkbox" '+(checked?'checked':'')+' onchange="window.__draftEntryCat(\''+w.id+'\', \''+k+'\', this.checked)">'+esc(catLabel(k))+'</label>';
+      }).join('') +
+    '</div></label>'+
+    '<button class="btn btn-primary" onclick="window.__addEntrada(\''+w.id+'\')">+ Agendar cidade</button>'+
+  '</div>';
+
+  if(!entradas.length){
+    html += '<div class="empty" style="padding:18px;"><b>Nenhuma cidade agendada nesta semana.</b>Use o formulário acima para adicionar.</div>';
+  } else {
+    entradas.forEach(function(e){
+      html += '<div class="entry-row">'+
+        '<div class="entry-top"><div><b>'+esc(e.cidade)+'</b> <span class="polo-tag">'+esc(CIDADE_POLO[e.cidade].nome)+'</span>'+
+        '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div></div>'+
+        '<span class="pill '+(e.status==='Realizado'?'green':e.status==='Interrompido'?'red':'gray')+'">'+esc(e.status)+'</span></div>'+
+        '<div class="entry-status-row">'+
+          '<span style="font-size:11.5px;color:var(--ink-soft);">Resultado:</span>'+
+          '<select class="small-select" onchange="window.__entradaStatus(\''+w.id+'\',\''+e.id+'\', this.value)">'+
+            STATUS_ENTRADA.map(function(s){return '<option value="'+s+'"'+(s===e.status?' selected':'')+'>'+esc(s)+'</option>';}).join('') +
+          '</select>'+
+          '<button class="icon-btn" onclick="window.__excluirEntrada(\''+w.id+'\',\''+e.id+'\')">remover</button>'+
+        '</div>'+
+        '<div class="reason-box'+(e.status==='Interrompido'?' show':'')+'" id="reason-'+e.id+'">'+
+          '<div class="form-grid" style="margin-bottom:0;">'+
+            '<label>Motivo da interrupção<select onchange="window.__entradaMotivo(\''+w.id+'\',\''+e.id+'\', this.value)">'+
+              '<option value="">Selecione</option>'+ MOTIVOS_INTERRUPCAO.map(function(m){return '<option value="'+m+'"'+(m===e.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
+            '</select></label>'+
+            '<label class="full">Detalhes<input type="text" placeholder="Explique o ocorrido…" value="'+esc(e.detalhes||'')+'" onchange="window.__entradaDetalhes(\''+w.id+'\',\''+e.id+'\', this.value)"></label>'+
+          '</div>'+
+        '</div>'+
+        (e.atualizadoPor ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:6px;">atualizado por '+esc(e.atualizadoPor)+' em '+esc(e.atualizadoEm)+'</div>' : '')+
+      '</div>';
+    });
+  }
+  html += '</div></div>';
+  return html;
+}
+
+window.__criarSemana = async function(){
+  var d = state.draftWeek;
+  if(!d.label.trim() || !d.inicio.trim() || !d.fim.trim()){ showToast('Preencha identificação, início e fim da semana.'); return; }
+  state.semanas.push({id:'SEM'+Date.now().toString(36).toUpperCase(), label:d.label.trim(), inicio:d.inicio.trim(), fim:d.fim.trim(), entradas:[], criadoTs:Date.now()});
+  await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
+  state.draftWeek = {label:'', inicio:'', fim:''};
+  showToast('Semana criada.');
+  renderAgendaTab();
+};
+
+window.__excluirSemana = async function(id){
+  if(!confirm('Excluir esta semana e todos os agendamentos nela?')) return;
+  state.semanas = state.semanas.filter(function(w){return w.id!==id;});
+  await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
+  showToast('Semana excluída.');
+  renderAgendaTab();
+};
+
+window.__draftEntryCidade = function(wId, cidade){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[]};
+  state.draftEntry[wId].cidade = cidade;
+};
+window.__draftEntryCat = function(wId, cat, checked){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[]};
+  var cats = state.draftEntry[wId].cats;
+  if(checked){ if(cats.indexOf(cat)===-1) cats.push(cat); }
+  else { state.draftEntry[wId].cats = cats.filter(function(c){return c!==cat;}); }
+};
+
+window.__addEntrada = async function(wId){
+  var d = state.draftEntry[wId] || {cidade:'', cats:[]};
+  if(!d.cidade){ showToast('Selecione a cidade.'); return; }
+  if(!d.cats.length){ showToast('Selecione ao menos uma categoria.'); return; }
+  var w = state.semanas.filter(function(x){return x.id===wId;})[0];
+  w.entradas = w.entradas || [];
+  w.entradas.push({id:'E'+Date.now().toString(36).toUpperCase(), cidade:d.cidade, categorias:d.cats.slice(), status:'Planejado', motivo:'', detalhes:'', atualizadoPor:'', atualizadoEm:''});
+  await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
+  state.draftEntry[wId] = {cidade:'', cats:[]};
+  showToast('Cidade agendada.');
+  renderAgendaTab();
+};
+
+window.__excluirEntrada = async function(wId, eId){
+  var w = state.semanas.filter(function(x){return x.id===wId;})[0];
+  w.entradas = w.entradas.filter(function(e){return e.id!==eId;});
+  await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
+  renderAgendaTab();
+};
+
+function marcarEntrada(wId, eId, fn){
+  var w = state.semanas.filter(function(x){return x.id===wId;})[0];
+  var e = w.entradas.filter(function(x){return x.id===eId;})[0];
+  fn(e);
+  e.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  e.atualizadoEm = nowStr();
+  return storageSet('semanas-lista', JSON.stringify(state.semanas), true);
+}
+window.__entradaStatus = async function(wId, eId, val){
+  await marcarEntrada(wId, eId, function(e){ e.status=val; if(val!=='Interrompido'){ e.motivo=''; e.detalhes=''; } });
+  showToast('Status do exame atualizado.');
+  renderAgendaTab();
+};
+window.__entradaMotivo = async function(wId, eId, val){
+  await marcarEntrada(wId, eId, function(e){ e.motivo=val; });
+  showToast('Motivo registrado.');
+};
+window.__entradaDetalhes = async function(wId, eId, val){
+  await marcarEntrada(wId, eId, function(e){ e.detalhes=val; });
+  showToast('Detalhes salvos.');
+};
+
+/* ===================================================================
+   VEÍCULOS
+=================================================================== */
+function renderVeiculosTab(){
+  var html = '<div class="card" style="margin-bottom:16px;">'+
+    '<div class="section-title">🚐 Cadastrar veículo</div>'+
+    '<div class="add-vehicle-form">'+
+      '<label>Cidade<select id="v-cidade"><option value="">Selecione</option>'+ TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('') +'</select></label>'+
+      '<label>Categoria atendida<select id="v-cat">'+ CAT_KEYS.map(function(k){return '<option value="'+k+'">'+esc(catLabel(k))+'</option>';}).join('') +'</select></label>'+
+      '<label>Identificação<input id="v-nome" type="text" placeholder="Placa / nº da unidade"></label>'+
+      '<button class="btn btn-primary" onclick="window.__addVeiculo()">+ Adicionar</button>'+
+    '</div>'+
+  '</div>';
+
+  var porCidade = {};
+  TODAS_CIDADES.forEach(function(c){ porCidade[c]=[]; });
+  state.veiculos.forEach(function(v){ if(porCidade[v.cidade]) porCidade[v.cidade].push(v); });
+
+  POLOS.forEach(function(p){
+    html += '<div class="section-title" style="margin-top:6px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
+    p.cidades.forEach(function(c){
+      var lista = porCidade[c];
+      var disponiveis = lista.filter(function(v){return v.status==='Disponível';}).length;
+      html += '<div class="vehicle-card"><div class="vehicle-head"><span>'+esc(c)+'</span><span class="mono" style="font-weight:500;font-size:11.5px;">'+disponiveis+'/'+lista.length+' disponível(eis)</span></div><div class="vehicle-body">';
+      if(!lista.length){
+        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum veículo cadastrado para esta cidade.</div>';
+      } else {
+        lista.forEach(function(v){
+          var verde = v.status==='Disponível';
+          html += '<div class="vrow">'+
+            '<button class="dotbtn '+(verde?'on':'off')+'" title="alternar disponibilidade" onclick="window.__toggleVeiculo(\''+v.id+'\')"><span class="dot"></span>'+(verde?'Disponível':'Indisponível')+'</button>'+
+            '<div class="vinfo"><div class="vname">'+esc(v.nome||'Veículo')+' — '+esc(catLabel(v.categoria))+'</div>'+
+            '<div class="vsub">'+(verde? 'Pronto para uso' : 'Motivo: '+esc(v.motivo||'não informado'))+(v.atualizadoPor? ' · '+esc(v.atualizadoPor):'')+'</div></div>'+
+            (!verde ? '<select class="small-select" onchange="window.__motivoVeiculo(\''+v.id+'\', this.value)">'+
+              '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
+            '</select>' : '')+
+            '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')">remover</button>'+
+          '</div>';
+        });
+      }
+      html += '</div></div>';
+    });
+  });
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+window.__addVeiculo = async function(){
+  var cidade = document.getElementById('v-cidade').value;
+  var categoria = document.getElementById('v-cat').value;
+  var nome = document.getElementById('v-nome').value.trim();
+  if(!cidade){ showToast('Selecione a cidade.'); return; }
+  state.veiculos.push({id:'V'+Date.now().toString(36).toUpperCase(), cidade:cidade, categoria:categoria, nome:nome, status:'Disponível', motivo:'', atualizadoPor:state.perfil.nome+' ('+state.perfil.papel+')', atualizadoEm:nowStr()});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Veículo adicionado.');
+  renderVeiculosTab();
+};
+
+window.__toggleVeiculo = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  v.status = v.status==='Disponível' ? 'Indisponível' : 'Disponível';
+  if(v.status==='Disponível') v.motivo='';
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  renderVeiculosTab();
+};
+window.__motivoVeiculo = async function(id, val){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  v.motivo = val;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Motivo registrado.');
+};
+window.__excluirVeiculo = async function(id){
+  if(!confirm('Remover este veículo?')) return;
+  state.veiculos = state.veiculos.filter(function(x){return x.id!==id;});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  renderVeiculosTab();
+};
+
+/* ---------------- csv export ---------------- */
+function downloadCSV(rows, filename){
+  var csv = rows.map(function(r){
+    return r.map(function(v){
+      var s = (v===undefined||v===null)?'':String(v);
+      if(s.indexOf(',')>-1 || s.indexOf('"')>-1 || s.indexOf('\n')>-1) s = '"'+s.replace(/"/g,'""')+'"';
+      return s;
+    }).join(',');
+  }).join('\n');
+  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+init();
+})();
+</script>
