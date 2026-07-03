@@ -306,12 +306,14 @@ var state = {
   activeTab: 'overview',
   filtros: {polo:'', cidade:'', categoria:'', status:'', tipoProblema:'', q:''},
   draftChamado: {polo:'', cidade:'', categoria:'A', tipoProblema:'', prioridade:'Média', titulo:'', descricao:''},
-  diarios: [],
-  mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
+  draftEntry: {},
   draftWeek: {label:'', inicio:'', fim:''},
+  diarios: [],
+  checkins: [],
+  mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
+  relTri: null,
   formOpen: false,
-  alertasFechados: false,
-  checkins: []
+  alertasFechados: false
 };
 window.state = state;
 
@@ -1083,20 +1085,20 @@ function renderChamadosTab(){
       '<label>Polo<select id="f-polo" onchange="window.__draftPolo(this.value)">'+
         '<option value="">Selecione</option>'+ POLOS.map(function(p){return '<option value="'+p.id+'"'+(p.id===state.draftChamado.polo?' selected':'')+'>'+esc(p.nome)+' — '+esc(p.regiao)+'</option>';}).join('') +
       '</select></label>'+
-      '<label>Cidade<select id="f-cidade" oninput="state.draftChamado.cidade=this.value">'+
+      '<label>Cidade<select id="f-cidade" onchange="window.__dc(\'cidade\',this.value)">'+
         '<option value="">Selecione</option>'+ (state.draftChamado.polo ? POLOS.filter(function(p){return p.id===state.draftChamado.polo;})[0].cidades : TODAS_CIDADES).map(function(c){return '<option value="'+esc(c)+'"'+(c===state.draftChamado.cidade?' selected':'')+'>'+esc(c)+'</option>';}).join('') +
       '</select></label>'+
-      '<label>Categoria de exame<select id="f-cat" oninput="state.draftChamado.categoria=this.value">'+
+      '<label>Categoria de exame<select id="f-cat" onchange="window.__dc(\'categoria\',this.value)">'+
         CAT_KEYS.map(function(k){return '<option value="'+k+'"'+(k===state.draftChamado.categoria?' selected':'')+'>'+esc(catLabel(k))+'</option>';}).join('') +
       '</select></label>'+
-      '<label>Tipo de problema<select id="f-tipo" oninput="state.draftChamado.tipoProblema=this.value">'+
+      '<label>Tipo de problema<select id="f-tipo" onchange="window.__dc(\'tipoProblema\',this.value)">'+
         '<option value="">Selecione</option>'+ TIPOS_PROBLEMA.map(function(t){return '<option value="'+t+'"'+(t===state.draftChamado.tipoProblema?' selected':'')+'>'+esc(t)+'</option>';}).join('') +
       '</select></label>'+
-      '<label>Prioridade<select id="f-prio" oninput="state.draftChamado.prioridade=this.value">'+
+      '<label>Prioridade<select id="f-prio" onchange="window.__dc(\'prioridade\',this.value)">'+
         PRIORIDADES.map(function(p){return '<option value="'+p+'"'+(p===state.draftChamado.prioridade?' selected':'')+'>'+esc(p)+'</option>';}).join('') +
       '</select></label>'+
-      '<label class="full">Título<input id="f-titulo" type="text" placeholder="Ex: Falta de material para exames categoria B" value="'+esc(state.draftChamado.titulo)+'" oninput="state.draftChamado.titulo=this.value"></label>'+
-      '<label class="full">Descrição<textarea id="f-desc" placeholder="Detalhe o que está acontecendo…" oninput="state.draftChamado.descricao=this.value">'+esc(state.draftChamado.descricao)+'</textarea></label>'+
+      '<label class="full">Título<input id="f-titulo" type="text" placeholder="Ex: Falta de material para exames categoria B" value="'+esc(state.draftChamado.titulo)+'" oninput="window.__dc(\'titulo\',this.value)"></label>'+
+      '<label class="full">Descrição<textarea id="f-desc" placeholder="Detalhe o que está acontecendo…" oninput="window.__dc(\'descricao\',this.value)">'+esc(state.draftChamado.descricao)+'</textarea></label>'+
     '</div>'+
     '<button class="btn btn-primary" onclick="window.__criarChamado()">Abrir chamado</button> '+
     '<button class="btn btn-ghost" onclick="window.__toggleForm()">Cancelar</button>'+
@@ -1462,9 +1464,9 @@ function renderAgendaTab(){
   var html = '<div class="card" style="margin-bottom:16px;">'+
     '<div class="section-title">📅 Nova semana</div>'+
     '<div class="week-form">'+
-      '<label>Identificação<input id="w-label" type="text" placeholder="Ex: Semana 1" value="'+esc(state.draftWeek.label)+'" oninput="state.draftWeek.label=this.value"></label>'+
-      '<label>Início<input id="w-inicio" type="text" placeholder="29/06" value="'+esc(state.draftWeek.inicio)+'" oninput="state.draftWeek.inicio=this.value"></label>'+
-      '<label>Fim<input id="w-fim" type="text" placeholder="03/07" value="'+esc(state.draftWeek.fim)+'" oninput="state.draftWeek.fim=this.value"></label>'+
+      '<label>Identificação<input id="w-label" type="text" placeholder="Ex: Semana 1" value="'+esc(state.draftWeek.label)+'" oninput="window.__dw(\'label\',this.value)"></label>'+
+      '<label>Início<input id="w-inicio" type="text" placeholder="29/06" value="'+esc(state.draftWeek.inicio)+'" oninput="window.__dw(\'inicio\',this.value)"></label>'+
+      '<label>Fim<input id="w-fim" type="text" placeholder="03/07" value="'+esc(state.draftWeek.fim)+'" oninput="window.__dw(\'fim\',this.value)"></label>'+
       '<button class="btn btn-primary" onclick="window.__criarSemana()">+ Criar semana</button>'+
     '</div>'+
   '</div>';
@@ -1533,6 +1535,9 @@ function renderWeekCard(w){
   html += '</div></div>';
   return html;
 }
+
+window.__dc = function(field, val){ state.draftChamado[field] = val; };
+window.__dw = function(field, val){ state.draftWeek[field] = val; };
 
 window.__criarSemana = async function(){
   var d = state.draftWeek;
