@@ -191,6 +191,56 @@
   .nav-mes button{background:var(--teal-soft);border:none;border-radius:8px;padding:6px 12px;font-weight:700;color:var(--teal-dk);font-size:13px;}
   .nav-mes .mes-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;min-width:130px;text-align:center;}
 
+  /* auth */
+  .auth-wrap{min-height:500px;display:flex;align-items:center;justify-content:center;padding:40px 20px;}
+  .auth-card{max-width:400px;width:100%;background:#fff;border-radius:18px;box-shadow:0 4px 30px rgba(15,61,62,.13);overflow:hidden;}
+  .auth-head{background:linear-gradient(135deg,var(--teal-dk),var(--teal));color:#fff;padding:24px 26px;text-align:center;border-bottom:3px solid var(--amber);}
+  .auth-head h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin:8px 0 2px;}
+  .auth-head p{font-size:12px;color:#BFD8D3;margin:0;}
+  .auth-body{padding:22px 26px;}
+  .auth-body label{display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:4px;margin-top:12px;}
+  .auth-body label:first-child{margin-top:0;}
+  .auth-body input,.auth-body select{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;}
+  .auth-body input:focus,.auth-body select:focus{outline:none;border-color:var(--teal);}
+  .auth-tabs{display:flex;border-bottom:2px solid var(--line);margin-bottom:16px;}
+  .auth-tabs button{flex:1;background:none;border:none;padding:10px;font-size:13px;font-weight:700;color:var(--ink-soft);border-bottom:3px solid transparent;margin-bottom:-2px;}
+  .auth-tabs button.active{color:var(--teal);border-bottom-color:var(--teal);}
+  .auth-pending{text-align:center;padding:30px 20px;}
+  .auth-pending .icon{font-size:36px;margin-bottom:10px;}
+  .badge-admin{background:var(--amber);color:var(--teal-dk);font-size:10px;font-weight:800;padding:2px 7px;border-radius:30px;vertical-align:middle;margin-left:6px;}
+
+  /* check-in diário */
+  .polo-checkin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px;}
+  .polo-ci{border-radius:11px;overflow:hidden;border:1px solid var(--line);}
+  .polo-ci-head{padding:9px 12px;font-weight:700;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;}
+  .polo-ci-head.ok{background:var(--green-soft);color:#2E6B49;}
+  .polo-ci-head.pend{background:var(--amber-soft);color:var(--amber-dk);}
+  .polo-ci-body{padding:8px 12px;font-size:12px;color:var(--ink-soft);background:#fff;}
+  /* KPI tático */
+  .kpi-tatic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px;}
+  .kpi-tatic{border-radius:11px;padding:12px 14px;border-left:4px solid;}
+  .kpi-tatic.verde{background:var(--green-soft);border-color:var(--green);}
+  .kpi-tatic.amarelo{background:var(--amber-soft);border-color:var(--amber);}
+  .kpi-tatic.vermelho{background:var(--red-soft);border-color:var(--red);}
+  .kpi-tatic .num{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1;}
+  .kpi-tatic .lbl{font-size:11.5px;margin-top:3px;color:var(--ink-soft);}
+  .kpi-tatic .meta{font-size:10.5px;margin-top:2px;opacity:.8;}
+  /* manutenção */
+  .manut-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:30px;font-size:11px;font-weight:700;}
+  .manut-ok{background:var(--green-soft);color:#2E6B49;}
+  .manut-venc{background:var(--red-soft);color:var(--red);}
+  .manut-prox{background:var(--amber-soft);color:var(--amber-dk);}
+  /* relatório */
+  .rel-bloco{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;}
+  .rel-head{background:var(--teal);color:#fff;padding:10px 14px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+  .rel-body{padding:10px 14px;}
+  .rel-linha{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px;}
+  .rel-linha:last-child{border-bottom:none;}
+  .rel-val{font-family:'IBM Plex Mono',monospace;font-weight:700;}
+  .tri-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .tri-nav button{background:var(--teal-soft);border:none;border-radius:8px;padding:6px 12px;font-weight:700;color:var(--teal-dk);font-size:13px;}
+  .tri-nav .tri-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;min-width:170px;text-align:center;}
+
   .login-wrap{padding:60px 20px;display:flex;justify-content:center;}
   .login-card{max-width:380px;width:100%;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;text-align:center;}
   .login-card h2{font-family:'Space Grotesk',sans-serif;margin:8px 0 4px;font-size:18px;}
@@ -234,7 +284,7 @@ var TODAS_CIDADES = POLOS.reduce(function(a,p){return a.concat(p.cidades);},[]);
 var CAT_KEYS = ['A','B','C','D','E'];
 var DEFAULT_CAT_LABELS = {A:'Categoria A',B:'Categoria B',C:'Categoria C',D:'Categoria D',E:'Categoria E'};
 
-var PAPEIS = ['Coordenador','Supervisor','Líder de Operação'];
+var PAPEIS = ['Coordenador','Gerente','Supervisor','Líder de Operação','Aux de Suporte'];
 var PRIORIDADES = ['Baixa','Média','Alta','Crítica'];
 var STATUS_CHAMADO = ['Aberto','Em andamento','Resolvido','Cancelado'];
 var TIPOS_PROBLEMA = ['Problema mecânico','Infraestrutura do pátio de exame','Equipamento eletrônico embarcado','Falha de sistema/software','Outro'];
@@ -250,6 +300,8 @@ var state = {
   semanas: [],
   veiculos: [],
   catLabels: Object.assign({}, DEFAULT_CAT_LABELS),
+  usuarios: [],
+  sessao: null,
   perfil: null,
   activeTab: 'overview',
   filtros: {polo:'', cidade:'', categoria:'', status:'', tipoProblema:'', q:''},
@@ -258,7 +310,8 @@ var state = {
   mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
   draftWeek: {label:'', inicio:'', fim:''},
   formOpen: false,
-  alertasFechados: false
+  alertasFechados: false,
+  checkins: []
 };
 window.state = state;
 
@@ -270,10 +323,15 @@ var SUPA_KEY  = '';
 var sb = null;
 
 function loadSupaCredentials(){
+  var DEFAULT_URL = 'https://dvypppchbsntnhnqttdq.supabase.co';
+  var DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2eXBwcGNoYnNudG5obnF0dGRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTgzNDcsImV4cCI6MjA5ODQ3NDM0N30.QFjjTM8-g6w-nf_zuuEEn8bOo00l-ZBt6wlP5PxpfHE';
   try{
-    SUPA_URL = localStorage.getItem('painelpe_supa_url') || '';
-    SUPA_KEY  = localStorage.getItem('painelpe_supa_key') || '';
-  }catch(e){}
+    SUPA_URL = localStorage.getItem('painelpe_supa_url') || DEFAULT_URL;
+    SUPA_KEY  = localStorage.getItem('painelpe_supa_key') || DEFAULT_KEY;
+  }catch(e){
+    SUPA_URL = DEFAULT_URL;
+    SUPA_KEY  = DEFAULT_KEY;
+  }
 }
 
 var _supaLastUrl = '';
@@ -331,26 +389,50 @@ function showToast(msg){
   setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
 
+/* ---------------- utilitários de auth ---------------- */
+var ADMIN_NOME = 'Carlos Wolney';
+async function hashSenha(senha){
+  var enc = new TextEncoder();
+  var data = enc.encode(senha + '_painelpe_2026');
+  var hashBuf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+function isAdmin(u){ return u && u.isAdmin === true; }
+function nomeSemAcento(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function isAdminNome(nome){ return nomeSemAcento(nome).indexOf('carlos') > -1 && nomeSemAcento(nome).indexOf('wolney') > -1; }
+function setSessao(usuario){
+  state.sessao = usuario;
+  state.perfil = {nome: usuario.nome, papel: usuario.cargo};
+  try{ localStorage.setItem('painelpe_sessao', JSON.stringify({id: usuario.id})); }catch(e){}
+}
+function clearSessao(){
+  state.sessao = null; state.perfil = null;
+  try{ localStorage.removeItem('painelpe_sessao'); }catch(e){}
+}
+
 /* ---------------- init ---------------- */
 async function init(){
   loadSupaCredentials();
   initSupaClient();
 
-  var [ch, pl, cl, pf, sm, vc, di] = await Promise.all([
+  var [ch, pl, cl, sm, vc, di, us, ci] = await Promise.all([
     storageGet('chamados-lista', true),
     storageGet('planejamento-lista', true),
     storageGet('categoria-labels', true),
-    storageGet('meu-perfil', false),
     storageGet('semanas-lista', true),
     storageGet('veiculos-lista', true),
-    storageGet('diarios-lista', true)
+    storageGet('diarios-lista', true),
+    storageGet('usuarios-lista', true),
+    storageGet('checkins-lista', true)
   ]);
 
-  state.chamados = ch ? JSON.parse(ch) : [];
+  state.chamados  = ch ? JSON.parse(ch) : [];
   state.catLabels = cl ? JSON.parse(cl) : Object.assign({}, DEFAULT_CAT_LABELS);
-  state.semanas = sm ? JSON.parse(sm) : [];
-  state.veiculos = vc ? JSON.parse(vc) : [];
-  state.diarios = di ? JSON.parse(di) : [];
+  state.semanas   = sm ? JSON.parse(sm) : [];
+  state.veiculos  = vc ? JSON.parse(vc) : [];
+  state.diarios   = di ? JSON.parse(di) : [];
+  state.usuarios  = us ? JSON.parse(us) : [];
+  state.checkins  = ci ? JSON.parse(ci) : [];
 
   if(pl){
     state.planejamento = JSON.parse(pl);
@@ -362,44 +444,122 @@ async function init(){
     await storageSet('planejamento-lista', JSON.stringify(state.planejamento), true);
   }
 
-  state.perfil = pf ? JSON.parse(pf) : null;
+  // restaura sessão
+  try{
+    var sessaoStr = localStorage.getItem('painelpe_sessao');
+    if(sessaoStr){
+      var sessaoSalva = JSON.parse(sessaoStr);
+      var u = state.usuarios.filter(function(x){ return x.id === sessaoSalva.id && x.status === 'aprovado'; })[0];
+      if(u){ setSessao(u); }
+    }
+  }catch(e){}
 
   document.getElementById('loading').style.display='none';
   document.getElementById('shell').style.display='block';
 
-  if(!state.perfil){ renderLogin(); }
+  if(!state.sessao){ renderAuth(); }
   else { renderShellForUser(); }
 }
 
-/* ---------------- login / perfil ---------------- */
-function renderLogin(){
-  document.getElementById('navBar').innerHTML='';
-  document.getElementById('tabContent').innerHTML =
-    '<div class="login-wrap"><div class="login-card">'+
-      '<div class="badge-top dsp">PE</div>'+
-      '<h2 class="dsp">Identifique-se</h2>'+
-      '<p>Seu nome e perfil ficam registrados nos chamados e no planejamento que você atualizar.</p>'+
-      '<label>Seu nome</label>'+
-      '<input id="loginNome" type="text" placeholder="Ex: Maria Souza">'+
-      '<label>Perfil</label>'+
-      '<select id="loginPapel">'+ PAPEIS.map(function(p){return '<option value="'+p+'">'+p+'</option>';}).join('') +'</select>'+
-      '<button class="btn btn-primary" style="width:100%;margin-top:18px;" onclick="window.__entrar()">Entrar no painel</button>'+
-    '</div></div>';
-  document.getElementById('profileBox').innerHTML='';
+/* ---------------- autenticação ---------------- */
+function renderAuth(){
+  document.getElementById('navBar').innerHTML = '';
+  document.getElementById('profileBox').innerHTML = '';
+  document.getElementById('configBanner').innerHTML = '';
+  document.getElementById('tabContent').innerHTML = '<div class="auth-wrap" id="authArea"></div>';
+  renderAuthCard('login');
 }
 
-window.__entrar = async function(){
-  var nome = document.getElementById('loginNome').value.trim();
-  var papel = document.getElementById('loginPapel').value;
-  if(!nome){ showToast('Digite seu nome para continuar.'); return; }
-  state.perfil = {nome:nome, papel:papel};
-  await storageSet('meu-perfil', JSON.stringify(state.perfil), false);
+function renderAuthCard(modo){
+  var area = document.getElementById('authArea');
+  if(!area) return;
+  area.innerHTML = '<div class="auth-card">'+
+    '<div class="auth-head">'+
+      '<div class="badge-top dsp" style="margin:0 auto 8px;background:rgba(255,255,255,.15);">PE</div>'+
+      '<h2>Central de Operações</h2>'+
+      '<p>Exames Pernambuco — 18 cidades · 4 polos</p>'+
+    '</div>'+
+    '<div class="auth-body">'+
+      '<div class="auth-tabs">'+
+        '<button class="'+(modo==='login'?'active':'')+'" onclick="window.__authCard(\'login\')">Entrar</button>'+
+        '<button class="'+(modo==='cadastro'?'active':'')+'" onclick="window.__authCard(\'cadastro\')">Cadastrar-se</button>'+
+      '</div>'+
+      (modo==='login' ? renderLoginForm() : renderCadastroForm())+
+    '</div>'+
+  '</div>';
+}
+window.__authCard = function(modo){ renderAuthCard(modo); };
+
+
+function renderLoginForm(){
+  return '<label>Nome completo</label><input id="au-nome" type="text" placeholder="Ex: Maria Souza">'+
+    '<label>Senha</label><input id="au-senha" type="password" placeholder="Sua senha">'+
+    '<button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="window.__login()">Entrar no painel</button>';
+}
+
+function renderCadastroForm(){
+  return '<label>Nome completo</label><input id="au-nome" type="text" placeholder="Ex: João Silva">'+
+    '<label>Cargo</label><select id="au-cargo">'+ PAPEIS.map(function(p){return '<option value="'+p+'">'+p+'</option>';}).join('') +'</select>'+
+    '<label>Senha</label><input id="au-senha" type="password" placeholder="Mínimo 6 caracteres">'+
+    '<label>Confirmar senha</label><input id="au-senha2" type="password" placeholder="Repita a senha">'+
+    '<button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="window.__cadastrar()">Solicitar acesso</button>'+
+    '<p style="font-size:11.5px;color:var(--ink-soft);text-align:center;margin-top:10px;">Após o cadastro, aguarde a aprovação do administrador.</p>';
+}
+
+window.__login = async function(){
+  var nome  = (document.getElementById('au-nome').value  || '').trim();
+  var senha = (document.getElementById('au-senha').value || '').trim();
+  if(!nome || !senha){ showToast('Preencha nome e senha.'); return; }
+  var hash = await hashSenha(senha);
+  var u = state.usuarios.filter(function(x){ return nomeSemAcento(x.nome)===nomeSemAcento(nome) && x.senhaHash===hash; })[0];
+  if(!u){ showToast('Nome ou senha incorretos.'); return; }
+  if(u.status==='pendente'){
+    document.getElementById('authArea').innerHTML = '<div class="auth-card"><div class="auth-head"><h2>Acesso pendente</h2><p>Aguarde a aprovação</p></div>'+
+      '<div class="auth-body"><div class="auth-pending"><div class="icon">⏳</div>'+
+      '<p>Olá, <b>'+esc(u.nome)+'</b>! Seu cadastro está aguardando aprovação de <b>'+ADMIN_NOME+'</b>.</p>'+
+      '<p style="font-size:12px;color:var(--ink-soft);">Assim que for aprovado, você poderá acessar o painel.</p>'+
+      '<button class="btn btn-ghost" style="margin-top:12px;" onclick="window.__authCard(\'login\')">Voltar</button>'+
+      '</div></div></div>';
+    return;
+  }
+  if(u.status==='rejeitado'){ showToast('Seu acesso foi recusado pelo administrador.'); return; }
+  setSessao(u);
   renderShellForUser();
 };
 
-window.__trocarPerfil = function(){
-  state.perfil = null;
-  renderLogin();
+window.__cadastrar = async function(){
+  var nome   = (document.getElementById('au-nome').value   || '').trim();
+  var cargo  = (document.getElementById('au-cargo').value  || '').trim();
+  var senha  = (document.getElementById('au-senha').value  || '').trim();
+  var senha2 = (document.getElementById('au-senha2').value || '').trim();
+  if(!nome)           { showToast('Informe o nome.'); return; }
+  if(senha.length < 6){ showToast('A senha deve ter ao menos 6 caracteres.'); return; }
+  if(senha !== senha2){ showToast('As senhas não coincidem.'); return; }
+  var existe = state.usuarios.filter(function(x){ return nomeSemAcento(x.nome)===nomeSemAcento(nome); })[0];
+  if(existe){ showToast('Já existe um cadastro com esse nome.'); return; }
+  var hash   = await hashSenha(senha);
+  var adminAuto = isAdminNome(nome);
+  var novo = {
+    id: 'U'+Date.now().toString(36).toUpperCase(),
+    nome: nome, cargo: cargo, senhaHash: hash,
+    status: adminAuto ? 'aprovado' : 'pendente',
+    isAdmin: adminAuto,
+    criadoEm: nowStr(), aprovadoPor: adminAuto ? 'auto' : '', aprovadoEm: adminAuto ? nowStr() : ''
+  };
+  state.usuarios.push(novo);
+  await storageSet('usuarios-lista', JSON.stringify(state.usuarios), true);
+  if(adminAuto){
+    setSessao(novo);
+    renderShellForUser();
+  } else {
+    showToast('Cadastro enviado! Aguarde a aprovação.');
+    renderAuthCard('login');
+  }
+};
+
+window.__sair = function(){
+  clearSessao();
+  renderAuth();
 };
 
 function renderShellForUser(){
@@ -415,14 +575,8 @@ function renderConfigBanner(){
     el.innerHTML = '';
     return;
   }
-  el.innerHTML = '<div style="margin:14px 20px 0;background:#fff;border:2px dashed var(--amber);border-radius:14px;padding:16px 18px;">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'+
-      '<div>'+
-        '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:14px;color:var(--amber-dk);">⚠️ Banco compartilhado não configurado</div>'+
-        '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">Dados salvos só neste navegador. Configure o Supabase para sincronizar com todos os computadores.</div>'+
-      '</div>'+
-      '<button class="btn btn-amber" onclick="window.__showSetupModal()">Configurar agora</button>'+
-    '</div>'+
+  el.innerHTML = '<div style="margin:14px 20px 0;background:var(--red-soft);border:1px solid #E8B6AC;border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--red);">'+
+    '⚠️ Não foi possível conectar ao banco de dados. Verifique sua conexão com a internet e recarregue a página.'+
   '</div>';
 }
 
@@ -477,17 +631,20 @@ window.__salvarSupaConfig = async function(){
 };
 
 function renderProfileBox(){
-  var iniciais = state.perfil.nome.trim().split(/\s+/).map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
+  var u = state.sessao;
+  if(!u) return;
+  var iniciais = u.nome.trim().split(/\s+/).map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
   var syncBtn = supabaseConfigured()
     ? '<button class="lnk-btn" style="text-decoration:none;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:30px;padding:6px 12px;font-size:12px;" onclick="window.__sincronizar()">🔄 Sincronizar</button>'
-    : '<button class="lnk-btn" style="text-decoration:none;background:var(--amber);color:var(--teal-dk);border-radius:30px;padding:6px 12px;font-size:12px;border:none;" onclick="window.__showSetupModal()">🔌 Configurar banco</button>';
+    : '<span style="font-size:11.5px;color:#ffcccc;padding:6px 10px;">⚠️ sem conexão</span>';
   document.getElementById('profileBox').innerHTML =
     '<div style="display:flex;align-items:center;gap:10px;">'+ syncBtn +
     '<div class="profile">'+
-      '<div class="who"><b>'+esc(state.perfil.nome)+'</b>'+esc(state.perfil.papel)+'</div>'+
+      '<div class="who"><b>'+esc(u.nome)+(u.isAdmin?'<span class="badge-admin">ADMIN</span>':'')+
+      '</b>'+esc(u.cargo)+'</div>'+
       '<div class="avatar">'+iniciais+'</div>'+
     '</div></div>'+
-    '<div style="text-align:right;margin-top:4px;"><button class="lnk-btn" onclick="window.__trocarPerfil()">trocar perfil</button></div>';
+    '<div style="text-align:right;margin-top:4px;"><button class="lnk-btn" onclick="window.__sair()">sair</button></div>';
 }
 
 function startAutoSync(){
@@ -502,13 +659,14 @@ function startAutoSync(){
 
 window.__sincronizar = async function(silent){
   if(!silent) showToast('Sincronizando com o banco…');
-  var [ch, pl, cl, sm, vc, di] = await Promise.all([
+  var [ch, pl, cl, sm, vc, di, us] = await Promise.all([
     storageGet('chamados-lista', true),
     storageGet('planejamento-lista', true),
     storageGet('categoria-labels', true),
     storageGet('semanas-lista', true),
     storageGet('veiculos-lista', true),
-    storageGet('diarios-lista', true)
+    storageGet('diarios-lista', true),
+    storageGet('usuarios-lista', true)
   ]);
   if(ch) state.chamados = JSON.parse(ch);
   if(pl) state.planejamento = JSON.parse(pl);
@@ -516,8 +674,84 @@ window.__sincronizar = async function(silent){
   if(sm) state.semanas = JSON.parse(sm);
   if(vc) state.veiculos = JSON.parse(vc);
   if(di) state.diarios = JSON.parse(di);
+  var ci2 = await storageGet('checkins-lista', true);
+  if(ci2) state.checkins = JSON.parse(ci2);
+  if(us){ state.usuarios = JSON.parse(us);
+    // atualiza sessão se o usuário foi aprovado/revogado
+    if(state.sessao){
+      var u = state.usuarios.filter(function(x){ return x.id===state.sessao.id; })[0];
+      if(u && u.status==='aprovado') setSessao(u);
+      else if(u && u.status!=='aprovado'){ clearSessao(); renderAuth(); return; }
+    }
+  }
   if(!silent) showToast('Dados atualizados.');
-  setTab(state.activeTab);
+  if(state.sessao) setTab(state.activeTab);
+};
+
+/* ===================================================================
+   ABA ADMIN — aprovação de usuários
+=================================================================== */
+function renderAdminTab(){
+  if(!state.sessao || !state.sessao.isAdmin){ document.getElementById('tabContent').innerHTML='<div class="empty card">Acesso restrito ao administrador.</div>'; return; }
+  var pendentes  = state.usuarios.filter(function(u){ return u.status==='pendente'; });
+  var aprovados  = state.usuarios.filter(function(u){ return u.status==='aprovado'; });
+  var rejeitados = state.usuarios.filter(function(u){ return u.status==='rejeitado'; });
+
+  var html = '';
+  if(pendentes.length){
+    html += '<div class="card" style="margin-bottom:14px;border-left:4px solid var(--amber);">'+
+      '<div class="section-title">⏳ Aguardando aprovação ('+pendentes.length+')</div>'+
+      pendentes.map(function(u){ return renderUserRow(u, true); }).join('')+
+    '</div>';
+  }
+  html += '<div class="card" style="margin-bottom:14px;">'+
+    '<div class="section-title">✅ Usuários aprovados ('+aprovados.length+')</div>'+
+    (aprovados.length ? aprovados.map(function(u){ return renderUserRow(u, false); }).join('') : '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum usuário aprovado ainda.</div>')+
+  '</div>';
+  if(rejeitados.length){
+    html += '<div class="card">'+
+      '<div class="section-title" style="color:var(--ink-soft);">❌ Acesso recusado ('+rejeitados.length+')</div>'+
+      rejeitados.map(function(u){ return renderUserRow(u, false); }).join('')+
+    '</div>';
+  }
+  document.getElementById('tabContent').innerHTML = html || '<div class="empty card"><b>Nenhum usuário cadastrado ainda.</b></div>';
+}
+
+function renderUserRow(u, showActions){
+  var statusClass = u.status==='aprovado'?'green':u.status==='pendente'?'amber':'gray';
+  var isMe = state.sessao && state.sessao.id === u.id;
+  return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
+    '<div class="avatar" style="width:32px;height:32px;font-size:12px;flex-shrink:0;">'+u.nome.trim().split(/\s+/).map(function(w){return w[0];}).slice(0,2).join('').toUpperCase()+'</div>'+
+    '<div style="flex:1;min-width:140px;">'+
+      '<b style="font-size:13.5px;">'+esc(u.nome)+(u.isAdmin?'<span class="badge-admin">ADMIN</span>':'')+( isMe?' <span style="font-size:11px;color:var(--ink-soft);">(você)</span>':'')+
+      '</b><div style="font-size:12px;color:var(--ink-soft);">'+esc(u.cargo)+' · cadastrado em '+esc(u.criadoEm)+'</div>'+
+    '</div>'+
+    '<span class="pill '+statusClass+'">'+(u.status==='aprovado'?'Aprovado':u.status==='pendente'?'Pendente':'Recusado')+'</span>'+
+    (!isMe && showActions ? '<button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="window.__aprovarUser(\''+u.id+'\')">Aprovar</button><button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="window.__rejeitarUser(\''+u.id+'\')">Recusar</button>' : '')+
+    (!isMe && !showActions && u.status==='aprovado' ? '<button class="icon-btn" onclick="window.__revogarUser(\''+u.id+'\')">revogar acesso</button>' : '')+
+    (!isMe && u.status==='rejeitado' ? '<button class="icon-btn" onclick="window.__aprovarUser(\''+u.id+'\')">aprovar</button>' : '')+
+  '</div>';
+}
+
+async function updateUsuario(id, changes){
+  state.usuarios = state.usuarios.map(function(u){ return u.id===id ? Object.assign({},u,changes) : u; });
+  await storageSet('usuarios-lista', JSON.stringify(state.usuarios), true);
+}
+window.__aprovarUser = async function(id){
+  await updateUsuario(id, {status:'aprovado', aprovadoPor:state.sessao.nome, aprovadoEm:nowStr()});
+  showToast('Usuário aprovado.');
+  renderAdminTab();
+};
+window.__rejeitarUser = async function(id){
+  await updateUsuario(id, {status:'rejeitado', aprovadoPor:state.sessao.nome, aprovadoEm:nowStr()});
+  showToast('Acesso recusado.');
+  renderAdminTab();
+};
+window.__revogarUser = async function(id){
+  if(!confirm('Revogar o acesso deste usuário?')) return;
+  await updateUsuario(id, {status:'rejeitado'});
+  showToast('Acesso revogado.');
+  renderAdminTab();
 };
 if(sb){
   setInterval(function(){
@@ -527,15 +761,20 @@ if(sb){
 
 /* ---------------- nav ---------------- */
 var TABS = [
-  {id:'overview', label:'Visão geral'},
-  {id:'mapa', label:'Mapa & Polos'},
-  {id:'agenda', label:'Agenda semanal'},
-  {id:'chamados', label:'Chamados'},
+  {id:'overview',     label:'Visão geral'},
+  {id:'checkin',      label:'✅ Check-in diário'},
+  {id:'mapa',         label:'Mapa & Polos'},
+  {id:'agenda',       label:'Agenda semanal'},
+  {id:'chamados',     label:'Chamados'},
   {id:'planejamento', label:'Planejamento'},
-  {id:'veiculos', label:'Veículos'}
+  {id:'veiculos',     label:'Veículos'},
+  {id:'relatorio',    label:'📊 Relatório'},
+  {id:'admin',        label:'👥 Usuários', adminOnly: true}
 ];
 function renderNav(){
-  document.getElementById('navBar').innerHTML = TABS.map(function(t){
+  document.getElementById('navBar').innerHTML = TABS.filter(function(t){
+    return !t.adminOnly || (state.sessao && state.sessao.isAdmin);
+  }).map(function(t){
     return '<button id="navbtn-'+t.id+'" onclick="window.__setTab(\''+t.id+'\')">'+t.label+'</button>';
   }).join('');
 }
@@ -543,14 +782,18 @@ window.__setTab = function(id){ setTab(id); };
 function setTab(id){
   state.activeTab = id;
   TABS.forEach(function(t){
-    document.getElementById('navbtn-'+t.id).className = (t.id===id?'active':'');
+    var btn = document.getElementById('navbtn-'+t.id);
+    if(btn) btn.className = (t.id===id?'active':'');
   });
-  if(id==='overview') renderOverview();
-  else if(id==='mapa') renderMapa();
-  else if(id==='agenda') renderAgendaTab();
-  else if(id==='chamados') renderChamadosTab();
+  if(id==='overview')     renderOverview();
+  else if(id==='checkin')      renderCheckinTab();
+  else if(id==='mapa')         renderMapa();
+  else if(id==='agenda')       renderAgendaTab();
+  else if(id==='chamados')     renderChamadosTab();
   else if(id==='planejamento') renderPlanejamentoTab();
-  else if(id==='veiculos') renderVeiculosTab();
+  else if(id==='veiculos')     renderVeiculosTab();
+  else if(id==='relatorio')    renderRelatorioTab();
+  else if(id==='admin')        renderAdminTab();
 }
 
 /* ---------------- util ---------------- */
@@ -605,137 +848,158 @@ window.__irParaAtrasados = function(){
    VISÃO GERAL
 =================================================================== */
 function renderOverview(){
-  var total = state.chamados.length;
-  var aberto = state.chamados.filter(function(c){return c.status==='Aberto';}).length;
+  var hoje = new Date().toISOString().slice(0,10);
+  var total     = state.chamados.length;
+  var aberto    = state.chamados.filter(function(c){return c.status==='Aberto';}).length;
   var andamento = state.chamados.filter(function(c){return c.status==='Em andamento';}).length;
   var resolvido = state.chamados.filter(function(c){return c.status==='Resolvido';}).length;
+  var totalVeiculos      = state.veiculos.length;
+  var veiculosDisponiveis = state.veiculos.filter(function(v){return v.status==='Disponível';}).length;
+  var veiculosParados    = totalVeiculos - veiculosDisponiveis;
+  var pctParados = totalVeiculos > 0 ? (veiculosParados/totalVeiculos*100).toFixed(1) : 0;
+
+  /* KPI táticos */
+  var cancelamentos = 0;
+  state.semanas.forEach(function(w){ (w.entradas||[]).forEach(function(e){ if(e.status==='Interrompido') cancelamentos++; }); });
+  var preventivas = state.veiculos.filter(function(v){
+    if(!v.proximaRevisaoISO) return false;
+    return v.proximaRevisaoISO < hoje;
+  }).length;
+  var criticos = state.chamados.filter(function(c){ return c.prioridade==='Crítica' && isOpenStatus(c.status); }).length;
+
+  /* check-ins de hoje */
+  var checkinsHoje = state.checkins.filter(function(c){ return c.dataISO===hoje; });
+
+  /* alertas de manutenção */
+  var amanha = new Date(); amanha.setDate(amanha.getDate()+1);
+  var amanhaISO = amanha.toISOString().slice(0,10);
+  var em7dias = new Date(); em7dias.setDate(em7dias.getDate()+7);
+  var em7ISO = em7dias.toISOString().slice(0,10);
+  var manutVencendo = state.veiculos.filter(function(v){
+    return v.proximaRevisaoISO && v.proximaRevisaoISO >= hoje && v.proximaRevisaoISO <= em7ISO;
+  });
+  var manutVencida = state.veiculos.filter(function(v){
+    return v.proximaRevisaoISO && v.proximaRevisaoISO < hoje;
+  });
 
   var porPolo = POLOS.map(function(p){
     var n = state.chamados.filter(function(c){return c.poloId===p.id && isOpenStatus(c.status);}).length;
     return {label:p.nome+' · '+p.regiao, n:n};
   });
   var maxPolo = Math.max(1, porPolo.reduce(function(m,x){return Math.max(m,x.n);},0));
-
-  var porCat = CAT_KEYS.map(function(k){
-    var n = state.chamados.filter(function(c){return c.categoria===k && isOpenStatus(c.status);}).length;
-    return {label:catLabel(k), n:n};
-  });
-  var maxCat = Math.max(1, porCat.reduce(function(m,x){return Math.max(m,x.n);},0));
-
   var porTipo = TIPOS_PROBLEMA.map(function(t){
     var n = state.chamados.filter(function(c){return c.tipoProblema===t && isOpenStatus(c.status);}).length;
     return {label:t, n:n};
   }).filter(function(x){return x.n>0;});
   var maxTipo = Math.max(1, porTipo.reduce(function(m,x){return Math.max(m,x.n);},0));
-
-  var totalVeiculos = state.veiculos.length;
-  var veiculosDisponiveis = state.veiculos.filter(function(v){return v.status==='Disponível';}).length;
-
   var cidadesComPlanoOk = state.planejamento.filter(function(p){return p.status==='Concluído' || p.status==='Em execução';}).length;
-  var cidadesAtrasadas = state.planejamento.filter(function(p){return p.status==='Atrasado';}).length;
-
-  var recentes = state.chamados.slice().sort(function(a,b){return (b.atualizadoEm||'').localeCompare(a.atualizadoEm||'');}).slice(0,5);
 
   var html = renderAlertBanner();
-  html += '<div class="grid kpis">'+
-    '<div class="card kpi"><div class="num">'+total+'</div><div class="lbl">Chamados no total</div></div>'+
-    '<div class="card kpi aberto"><div class="num">'+aberto+'</div><div class="lbl">Abertos</div></div>'+
-    '<div class="card kpi andamento"><div class="num">'+andamento+'</div><div class="lbl">Em andamento</div></div>'+
-    '<div class="card kpi resolvido"><div class="num">'+resolvido+'</div><div class="lbl">Resolvidos</div></div>'+
-    '<div class="card kpi" style="border-left-color:var(--green);"><div class="num">'+veiculosDisponiveis+'<span style="font-size:15px;color:var(--ink-soft);"> / '+totalVeiculos+'</span></div><div class="lbl">Veículos disponíveis</div></div>'+
+
+  /* alertas de manutenção */
+  if(manutVencida.length || manutVencendo.length){
+    html += '<div style="margin-bottom:14px;">';
+    if(manutVencida.length) html += '<div class="alert-banner" style="background:var(--red-soft);border-color:#E8B6AC;color:var(--red);">🔧 <div><b>'+manutVencida.length+' veículo(s) com revisão vencida.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencida.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade);}).join(' · ') +'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
+    if(manutVencendo.length) html += '<div class="alert-banner" style="background:var(--amber-soft);border-color:#E8C98A;color:var(--amber-dk);margin-top:6px;">⚠️ <div><b>'+manutVencendo.length+' veículo(s) com revisão nos próximos 7 dias.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencendo.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade)+' ('+esc(v.proximaRevisaoISO)+')';}).join(' · ')+'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
+    html += '</div>';
+  }
+
+  /* KPIs táticos semáforo */
+  function semClass(val, meta, inv){ return (inv ? val<=meta : val<=meta) ? 'verde' : val<=meta*2 ? 'amarelo' : 'vermelho'; }
+  html += '<div class="section-title">🚦 KPIs táticos do dia</div>';
+  html += '<div class="kpi-tatic-grid">'+
+    '<div class="kpi-tatic '+(pctParados<=5?'verde':pctParados<=10?'amarelo':'vermelho')+'"><div class="num">'+pctParados+'%</div><div class="lbl">Veículos parados</div><div class="meta">meta: ≤ 5%</div></div>'+
+    '<div class="kpi-tatic '+(cancelamentos===0?'verde':cancelamentos<=2?'amarelo':'vermelho')+'"><div class="num">'+cancelamentos+'</div><div class="lbl">Interrupções acumuladas</div><div class="meta">meta: 0</div></div>'+
+    '<div class="kpi-tatic '+(preventivas===0?'verde':preventivas<=1?'amarelo':'vermelho')+'"><div class="num">'+preventivas+'</div><div class="lbl">Preventivas vencidas</div><div class="meta">meta: 0</div></div>'+
+    '<div class="kpi-tatic '+(criticos===0?'verde':criticos<=2?'amarelo':'vermelho')+'"><div class="num">'+criticos+'</div><div class="lbl">Chamados críticos abertos</div><div class="meta">meta: 0</div></div>'+
   '</div>';
 
+  /* check-in dos polos hoje */
+  html += '<div class="section-title">✅ Check-in diário — hoje</div>';
+  html += '<div class="polo-checkin-grid">';
+  POLOS.forEach(function(p){
+    var ci = checkinsHoje.filter(function(c){return c.polo===p.id;})[0];
+    if(ci){
+      html += '<div class="polo-ci"><div class="polo-ci-head ok">'+esc(p.nome)+' <span style="font-size:10.5px;font-weight:400;">'+esc(ci.responsavel)+'</span></div>'+
+        '<div class="polo-ci-body">'+
+          '<div><b>Roda hoje:</b> '+esc(ci.queRoda||'—')+'</div>'+
+          '<div><b>Risco:</b> '+esc(ci.riscoDia||'—')+'</div>'+
+          (ci.bloqueios && ci.bloqueios!=='Nenhum' && ci.bloqueios!=='nenhum' ? '<div style="color:var(--red);"><b>Bloqueio:</b> '+esc(ci.bloqueios)+'</div>' : '')+
+          (ci.decisoes ? '<div><b>Decisão:</b> '+esc(ci.decisoes)+'</div>' : '')+
+          (ci.ausencias ? '<div><b>Ausências:</b> '+ci.ausencias+'</div>' : '')+
+        '</div></div>';
+    } else {
+      html += '<div class="polo-ci"><div class="polo-ci-head pend">'+esc(p.nome)+' <span style="font-size:10.5px;">⏳ pendente</span></div>'+
+        '<div class="polo-ci-body">Check-in ainda não realizado hoje.</div></div>';
+    }
+  });
+  html += '</div><div style="text-align:right;margin-bottom:14px;"><button class="btn btn-primary" onclick="window.__setTab(\'checkin\')">+ Fazer check-in →</button></div>';
+
+  /* gráficos */
   html += '<div class="grid two-col">';
-  html += '<div class="card">'+
-    '<div class="section-title">📍 Chamados em aberto por polo</div>'+
+  html += '<div class="card"><div class="section-title">📍 Chamados em aberto por polo</div>'+
     '<div class="bars">'+ porPolo.map(function(x){
       return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxPolo*100)+'%;background:var(--teal);"></div></div><span class="mono">'+x.n+'</span></div>';
-    }).join('') + '</div></div>';
-  html += '<div class="card">'+
-    '<div class="section-title">🏷️ Chamados em aberto por categoria</div>'+
-    '<div class="bars">'+ porCat.map(function(x){
-      return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxCat*100)+'%;background:var(--amber);"></div></div><span class="mono">'+x.n+'</span></div>';
-    }).join('') + '</div></div>';
+    }).join('')+'</div></div>';
+  html += '<div class="card"><div class="section-title">🛠️ Chamados por tipo de problema</div>'+
+    (porTipo.length ? '<div class="bars">'+porTipo.map(function(x){
+      return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxTipo*100)+'%;background:var(--red);"></div></div><span class="mono">'+x.n+'</span></div>';
+    }).join('')+'</div>' : '<div style="font-size:12px;color:var(--ink-soft);">Nenhum chamado em aberto com tipo definido.</div>')+
+  '</div>';
   html += '</div>';
 
   html += '<div class="grid two-col" style="margin-top:14px;">';
-  html += '<div class="card">'+
-    '<div class="section-title">🛠️ Chamados em aberto por tipo de problema</div>'+
-    (porTipo.length ? '<div class="bars">'+ porTipo.map(function(x){
-      return '<div class="bar-row"><span>'+esc(x.label)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+(x.n/maxTipo*100)+'%;background:var(--red);"></div></div><span class="mono">'+x.n+'</span></div>';
-    }).join('') + '</div>' : '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum chamado em aberto com tipo de problema definido.</div>')+
-  '</div>';
-  html += '<div class="card">'+
-    '<div class="section-title">🚐 Frota por status</div>'+
+  /* frota */
+  var indisponiveisObj = state.veiculos.filter(function(v){ return v.status==='Indisponível'; });
+  var porCidadeIndisp = {};
+  indisponiveisObj.forEach(function(v){ if(!porCidadeIndisp[v.cidade]) porCidadeIndisp[v.cidade]=[]; porCidadeIndisp[v.cidade].push(v); });
+  html += '<div class="card"><div class="section-title">🚐 Frota por status</div>'+
     '<div class="bars">'+
-      '<div class="bar-row"><span>Disponíveis</span><div class="bar-track"><div class="bar-fill" style="width:'+(totalVeiculos? veiculosDisponiveis/totalVeiculos*100:0)+'%;background:var(--green);"></div></div><span class="mono">'+veiculosDisponiveis+'</span></div>'+
-      '<div class="bar-row"><span>Indisponíveis</span><div class="bar-track"><div class="bar-fill" style="width:'+(totalVeiculos? (totalVeiculos-veiculosDisponiveis)/totalVeiculos*100:0)+'%;background:var(--red);"></div></div><span class="mono">'+(totalVeiculos-veiculosDisponiveis)+'</span></div>'+
+      '<div class="bar-row"><span>Disponíveis</span><div class="bar-track"><div class="bar-fill" style="width:'+(totalVeiculos?veiculosDisponiveis/totalVeiculos*100:0)+'%;background:var(--green);"></div></div><span class="mono">'+veiculosDisponiveis+'</span></div>'+
+      '<div class="bar-row"><span>Indisponíveis</span><div class="bar-track"><div class="bar-fill" style="width:'+(totalVeiculos?veiculosParados/totalVeiculos*100:0)+'%;background:var(--red);"></div></div><span class="mono">'+veiculosParados+'</span></div>'+
     '</div>'+
     (function(){
-      var indisponiveis = state.veiculos.filter(function(v){ return v.status==='Indisponível'; });
-      if(!indisponiveis.length) return '<div style="font-size:12px;color:var(--green);margin-top:10px;font-weight:600;">✅ Todos os veículos disponíveis</div>';
-      // agrupar por cidade
-      var porCidade = {};
-      indisponiveis.forEach(function(v){
-        if(!porCidade[v.cidade]) porCidade[v.cidade] = [];
-        porCidade[v.cidade].push(v);
+      if(!indisponiveisObj.length) return '<div style="font-size:12px;color:var(--green);margin-top:10px;font-weight:600;">✅ Todos os veículos disponíveis</div>';
+      var h2='<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px;"><div style="font-size:11.5px;font-weight:700;color:var(--red);margin-bottom:6px;">⚠️ Indisponíveis por cidade</div>';
+      Object.keys(porCidadeIndisp).forEach(function(cidade){
+        var lista=porCidadeIndisp[cidade];
+        var porCat={};
+        lista.forEach(function(v){if(!porCat[v.categoria])porCat[v.categoria]=[];porCat[v.categoria].push(v);});
+        h2+='<div style="background:var(--red-soft);border:1px solid #E8B6AC;border-radius:9px;padding:7px 9px;margin-bottom:6px;">'+
+          '<div style="display:flex;justify-content:space-between;"><b style="font-size:12.5px;">'+esc(cidade)+'</b><b style="color:var(--red);font-size:11px;">'+lista.length+' indisp.</b></div>'+
+          '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">'+
+          Object.keys(porCat).map(function(cat){var mt=[...new Set(porCat[cat].map(function(v){return v.motivo||'s/ motivo';}))].join(', ');return '<span title="'+esc(mt)+'" style="background:#fff;border:1px solid #E8B6AC;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--red);">'+esc(catLabel(cat))+': '+porCat[cat].length+'</span>';}).join('')+
+          '</div></div>';
       });
-      var html2 = '<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px;">';
-      html2 += '<div style="font-size:11.5px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Veículos indisponíveis por cidade</div>';
-      Object.keys(porCidade).sort().forEach(function(cidade){
-        var lista = porCidade[cidade];
-        var polo = CIDADE_POLO[cidade];
-        // agrupar por categoria dentro da cidade
-        var porCat = {};
-        lista.forEach(function(v){
-          if(!porCat[v.categoria]) porCat[v.categoria] = [];
-          porCat[v.categoria].push(v);
-        });
-        html2 += '<div style="background:var(--red-soft);border:1px solid #E8B6AC;border-radius:10px;padding:8px 10px;margin-bottom:7px;">';
-        html2 += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">';
-        html2 += '<span style="font-weight:700;font-size:13px;">'+esc(cidade)+'</span>';
-        html2 += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(polo.nome)+' · <b style="color:var(--red);">'+lista.length+' indisponível(eis)</b></span>';
-        html2 += '</div>';
-        html2 += '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
-        Object.keys(porCat).sort().forEach(function(cat){
-          var veics = porCat[cat];
-          var motivos = [...new Set(veics.map(function(v){ return v.motivo||'motivo não informado'; }))].join(', ');
-          html2 += '<span title="'+esc(motivos)+'" style="background:#fff;border:1px solid #E8B6AC;border-radius:7px;padding:3px 8px;font-size:11.5px;font-weight:700;color:var(--red);">'+
-            esc(catLabel(cat))+': <span style="font-family:\'IBM Plex Mono\',monospace;">'+veics.length+'</span>'+
-            ' <span style="font-weight:400;color:var(--ink-soft);font-size:10.5px;">— '+esc(motivos)+'</span></span>';
-        });
-        html2 += '</div></div>';
-      });
-      html2 += '</div>';
-      return html2;
+      h2+='</div>';return h2;
     })()+
-    '<button class="btn btn-ghost" style="margin-top:10px;" onclick="window.__setTab(\'veiculos\')">Ver frota completa →</button>'+
-  '</div>';
-  html += '</div>';
+    '<button class="btn btn-ghost" style="margin-top:8px;" onclick="window.__setTab(\'veiculos\')">Ver frota completa →</button></div>';
 
-  html += '<div class="grid two-col" style="margin-top:14px;">';
-  html += '<div class="card">'+
-    '<div class="section-title">🕒 Atividade recente</div>'+
-    (recentes.length? recentes.map(function(c){
-      return '<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;">'+
-        '<span class="pill '+statusPillClass(c.status)+'">'+esc(c.status)+'</span> '+
-        '<b>'+esc(c.titulo)+'</b> <span style="color:var(--ink-soft);">— '+esc(c.cidade)+'</span>'+
-        '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">'+esc(c.atualizadoEm||c.criadoEm)+'</div></div>';
-    }).join('') : '<div class="empty"><b>Sem atividade ainda.</b>Abra o primeiro chamado na aba Chamados para começar.</div>')+
-  '</div>';
-  html += '<div class="card">'+
-    '<div class="section-title">🗺️ Planejamento operacional</div>'+
+  /* planejamento */
+  var ciComPlanoOk = state.planejamento.filter(function(p){return p.status==='Concluído'||p.status==='Em execução';}).length;
+  var ciAtrasadas  = state.planejamento.filter(function(p){return p.status==='Atrasado';}).length;
+  html += '<div class="card"><div class="section-title">🗺️ Planejamento operacional</div>'+
     '<div class="bars">'+
       '<div class="bar-row"><span>Cidades em dia</span><div class="bar-track"><div class="bar-fill" style="width:'+(cidadesComPlanoOk/18*100)+'%;background:var(--green);"></div></div><span class="mono">'+cidadesComPlanoOk+'/18</span></div>'+
-      '<div class="bar-row"><span>Cidades atrasadas</span><div class="bar-track"><div class="bar-fill" style="width:'+(cidadesAtrasadas/18*100)+'%;background:var(--red);"></div></div><span class="mono">'+cidadesAtrasadas+'/18</span></div>'+
+      '<div class="bar-row"><span>Atrasadas</span><div class="bar-track"><div class="bar-fill" style="width:'+(ciAtrasadas/18*100)+'%;background:var(--red);"></div></div><span class="mono">'+ciAtrasadas+'/18</span></div>'+
     '</div>'+
-    '<button class="btn btn-ghost" style="margin-top:12px;" onclick="window.__setTab(\'planejamento\')">Ver planejamento completo →</button>'+
-  '</div>';
+    '<button class="btn btn-ghost" style="margin-top:10px;" onclick="window.__setTab(\'planejamento\')">Ver planejamento →</button></div>';
   html += '</div>';
+
+  /* atividade recente */
+  var recentes = state.chamados.slice().sort(function(a,b){return (b.atualizadoEm||'').localeCompare(a.atualizadoEm||'');}).slice(0,5);
+  html += '<div class="card" style="margin-top:14px;"><div class="section-title">🕒 Atividade recente</div>'+
+    (recentes.length ? recentes.map(function(c){
+      return '<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;">'+
+        '<span class="pill '+statusPillClass(c.status)+'">'+esc(c.status)+'</span> '+
+        (isAtrasado(c)?'<span class="pill red">⏰ atrasado</span> ':'')+
+        '<b>'+esc(c.titulo)+'</b> <span style="color:var(--ink-soft);">— '+esc(c.cidade)+'</span>'+
+        '<div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">'+esc(c.atualizadoEm||c.criadoEm)+'</div></div>';
+    }).join('') : '<div class="empty">Sem atividade ainda.</div>')+
+  '</div>';
 
   document.getElementById('tabContent').innerHTML = html;
 }
-
 /* ===================================================================
    MAPA & POLOS
 =================================================================== */
@@ -1218,12 +1482,13 @@ function renderAgendaTab(){
 
 function renderWeekCard(w){
   var entradas = w.entradas || [];
-  var draft = state.draftEntry[w.id] || {cidade:'', cats:[]};
+  var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:''};
   var html = '<div class="week-card">'+
     '<div class="week-head"><div><div class="wtitle dsp">'+esc(w.label)+'</div><div class="wdates">'+esc(w.inicio)+' a '+esc(w.fim)+'</div></div>'+
     '<button class="icon-btn" style="color:#fff;" onclick="window.__excluirSemana(\''+w.id+'\')">excluir semana</button></div>'+
     '<div class="week-body">';
 
+  var temCDE = draft.cats && draft.cats.some(function(c){ return c==='C'||c==='D'||c==='E'; });
   html += '<div class="entry-form">'+
     '<label class="full">Cidade<select onchange="window.__draftEntryCidade(\''+w.id+'\', this.value)">'+
       '<option value="">Selecione</option>'+ TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'"'+(c===draft.cidade?' selected':'')+'>'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>';}).join('') +
@@ -1234,6 +1499,7 @@ function renderWeekCard(w){
         return '<label><input type="checkbox" '+(checked?'checked':'')+' onchange="window.__draftEntryCat(\''+w.id+'\', \''+k+'\', this.checked)">'+esc(catLabel(k))+'</label>';
       }).join('') +
     '</div></label>'+
+    (temCDE ? '<label class="full" style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;">📅 Data exata do exame C/D/E<input id="de-data-'+w.id+'" type="date" value="'+esc(draft.dataExata||'')+'" onchange="window.__draftEntryData(\''+w.id+'\', this.value)" style="margin-top:4px;width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;"></label>' : '')+
     '<button class="btn btn-primary" onclick="window.__addEntrada(\''+w.id+'\')">+ Agendar cidade</button>'+
   '</div>';
 
@@ -1287,25 +1553,38 @@ window.__excluirSemana = async function(id){
 };
 
 window.__draftEntryCidade = function(wId, cidade){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[]};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
   state.draftEntry[wId].cidade = cidade;
 };
 window.__draftEntryCat = function(wId, cat, checked){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[]};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
   var cats = state.draftEntry[wId].cats;
   if(checked){ if(cats.indexOf(cat)===-1) cats.push(cat); }
   else { state.draftEntry[wId].cats = cats.filter(function(c){return c!==cat;}); }
+  renderAgendaTab();
+};
+window.__draftEntryData = function(wId, val){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
+  state.draftEntry[wId].dataExata = val;
 };
 
 window.__addEntrada = async function(wId){
-  var d = state.draftEntry[wId] || {cidade:'', cats:[]};
+  var d = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
   if(!d.cidade){ showToast('Selecione a cidade.'); return; }
   if(!d.cats.length){ showToast('Selecione ao menos uma categoria.'); return; }
+  var temCDE = d.cats.some(function(c){ return c==='C'||c==='D'||c==='E'; });
+  if(temCDE && !d.dataExata){ showToast('Informe a data exata para exames C/D/E.'); return; }
   var w = state.semanas.filter(function(x){return x.id===wId;})[0];
   w.entradas = w.entradas || [];
-  w.entradas.push({id:'E'+Date.now().toString(36).toUpperCase(), cidade:d.cidade, categorias:d.cats.slice(), status:'Planejado', motivo:'', detalhes:'', atualizadoPor:'', atualizadoEm:''});
+  w.entradas.push({
+    id:'E'+Date.now().toString(36).toUpperCase(),
+    cidade:d.cidade, categorias:d.cats.slice(),
+    dataExata: temCDE ? d.dataExata : '',
+    status:'Planejado', motivo:'', detalhes:'',
+    atualizadoPor:'', atualizadoEm:''
+  });
   await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
-  state.draftEntry[wId] = {cidade:'', cats:[]};
+  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:''};
   showToast('Cidade agendada.');
   renderAgendaTab();
 };
@@ -1370,8 +1649,14 @@ function renderVeiculosTab(){
           var verde = v.status==='Disponível';
           html += '<div class="vrow">'+
             '<button class="dotbtn '+(verde?'on':'off')+'" title="alternar disponibilidade" onclick="window.__toggleVeiculo(\''+v.id+'\')"><span class="dot"></span>'+(verde?'Disponível':'Indisponível')+'</button>'+
-            '<div class="vinfo"><div class="vname">'+esc(v.nome||'Veículo')+' — '+esc(catLabel(v.categoria))+'</div>'+
-            '<div class="vsub">'+(verde? 'Pronto para uso' : 'Motivo: '+esc(v.motivo||'não informado'))+(v.atualizadoPor? ' · '+esc(v.atualizadoPor):'')+'</div></div>'+
+            '<div class="vinfo">'+
+              '<div class="vname">'+esc(v.nome||'Veículo')+' — '+esc(catLabel(v.categoria))+'</div>'+
+              '<div class="vsub">'+(verde?'Pronto para uso':'Motivo: '+esc(v.motivo||'não informado'))+(v.atualizadoPor?' · '+esc(v.atualizadoPor):'')+'</div>'+
+              '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;">'+
+                manutBadge(v)+
+                '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão: <input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" onchange="window.__setManutencao(\''+v.id+'\', this.value)"></label>'+
+              '</div>'+
+            '</div>'+
             (!verde ? '<select class="small-select" onchange="window.__motivoVeiculo(\''+v.id+'\', this.value)">'+
               '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
             '</select>' : '')+
@@ -1419,6 +1704,256 @@ window.__excluirVeiculo = async function(id){
   state.veiculos = state.veiculos.filter(function(x){return x.id!==id;});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   renderVeiculosTab();
+};
+
+window.__setManutencao = async function(id, dataISO){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.proximaRevisaoISO = dataISO;
+  v.atualizadoPor = state.sessao.nome+' ('+state.sessao.cargo+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Data de revisão salva para '+esc(v.cidade)+'.');
+  renderVeiculosTab();
+};
+
+/* ===================================================================
+   CHECK-IN DIÁRIO
+=================================================================== */
+function renderCheckinTab(){
+  var hoje = new Date().toISOString().slice(0,10);
+  var hojeDisplay = dataParaDisplay(hoje);
+  var checkinsHoje = state.checkins.filter(function(c){ return c.dataISO===hoje; });
+  var poloUser = state.sessao ? state.checkins.filter(function(c){ return c.responsavelId===state.sessao.id && c.dataISO===hoje; })[0] : null;
+
+  var html = '<div class="card" style="margin-bottom:16px;">';
+  if(poloUser){
+    html += '<div class="section-title">✅ Seu check-in de hoje já foi registrado</div>'+
+      '<div style="font-size:12.5px;color:var(--ink-soft);">'+esc(poloUser.responsavel)+' · '+esc(POLOS.filter(function(p){return p.id===poloUser.polo;})[0].nome)+' · '+esc(hojeDisplay)+'</div>'+
+      '<button class="btn btn-ghost" style="margin-top:10px;" onclick="window.__excluirCheckin(\''+poloUser.id+'\')">Refazer check-in de hoje</button>';
+  } else {
+    html += '<div class="section-title">📋 Preencher check-in — '+esc(hojeDisplay)+'</div>'+
+      '<div class="form-grid">'+
+        '<label>Polo<select id="ci-polo">'+
+          POLOS.map(function(p){return '<option value="'+p.id+'">'+esc(p.nome)+' — '+esc(p.regiao)+'</option>';}).join('')+
+        '</select></label>'+
+        '<label>Ausências no dia<input id="ci-aus" type="number" min="0" value="0" placeholder="0"></label>'+
+        '<label class="full">O que vai rodar hoje? (cidades, veículos, equipes)<input id="ci-roda" type="text" placeholder="Ex: Recife Cat A+B, 3 veículos, equipe completa"></label>'+
+        '<label class="full">Qual o risco do dia?<input id="ci-risco" type="text" placeholder="Ex: Chuva prevista, trânsito intenso"></label>'+
+        '<label class="full">O que está bloqueando?<input id="ci-bloq" type="text" placeholder="Ex: Nenhum / Veículo em manutenção"></label>'+
+        '<label class="full">O que precisa de decisão?<input id="ci-dec" type="text" placeholder="Ex: Autorizar hora extra para equipe Recife"></label>'+
+      '</div>'+
+      '<button class="btn btn-primary" onclick="window.__addCheckin()">✅ Registrar check-in</button>';
+  }
+  html += '</div>';
+
+  html += '<div class="section-title">Histórico de check-ins</div>';
+  var historico = state.checkins.slice().sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); }).slice(0,30);
+  if(!historico.length){
+    html += '<div class="empty card"><b>Nenhum check-in registrado ainda.</b>O primeiro check-in diário define o ritmo da operação.</div>';
+  } else {
+    var porData = {};
+    historico.forEach(function(c){ if(!porData[c.dataISO]) porData[c.dataISO]=[]; porData[c.dataISO].push(c); });
+    Object.keys(porData).sort().reverse().forEach(function(d){
+      html += '<div style="font-weight:700;font-size:12.5px;color:var(--ink-soft);margin:12px 0 6px;">'+esc(dataParaDisplay(d))+'</div>';
+      porData[d].forEach(function(ci){
+        var polo = POLOS.filter(function(p){return p.id===ci.polo;})[0];
+        var temBloq = ci.bloqueios && ci.bloqueios.toLowerCase()!=='nenhum' && ci.bloqueios.trim()!=='';
+        html += '<div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:7px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'+
+            '<div><b>'+esc(polo?polo.nome:'?')+'</b> <span style="color:var(--ink-soft);font-size:12px;">'+esc(ci.responsavel)+' · '+esc(ci.cargo)+'</span></div>'+
+            (temBloq ? '<span class="pill red">⚠ bloqueio</span>' : '<span class="pill green">✓ ok</span>')+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px;">'+
+            '<div><b>Roda:</b> '+esc(ci.queRoda||'—')+'</div>'+
+            '<div><b>Risco:</b> '+esc(ci.riscoDia||'—')+'</div>'+
+            (temBloq ? '<div style="color:var(--red);"><b>Bloqueio:</b> '+esc(ci.bloqueios)+'</div>' : '<div></div>')+
+            (ci.decisoes ? '<div><b>Decisão:</b> '+esc(ci.decisoes)+'</div>' : '<div></div>')+
+            (ci.ausencias ? '<div><b>Ausências:</b> '+ci.ausencias+'</div>' : '')+
+          '</div>'+
+          '<div style="display:flex;justify-content:flex-end;margin-top:4px;">'+
+            '<button class="icon-btn" onclick="window.__excluirCheckin(\''+ci.id+'\')">excluir</button>'+
+          '</div>'+
+        '</div>';
+      });
+    });
+  }
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+window.__addCheckin = async function(){
+  var polo   = document.getElementById('ci-polo').value;
+  var queRoda= (document.getElementById('ci-roda').value||'').trim();
+  var risco  = (document.getElementById('ci-risco').value||'').trim();
+  var bloq   = (document.getElementById('ci-bloq').value||'').trim();
+  var dec    = (document.getElementById('ci-dec').value||'').trim();
+  var aus    = parseInt(document.getElementById('ci-aus').value,10)||0;
+  if(!queRoda){ showToast('Informe o que vai rodar hoje.'); return; }
+  var hoje = new Date().toISOString().slice(0,10);
+  var ci = {
+    id:'CI'+Date.now().toString(36).toUpperCase(),
+    polo:polo, dataISO:hoje, responsavel:state.sessao.nome, cargo:state.sessao.cargo,
+    responsavelId:state.sessao.id, queRoda:queRoda, riscoDia:risco,
+    bloqueios:bloq, decisoes:dec, ausencias:aus, criadoEm:nowStr()
+  };
+  state.checkins.unshift(ci);
+  await storageSet('checkins-lista', JSON.stringify(state.checkins), true);
+  showToast('Check-in registrado!');
+  renderCheckinTab();
+};
+
+window.__excluirCheckin = async function(id){
+  if(!confirm('Excluir este check-in?')) return;
+  state.checkins = state.checkins.filter(function(c){return c.id!==id;});
+  await storageSet('checkins-lista', JSON.stringify(state.checkins), true);
+  renderCheckinTab();
+};
+
+/* ===================================================================
+   MANUTENÇÃO PREVENTIVA — helpers para aba Veículos
+=================================================================== */
+function diasAteManutencao(v){
+  if(!v.proximaRevisaoISO) return null;
+  var diff = new Date(v.proximaRevisaoISO) - new Date(new Date().toISOString().slice(0,10));
+  return Math.round(diff/(1000*60*60*24));
+}
+function manutBadge(v){
+  if(!v.proximaRevisaoISO) return '<span class="manut-badge" style="background:var(--gray-soft);color:var(--ink-soft);">Sem data</span>';
+  var dias = diasAteManutencao(v);
+  if(dias < 0)  return '<span class="manut-badge manut-venc">🔴 Vencida há '+Math.abs(dias)+'d</span>';
+  if(dias <= 7) return '<span class="manut-badge manut-prox">⚠️ Vence em '+dias+'d</span>';
+  return '<span class="manut-badge manut-ok">✅ Em dia ('+dias+'d)</span>';
+}
+
+/* ===================================================================
+   RELATÓRIO TRIMESTRAL
+=================================================================== */
+function trimestreAtual(){
+  var d = new Date(); var m = d.getMonth();
+  return {ano: d.getFullYear(), tri: Math.floor(m/3)+1};
+}
+function nomeTrimestre(ano, tri){ return 'T'+tri+' / '+ano; }
+function mesesDoTrimestre(ano, tri){
+  var inicio = (tri-1)*3;
+  return [inicio, inicio+1, inicio+2].map(function(m){ return ano+'-'+String(m+1).padStart(2,'0'); });
+}
+
+function renderRelatorioTab(){
+  var t = state.relTri || trimestreAtual();
+  var meses = mesesDoTrimestre(t.ano, t.tri);
+
+  /* dados do trimestre */
+  var diariosT = state.diarios.filter(function(d){ return meses.indexOf(d.mes)>-1; });
+  var chekinT  = state.checkins.filter(function(c){ return meses.some(function(m){ return c.dataISO && c.dataISO.startsWith(m); }); });
+  var chamadosT= state.chamados.filter(function(c){ return c.criadoEm && meses.some(function(m){ return c.criadoEm.startsWith(m.slice(5,7)+'/'+m.slice(0,4)); }); });
+
+  var totalAgend = diariosT.reduce(function(s,d){return s+d.agendados;},0);
+  var totalReal  = diariosT.reduce(function(s,d){return s+d.realizados;},0);
+  var taxaGeral  = totalAgend>0 ? Math.round(totalReal/totalAgend*100) : 0;
+  var totalCham  = state.chamados.length;
+  var abertosCham= state.chamados.filter(function(c){return c.status==='Aberto'||c.status==='Em andamento';}).length;
+  var interrup   = 0;
+  state.semanas.forEach(function(w){ (w.entradas||[]).forEach(function(e){ if(e.status==='Interrompido') interrup++; }); });
+  var veicIndisp = state.veiculos.filter(function(v){return v.status==='Indisponível';}).length;
+  var ausencias  = chekinT.reduce(function(s,c){return s+(c.ausencias||0);},0);
+
+  /* por polo */
+  var porPolo = POLOS.map(function(p){
+    var ag = diariosT.filter(function(d){ return CIDADE_POLO[d.cidade] && CIDADE_POLO[d.cidade].id===p.id; }).reduce(function(s,d){return s+d.agendados;},0);
+    var re = diariosT.filter(function(d){ return CIDADE_POLO[d.cidade] && CIDADE_POLO[d.cidade].id===p.id; }).reduce(function(s,d){return s+d.realizados;},0);
+    var ch = state.chamados.filter(function(c){return c.poloId===p.id;}).length;
+    return {nome:p.nome+' — '+p.regiao, agendados:ag, realizados:re, chamados:ch};
+  });
+
+  /* por tipo de chamado */
+  var porTipo = TIPOS_PROBLEMA.map(function(t){
+    var n = state.chamados.filter(function(c){return c.tipoProblema===t;}).length;
+    return {tipo:t, n:n};
+  }).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'+
+    '<div class="section-title" style="margin:0;">📊 Relatório operacional</div>'+
+    '<button class="btn btn-amber" onclick="window.__exportarRelatorio()">⬇ Exportar CSV</button>'+
+  '</div>';
+
+  html += '<div class="tri-nav">'+
+    '<button onclick="window.__triAnterior()">← Trimestre anterior</button>'+
+    '<span class="tri-label">'+nomeTrimestre(t.ano, t.tri)+'</span>'+
+    '<button onclick="window.__triProximo()">Próximo trimestre →</button>'+
+  '</div>';
+
+  /* bloco resumo */
+  html += '<div class="rel-bloco"><div class="rel-head">📈 Resumo executivo — '+nomeTrimestre(t.ano, t.tri)+'</div><div class="rel-body">'+
+    '<div class="rel-linha"><span>Total exames agendados</span><span class="rel-val">'+totalAgend+'</span></div>'+
+    '<div class="rel-linha"><span>Total exames realizados</span><span class="rel-val">'+totalReal+'</span></div>'+
+    '<div class="rel-linha"><span>Taxa de realização geral</span><span class="rel-val" style="color:'+(taxaGeral>=90?'var(--green)':taxaGeral>=70?'var(--amber-dk)':'var(--red)')+'">'+taxaGeral+'%</span></div>'+
+    '<div class="rel-linha"><span>Interrupções registradas</span><span class="rel-val" style="color:'+(interrup===0?'var(--green)':'var(--red)')+'">'+interrup+'</span></div>'+
+    '<div class="rel-linha"><span>Chamados em aberto</span><span class="rel-val" style="color:'+(abertosCham===0?'var(--green)':'var(--amber-dk)')+'">'+abertosCham+'/'+totalCham+'</span></div>'+
+    '<div class="rel-linha"><span>Veículos indisponíveis (atual)</span><span class="rel-val" style="color:'+(veicIndisp===0?'var(--green)':'var(--red)')+'">'+veicIndisp+'/'+state.veiculos.length+'</span></div>'+
+    '<div class="rel-linha"><span>Ausências registradas (check-ins)</span><span class="rel-val">'+ausencias+'</span></div>'+
+    '<div class="rel-linha"><span>Check-ins realizados</span><span class="rel-val">'+chekinT.length+'</span></div>'+
+  '</div></div>';
+
+  /* por polo */
+  html += '<div class="rel-bloco"><div class="rel-head">🗺️ Desempenho por polo</div><div class="rel-body">';
+  porPolo.forEach(function(p){
+    var taxa = p.agendados>0 ? Math.round(p.realizados/p.agendados*100) : 0;
+    html += '<div class="rel-linha"><span>'+esc(p.nome)+'</span>'+
+      '<span style="display:flex;gap:12px;align-items:center;">'+
+        '<span style="font-size:12px;color:var(--ink-soft);">'+p.agendados+' agend. / '+p.realizados+' realiz.</span>'+
+        '<span class="rel-val" style="color:'+(taxa>=90?'var(--green)':taxa>=70?'var(--amber-dk)':'var(--red)')+'">'+taxa+'%</span>'+
+        '<span style="font-size:12px;color:var(--ink-soft);">'+p.chamados+' chamados</span>'+
+      '</span></div>';
+  });
+  html += '</div></div>';
+
+  /* por tipo de chamado */
+  if(porTipo.length){
+    html += '<div class="rel-bloco"><div class="rel-head">🛠️ Chamados por tipo de problema</div><div class="rel-body">';
+    porTipo.forEach(function(x){
+      html += '<div class="rel-linha"><span>'+esc(x.tipo)+'</span><span class="rel-val">'+x.n+'</span></div>';
+    });
+    html += '</div></div>';
+  }
+
+  /* princípios operacionais */
+  html += '<div class="rel-bloco"><div class="rel-head">📌 Princípios operacionais — status</div><div class="rel-body">'+
+    [
+      {p:'Problema sem responsável vira caos.', ok: abertosCham < totalCham/2},
+      {p:'Indicadores mostram a verdade da operação.', ok: totalReal>0},
+      {p:'Veículos disponíveis sustentam a operação.', ok: veicIndisp < state.veiculos.length*0.05},
+      {p:'Preventivas em dia evitam paradas.', ok: state.veiculos.filter(function(v){return v.proximaRevisaoISO && diasAteManutencao(v)<0;}).length===0},
+      {p:'Check-ins diários geram visibilidade.', ok: chekinT.length >= 20}
+    ].map(function(x){
+      return '<div class="rel-linha"><span style="font-style:italic;">'+esc(x.p)+'</span>'+
+        '<span class="pill '+(x.ok?'green':'red')+'">'+(x.ok?'✓ ok':'⚠ atenção')+'</span></div>';
+    }).join('')+
+  '</div></div>';
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+window.__triAnterior = function(){
+  var t = state.relTri || trimestreAtual();
+  if(t.tri===1){ state.relTri={ano:t.ano-1,tri:4}; } else { state.relTri={ano:t.ano,tri:t.tri-1}; }
+  renderRelatorioTab();
+};
+window.__triProximo = function(){
+  var t = state.relTri || trimestreAtual();
+  if(t.tri===4){ state.relTri={ano:t.ano+1,tri:1}; } else { state.relTri={ano:t.ano,tri:t.tri+1}; }
+  renderRelatorioTab();
+};
+
+window.__exportarRelatorio = function(){
+  var t = state.relTri || trimestreAtual();
+  var meses = mesesDoTrimestre(t.ano, t.tri);
+  var diariosT = state.diarios.filter(function(d){ return meses.indexOf(d.mes)>-1; });
+  var rows = [['Polo','Cidade','Mês','Categoria','Agendados','Realizados','Taxa %','Registrado por']];
+  diariosT.forEach(function(d){
+    var taxa = d.agendados>0 ? Math.round(d.realizados/d.agendados*100) : 0;
+    rows.push([CIDADE_POLO[d.cidade]?CIDADE_POLO[d.cidade].nome:'', d.cidade, d.mes, catLabel(d.categoria), d.agendados, d.realizados, taxa+'%', d.registradoPor]);
+  });
+  downloadCSV(rows, 'relatorio_'+nomeTrimestre(t.ano,t.tri).replace(' / ','-')+'.csv');
 };
 
 /* ---------------- csv export ---------------- */
