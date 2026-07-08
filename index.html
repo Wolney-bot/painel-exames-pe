@@ -284,7 +284,7 @@ var TODAS_CIDADES = POLOS.reduce(function(a,p){return a.concat(p.cidades);},[]);
 var CAT_KEYS = ['A','B','C','D','E'];
 var DEFAULT_CAT_LABELS = {A:'Categoria A',B:'Categoria B',C:'Categoria C',D:'Categoria D',E:'Categoria E'};
 
-var PAPEIS = ['Coordenador','Gerente','Supervisor','Líder de Operação','Aux de Suporte'];
+var PAPEIS = ['Coordenador','Gerente','Supervisor','Líder de Operação','Suporte'];
 var PRIORIDADES = ['Baixa','Média','Alta','Crítica'];
 var STATUS_CHAMADO = ['Aberto','Em andamento','Resolvido','Cancelado'];
 var TIPOS_PROBLEMA = ['Problema mecânico','Infraestrutura do pátio de exame','Equipamento eletrônico embarcado','Falha de sistema/software','Outro'];
@@ -313,7 +313,10 @@ var state = {
   mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
   relTri: null,
   formOpen: false,
-  alertasFechados: false
+  alertasFechados: false,
+  planAcesso: [],
+  agendaData: new Date().toISOString().slice(0,10),
+  agendaView: 'semana'
 };
 window.state = state;
 
@@ -435,6 +438,9 @@ async function init(){
   state.diarios   = di ? JSON.parse(di) : [];
   state.usuarios  = us ? JSON.parse(us) : [];
   state.checkins  = ci ? JSON.parse(ci) : [];
+
+  var pa = await storageGet('plan-acesso', true);
+  state.planAcesso = pa ? JSON.parse(pa) : [];
 
   if(pl){
     state.planejamento = JSON.parse(pl);
@@ -693,13 +699,35 @@ window.__sincronizar = async function(silent){
 /* ===================================================================
    ABA ADMIN — aprovação de usuários
 =================================================================== */
+window.__salvarPlanAcesso = async function(){
+  var checks = document.querySelectorAll('.plan-acesso-check:checked');
+  var perfis = Array.from(checks).map(function(c){ return c.value; });
+  state.planAcesso = perfis;
+  await storageSet('plan-acesso', JSON.stringify(perfis), true);
+  showToast('Acesso ao Planejamento atualizado.');
+  renderNav();
+};
+
 function renderAdminTab(){
   if(!state.sessao || !state.sessao.isAdmin){ document.getElementById('tabContent').innerHTML='<div class="empty card">Acesso restrito ao administrador.</div>'; return; }
   var pendentes  = state.usuarios.filter(function(u){ return u.status==='pendente'; });
   var aprovados  = state.usuarios.filter(function(u){ return u.status==='aprovado'; });
   var rejeitados = state.usuarios.filter(function(u){ return u.status==='rejeitado'; });
 
-  var html = '';
+  /* --- controle de acesso ao planejamento --- */
+  var html = '<div class="card" style="margin-bottom:14px;">'+
+    '<div class="section-title">🔐 Acesso à aba Planejamento</div>'+
+    '<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px;">Por padrão, só o administrador vê a aba Planejamento. Marque os perfis que também podem acessá-la:</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'+
+      PAPEIS.filter(function(p){ return p !== 'Suporte'; }).map(function(p){
+        var checked = state.planAcesso.indexOf(p) > -1;
+        return '<label style="display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;font-weight:600;">'+
+          '<input type="checkbox" class="plan-acesso-check" value="'+esc(p)+'" '+(checked?'checked':'')+'>'+esc(p)+'</label>';
+      }).join('')+
+    '</div>'+
+    '<button class="btn btn-primary" onclick="window.__salvarPlanAcesso()">Salvar permissões</button>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:8px;">O perfil Suporte não pode ter acesso ao Planejamento.</div>'+
+  '</div>';
   if(pendentes.length){
     html += '<div class="card" style="margin-bottom:14px;border-left:4px solid var(--amber);">'+
       '<div class="section-title">⏳ Aguardando aprovação ('+pendentes.length+')</div>'+
@@ -768,16 +796,23 @@ var TABS = [
   {id:'mapa',         label:'Mapa & Polos'},
   {id:'agenda',       label:'Agenda semanal'},
   {id:'chamados',     label:'Chamados'},
-  {id:'planejamento', label:'Planejamento'},
+  {id:'planejamento', label:'Planejamento', planOnly: true},
   {id:'veiculos',     label:'Veículos'},
   {id:'relatorio',    label:'📊 Relatório'},
   {id:'admin',        label:'👥 Usuários', adminOnly: true}
 ];
+function podePlanejar(){
+  if(!state.sessao) return false;
+  if(state.sessao.isAdmin) return true;
+  return state.planAcesso.indexOf(state.sessao.cargo) > -1;
+}
 function renderNav(){
   document.getElementById('navBar').innerHTML = TABS.filter(function(t){
-    return !t.adminOnly || (state.sessao && state.sessao.isAdmin);
+    if(t.adminOnly) return state.sessao && state.sessao.isAdmin;
+    if(t.planOnly)  return podePlanejar();
+    return true;
   }).map(function(t){
-    return '<button id="navbtn-'+t.id+'" onclick="window.__setTab(\''+t.id+'\')">'+t.label+'</button>';
+    return '<button id="navbtn-'+t.id+'" onclick="window.__setTab(\''+t.id+'\')">' +t.label+'</button>';
   }).join('');
 }
 window.__setTab = function(id){ setTab(id); };
@@ -849,6 +884,39 @@ window.__irParaAtrasados = function(){
 /* ===================================================================
    VISÃO GERAL
 =================================================================== */
+/* helper: realizado no mês atual por cidade (calculado dos diários) */
+function realizadoMesAtual(cidade){
+  var mes = state.mesSelecionado;
+  return state.diarios.filter(function(d){ return d.cidade===cidade && d.mes===mes; })
+    .reduce(function(s,d){ return s+d.realizados; }, 0);
+}
+function agendadosMesAtual(cidade){
+  var mes = state.mesSelecionado;
+  return state.diarios.filter(function(d){ return d.cidade===cidade && d.mes===mes; })
+    .reduce(function(s,d){ return s+d.agendados; }, 0);
+}
+/* exames agendados para hoje nas semanas */
+function examesHoje(data){
+  var lista = [];
+  state.semanas.forEach(function(w){
+    (w.entradas||[]).forEach(function(e){
+      var cats = [];
+      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
+      else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
+      var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
+      if(abCats.length && w.inicio && w.fim){
+        var di = dataParaDisplay(data);
+        function toISO(s){ var p=s.split('/'); return p[2]+'-'+p[1]+'-'+p[0]; }
+        var wIni = w.inicio.indexOf('/')>-1 ? toISO(w.inicio) : w.inicio;
+        var wFim = w.fim.indexOf('/')>-1   ? toISO(w.fim)   : w.fim;
+        if(data >= wIni && data <= wFim) cats = cats.concat(abCats);
+      }
+      if(cats.length) lista.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats, status:e.status});
+    });
+  });
+  return lista;
+}
+
 function renderOverview(){
   var hoje = new Date().toISOString().slice(0,10);
   var total     = state.chamados.length;
@@ -917,7 +985,7 @@ function renderOverview(){
   '</div>';
 
   /* check-in dos polos hoje */
-  html += '<div class="section-title">✅ Check-in diário — hoje</div>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div class="section-title" style="margin:0;">✅ Check-in diário — hoje</div></div>';
   html += '<div class="polo-checkin-grid">';
   POLOS.forEach(function(p){
     var ci = checkinsHoje.filter(function(c){return c.polo===p.id;})[0];
@@ -926,16 +994,44 @@ function renderOverview(){
         '<div class="polo-ci-body">'+
           '<div><b>Roda hoje:</b> '+esc(ci.queRoda||'—')+'</div>'+
           '<div><b>Risco:</b> '+esc(ci.riscoDia||'—')+'</div>'+
-          (ci.bloqueios && ci.bloqueios!=='Nenhum' && ci.bloqueios!=='nenhum' ? '<div style="color:var(--red);"><b>Bloqueio:</b> '+esc(ci.bloqueios)+'</div>' : '')+
-          (ci.decisoes ? '<div><b>Decisão:</b> '+esc(ci.decisoes)+'</div>' : '')+
-          (ci.ausencias ? '<div><b>Ausências:</b> '+ci.ausencias+'</div>' : '')+
+          (ci.bloqueios && ci.bloqueios.toLowerCase()!=='nenhum' ? '<div style="color:var(--red);"><b>Bloqueio:</b> '+esc(ci.bloqueios)+'</div>' : '')+
         '</div></div>';
     } else {
-      html += '<div class="polo-ci"><div class="polo-ci-head pend">'+esc(p.nome)+' <span style="font-size:10.5px;">⏳ pendente</span></div>'+
-        '<div class="polo-ci-body">Check-in ainda não realizado hoje.</div></div>';
+      html += '<div class="polo-ci"><div class="polo-ci-head pend">'+esc(p.nome)+' <span style="font-size:10.5px;">⏳ pendente</span></div><div class="polo-ci-body">Check-in não realizado hoje.</div></div>';
     }
   });
   html += '</div><div style="text-align:right;margin-bottom:14px;"><button class="btn btn-primary" onclick="window.__setTab(\'checkin\')">+ Fazer check-in →</button></div>';
+
+  /* exames do dia + meta mensal */
+  var examesDoDia = examesHoje(hoje);
+  var mesAtual = state.mesSelecionado;
+  var totalMeta = state.planejamento.reduce(function(s,r){return s+(r.metaMensal||0);},0);
+  var totalRealizadoMes = state.planejamento.reduce(function(s,r){return s+realizadoMesAtual(r.cidade);},0);
+  var pctMeta = totalMeta>0 ? Math.round(totalRealizadoMes/totalMeta*100) : 0;
+  var barCorMeta = pctMeta>=100?'var(--green)':pctMeta>=60?'var(--amber)':'var(--red)';
+  html += '<div class="grid two-col" style="margin-bottom:14px;">';
+  html += '<div class="card"><div class="section-title">📋 Exames de hoje — '+dataParaDisplay(hoje)+'</div>';
+  if(!examesDoDia.length){
+    html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum exame agendado para hoje.</div>';
+  } else {
+    examesDoDia.forEach(function(ex){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);">'+
+        '<div><b style="font-size:13px;">'+esc(ex.cidade)+'</b> <span class="polo-tag">'+esc(ex.polo.nome)+'</span>'+
+        '<div class="cat-tags" style="margin-top:3px;">'+ex.cats.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('')+'</div></div>'+
+        '<span class="pill '+(ex.status==='Realizado'?'green':ex.status==='Interrompido'?'red':'gray')+'">'+esc(ex.status)+'</span></div>';
+    });
+  }
+  html += '<button class="btn btn-ghost" style="margin-top:8px;" onclick="window.__setTab(\'agenda\')">Ver agenda →</button></div>';
+  html += '<div class="card"><div class="section-title">🎯 Meta mensal — '+nomeMes(mesAtual)+'</div>'+
+    '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:32px;font-weight:700;color:'+barCorMeta+';line-height:1;">'+pctMeta+'%</div>'+
+    '<div style="font-size:12.5px;color:var(--ink-soft);margin:4px 0 10px;">'+totalRealizadoMes+' realizados de '+totalMeta+' previstos</div>'+
+    '<div style="height:10px;background:var(--gray-soft);border-radius:6px;overflow:hidden;margin-bottom:10px;"><div style="width:'+Math.min(100,pctMeta)+'%;height:100%;background:'+barCorMeta+';border-radius:6px;"></div></div>'+
+    '<div class="bars">'+state.planejamento.filter(function(r){return r.metaMensal>0;}).slice(0,5).map(function(r){
+      var re2=realizadoMesAtual(r.cidade); var p2=r.metaMensal>0?Math.min(100,Math.round(re2/r.metaMensal*100)):0;
+      return '<div class="bar-row"><span>'+esc(r.cidade)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+p2+'%;background:'+(p2>=100?'var(--green)':p2>=60?'var(--amber)':'var(--red)')+'"></div></div><span class="mono">'+p2+'%</span></div>';
+    }).join('')+'</div>'+
+    '<button class="btn btn-ghost" style="margin-top:8px;" onclick="window.__setTab(\'planejamento\')">Ver planejamento →</button></div>';
+  html += '</div>';
 
   /* gráficos */
   html += '<div class="grid two-col">';
@@ -1258,7 +1354,7 @@ function renderPlanejamentoTab(){
     '<button class="btn btn-amber" onclick="window.__exportarPlanejamento()">⬇ Exportar CSV</button>'+
   '</div>';
   html += '<div class="table-wrap"><table><thead><tr>'+
-    '<th>Cidade</th><th>Polo</th><th>Responsável</th><th>Papel</th><th>Meta mensal</th><th>Dias previstos</th><th>Status</th><th>Observações</th>'+
+    '<th>Cidade</th><th>Polo</th><th>Responsável</th><th>Papel</th><th>Meta mensal</th><th>Dias previstos</th><th>Realizado (auto)</th><th>% Meta</th><th>Status</th><th>Obs.</th>'+
   '</tr></thead><tbody>'+
     state.planejamento.map(function(row, idx){
       return '<tr>'+
@@ -1270,6 +1366,16 @@ function renderPlanejamentoTab(){
         '</select></td>'+
         '<td><input type="number" min="0" value="'+row.metaMensal+'" onchange="window.__planUpdate('+idx+', \'metaMensal\', this.value, true)"></td>'+
         '<td><input type="text" value="'+esc(row.diasPrevistos)+'" placeholder="ex: 3x/sem" onchange="window.__planUpdate('+idx+', \'diasPrevistos\', this.value)"></td>'+
+        '<td style="text-align:center;"><b class="mono">'+realizadoMesAtual(row.cidade)+'</b>'+
+          '<div style="font-size:10.5px;color:var(--ink-soft);">'+agendadosMesAtual(row.cidade)+' agend.</div></td>'+
+        (function(){
+          var re=realizadoMesAtual(row.cidade); var mt=row.metaMensal||0;
+          var pct=mt>0?Math.round(re/mt*100):0;
+          var cor=pct>=100?'var(--green)':pct>=60?'var(--amber-dk)':'var(--red)';
+          return '<td><span class="mono" style="font-weight:700;color:'+cor+';">'+pct+'%</span>'+
+            '<div style="height:5px;background:var(--gray-soft);border-radius:3px;margin-top:3px;overflow:hidden;"><div style="width:'+Math.min(100,pct)+'%;height:100%;background:'+cor+';border-radius:3px;"></div></div>'+
+          '</td>';
+        })()+
         '<td><select style="font-weight:700;" onchange="window.__planUpdate('+idx+', \'status\', this.value)">'+
           STATUS_PLAN.map(function(s){return '<option value="'+s+'"'+(s===row.status?' selected':'')+'>'+esc(s)+'</option>';}).join('') +
         '</select></td>'+
@@ -1461,8 +1567,76 @@ window.__exportarPlanejamento = function(){
    AGENDA SEMANAL
 =================================================================== */
 function renderAgendaTab(){
-  var html = '<div class="card" style="margin-bottom:16px;">'+
-    '<div class="section-title">📅 Nova semana</div>'+
+  var hoje = new Date().toISOString().slice(0,10);
+
+  /* --- cabeçalho com seletor de visualização --- */
+  var html = '<div class="card" style="margin-bottom:14px;">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">'+
+      '<div class="section-title" style="margin:0;">📅 Agenda de exames</div>'+
+      '<div style="display:flex;gap:6px;">'+
+        '<button class="btn '+(state.agendaView==='semana'?'btn-primary':'btn-ghost')+'" onclick="window.__agendaView(\'semana\')">Visão da semana</button>'+
+        '<button class="btn '+(state.agendaView==='dia'?'btn-primary':'btn-ghost')+'" onclick="window.__agendaView(\'dia\')">Exames do dia</button>'+
+      '</div>'+
+    '</div>'+
+    (state.agendaView==='dia' ?
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'+
+        '<label style="font-size:12.5px;font-weight:600;">Data:</label>'+
+        '<input type="date" value="'+state.agendaData+'" onchange="window.__agendaSetData(this.value)" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;">'+
+        '<button class="btn btn-ghost" onclick="window.__agendaSetData(new Date().toISOString().slice(0,10))">Hoje</button>'+
+      '</div>' : '')+
+  '</div>';
+
+  if(state.agendaView==='dia'){
+    /* --- VISÃO DIÁRIA --- */
+    var data = state.agendaData;
+    var examesDia = [];
+    state.semanas.forEach(function(w){
+      (w.entradas||[]).forEach(function(e){
+        /* verifica se alguma categoria CDE tem data neste dia */
+        var catsHoje = [];
+        if(e.datasExatas){
+          ['C','D','E'].forEach(function(k){
+            if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) catsHoje.push(k);
+          });
+        } else if(e.dataExata===data){
+          catsHoje = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
+        }
+        /* A e B: incluir se a data está dentro da semana */
+        var abHoje = e.categorias.filter(function(c){return c==='A'||c==='B';});
+        if(abHoje.length && w.inicio && w.fim){
+          var di = data.split('-').reverse().join('/');
+          if(data >= w.inicio.split('/').reverse().join('-') && data <= w.fim.split('/').reverse().join('-')) catsHoje = catsHoje.concat(abHoje);
+        }
+        if(catsHoje.length){
+          examesDia.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:catsHoje, status:e.status, semana:w.label, entrada:e});
+        }
+      });
+    });
+
+    if(!examesDia.length){
+      html += '<div class="empty card"><b>Nenhum exame registrado para '+dataParaDisplay(data)+'.</b>Verifique se a semana e as categorias foram cadastradas.</div>';
+    } else {
+      html += '<div class="section-title">📍 Exames em '+dataParaDisplay(data)+' ('+examesDia.length+' cidade(s))</div>';
+      examesDia.forEach(function(ex){
+        html += '<div style="background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin-bottom:8px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">'+
+            '<div><b style="font-size:14px;">'+esc(ex.cidade)+'</b> <span class="polo-tag">'+esc(ex.polo.nome)+'</span>'+
+            '<div class="cat-tags" style="margin-top:4px;">'+ex.cats.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('')+'</div></div>'+
+            '<div style="text-align:right;">'+
+              '<span class="pill '+(ex.status==='Realizado'?'green':ex.status==='Interrompido'?'red':'gray')+'">'+esc(ex.status)+'</span>'+
+              '<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">'+esc(ex.semana)+'</div>'+
+            '</div>'+
+          '</div>'+
+        '</div>';
+      });
+    }
+    document.getElementById('tabContent').innerHTML = html;
+    return;
+  }
+
+  /* --- VISÃO DA SEMANA (original + nova semana) --- */
+  var htmlSemana = '<div class="card" style="margin-bottom:16px;">'+
+    '<div class="section-title">Nova semana</div>'+
     '<div class="week-form">'+
       '<label>Identificação<input id="w-label" type="text" placeholder="Ex: Semana 1" value="'+esc(state.draftWeek.label)+'" oninput="window.__dw(\'label\',this.value)"></label>'+
       '<label>Início<input id="w-inicio" type="text" placeholder="29/06" value="'+esc(state.draftWeek.inicio)+'" oninput="window.__dw(\'inicio\',this.value)"></label>'+
@@ -1470,6 +1644,8 @@ function renderAgendaTab(){
       '<button class="btn btn-primary" onclick="window.__criarSemana()">+ Criar semana</button>'+
     '</div>'+
   '</div>';
+
+  html += htmlSemana;
 
   if(!state.semanas.length){
     html += '<div class="empty card"><b>Nenhuma semana cadastrada ainda.</b>Crie a primeira semana acima para começar a agendar as cidades e categorias.</div>';
@@ -1482,9 +1658,12 @@ function renderAgendaTab(){
   document.getElementById('tabContent').innerHTML = html;
 }
 
+window.__agendaView = function(v){ state.agendaView = v; renderAgendaTab(); };
+window.__agendaSetData = function(d){ state.agendaData = d; renderAgendaTab(); };
+
 function renderWeekCard(w){
   var entradas = w.entradas || [];
-  var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:''};
+  var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   var html = '<div class="week-card">'+
     '<div class="week-head"><div><div class="wtitle dsp">'+esc(w.label)+'</div><div class="wdates">'+esc(w.inicio)+' a '+esc(w.fim)+'</div></div>'+
     '<button class="icon-btn" style="color:#fff;" onclick="window.__excluirSemana(\''+w.id+'\')">excluir semana</button></div>'+
@@ -1501,7 +1680,16 @@ function renderWeekCard(w){
         return '<label><input type="checkbox" '+(checked?'checked':'')+' onchange="window.__draftEntryCat(\''+w.id+'\', \''+k+'\', this.checked)">'+esc(catLabel(k))+'</label>';
       }).join('') +
     '</div></label>'+
-    (temCDE ? '<label class="full" style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;">📅 Data exata do exame C/D/E<input id="de-data-'+w.id+'" type="date" value="'+esc(draft.dataExata||'')+'" onchange="window.__draftEntryData(\''+w.id+'\', this.value)" style="margin-top:4px;width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;"></label>' : '')+
+    (temCDE ? '<div style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;">'+
+      '<div style="font-size:12px;font-weight:700;margin-bottom:8px;">📅 Data exata por categoria C/D/E</div>'+
+      ['C','D','E'].filter(function(k){return draft.cats && draft.cats.indexOf(k)>-1;}).map(function(k){
+        var val = (draft.datasExatas && draft.datasExatas[k]) || '';
+        return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px;">'+
+          '<span style="font-weight:700;min-width:90px;">'+esc(catLabel(k))+'</span>'+
+          '<input type="date" value="'+esc(val)+'" onchange="window.__draftEntryDataCat(\''+w.id+'\',\''+k+'\',this.value)" style="border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;">'+
+        '</label>';
+      }).join('')+
+    '</div>' : '')+
     '<button class="btn btn-primary" onclick="window.__addEntrada(\''+w.id+'\')">+ Agendar cidade</button>'+
   '</div>';
 
@@ -1558,38 +1746,46 @@ window.__excluirSemana = async function(id){
 };
 
 window.__draftEntryCidade = function(wId, cidade){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   state.draftEntry[wId].cidade = cidade;
 };
 window.__draftEntryCat = function(wId, cat, checked){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   var cats = state.draftEntry[wId].cats;
   if(checked){ if(cats.indexOf(cat)===-1) cats.push(cat); }
   else { state.draftEntry[wId].cats = cats.filter(function(c){return c!==cat;}); }
   renderAgendaTab();
 };
 window.__draftEntryData = function(wId, val){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   state.draftEntry[wId].dataExata = val;
+};
+window.__draftEntryDataCat = function(wId, cat, val){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
+  if(!state.draftEntry[wId].datasExatas) state.draftEntry[wId].datasExatas = {};
+  state.draftEntry[wId].datasExatas[cat] = val;
 };
 
 window.__addEntrada = async function(wId){
-  var d = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:''};
+  var d = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   if(!d.cidade){ showToast('Selecione a cidade.'); return; }
   if(!d.cats.length){ showToast('Selecione ao menos uma categoria.'); return; }
-  var temCDE = d.cats.some(function(c){ return c==='C'||c==='D'||c==='E'; });
-  if(temCDE && !d.dataExata){ showToast('Informe a data exata para exames C/D/E.'); return; }
+  var catsCDE = d.cats.filter(function(c){return c==='C'||c==='D'||c==='E';});
+  var datasExatas = d.datasExatas || {};
+  var semData = catsCDE.filter(function(c){return !datasExatas[c];});
+  if(semData.length){ showToast('Informe a data exata para: '+semData.map(function(c){return catLabel(c);}).join(', ')); return; }
   var w = state.semanas.filter(function(x){return x.id===wId;})[0];
   w.entradas = w.entradas || [];
   w.entradas.push({
     id:'E'+Date.now().toString(36).toUpperCase(),
     cidade:d.cidade, categorias:d.cats.slice(),
-    dataExata: temCDE ? d.dataExata : '',
+    datasExatas: Object.assign({}, datasExatas),
+    dataExata: catsCDE.length ? (datasExatas[catsCDE[0]]||'') : '',
     status:'Planejado', motivo:'', detalhes:'',
     atualizadoPor:'', atualizadoEm:''
   });
   await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
-  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:''};
+  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   showToast('Cidade agendada.');
   renderAgendaTab();
 };
@@ -1662,12 +1858,30 @@ function renderVeiculosTab(){
                 '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão: <input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" onchange="window.__setManutencao(\''+v.id+'\', this.value)"></label>'+
               '</div>'+
             '</div>'+
-            (!verde ? '<select class="small-select" onchange="window.__motivoVeiculo(\''+v.id+'\', this.value)">'+
-              '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
-            '</select>' : '')+
+            (!verde ? '<div style="display:flex;flex-direction:column;gap:6px;">'+
+              '<select class="small-select" onchange="window.__motivoVeiculo(\''+v.id+'\', this.value)">'+
+                '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
+              '</select>'+
+              (v.motivo==='Em deslocamento para outra cidade' ?
+                '<div style="display:flex;align-items:center;gap:6px;font-size:12px;">'+
+                  '<span style="color:var(--ink-soft);">Cidade destino:</span>'+
+                  '<select class="small-select" onchange="window.__setDestino(\''+v.id+'\', this.value)">'+
+                    '<option value="">Selecione…</option>'+
+                    TODAS_CIDADES.filter(function(c){return c!==v.cidade;}).map(function(c){return '<option value="'+esc(c)+'"'+(c===v.cidadeDestino?' selected':'')+'>'+esc(c)+'</option>';}).join('')+
+                  '</select>'+
+                '</div>' : '')+
+            '</div>' : '')+
             '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')">remover</button>'+
           '</div>';
         });
+      }
+      /* veículos em trânsito para esta cidade */
+      var emTransito = state.veiculos.filter(function(v){ return v.cidadeDestino===c && v.status==='Indisponível' && v.motivo==='Em deslocamento para outra cidade'; });
+      if(emTransito.length){
+        html += '<div style="margin-top:4px;padding:6px 10px;background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;font-size:12px;">'+
+          '🚛 <b>Em trânsito para cá:</b> '+
+          emTransito.map(function(v){return '<span style="font-weight:600;">'+esc(v.nome||'Veículo')+' ('+esc(catLabel(v.categoria))+') — vem de '+esc(v.cidade)+'</span>';}).join(', ')+
+        '</div>';
       }
       html += '</div></div>';
     });
@@ -1708,6 +1922,17 @@ window.__excluirVeiculo = async function(id){
   if(!confirm('Remover este veículo?')) return;
   state.veiculos = state.veiculos.filter(function(x){return x.id!==id;});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  renderVeiculosTab();
+};
+
+window.__setDestino = async function(id, cidade){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.cidadeDestino = cidade;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Cidade destino: '+esc(cidade)+'.');
   renderVeiculosTab();
 };
 
