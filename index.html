@@ -1878,55 +1878,76 @@ function renderVeiculosTab(){
     '</div>'+
   '</div>';
 
+  /* monta listagem por cidade — inclui veículos em trânsito para o destino */
   var porCidade = {};
-  TODAS_CIDADES.forEach(function(c){ porCidade[c]=[]; });
-  state.veiculos.forEach(function(v){ if(porCidade[v.cidade]) porCidade[v.cidade].push(v); });
+  TODAS_CIDADES.forEach(function(c){ porCidade[c] = {proprios:[], emTransito:[]}; });
+  state.veiculos.forEach(function(v){
+    if(porCidade[v.cidade]) porCidade[v.cidade].proprios.push(v);
+    if(v.cidadeDestino && v.status==='Indisponível' && v.motivo==='Em deslocamento para outra cidade'){
+      if(porCidade[v.cidadeDestino]) porCidade[v.cidadeDestino].emTransito.push(v);
+    }
+  });
+
+  function renderVRow(v, isTransito){
+    var verde = v.status==='Disponível';
+    var row = '<div class="vrow" style="'+(isTransito?'border-color:var(--amber);background:#FFFBF0;':'')+'">';
+    if(isTransito){
+      row += '<div class="dotbtn" style="background:var(--amber);cursor:default;"><span class="dot"></span>Em trânsito</div>';
+    } else {
+      row += '<button class="dotbtn '+(verde?'on':'off')+'" onclick="window.__toggleVeiculo(\''+v.id+'\')"><span class="dot"></span>'+(verde?'Disponível':'Indisponível')+'</button>';
+    }
+    row += '<div class="vinfo">'+
+      '<div class="vname">'+esc(v.nome||'Veículo')+' — '+esc(catLabel(v.categoria))+'</div>'+
+      '<div class="vsub">'+(isTransito ? '🚛 Vem de '+esc(v.cidade)+' · chegará em breve' : (verde?'Pronto para uso':'Motivo: '+esc(v.motivo||'não informado')))+(v.atualizadoPor?' · '+esc(v.atualizadoPor):'')+'</div>'+
+      (!isTransito ? '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;">'+
+        manutBadge(v)+
+        '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão:<input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" onchange="window.__setManutencao(\''+v.id+'\',this.value)"></label>'+
+      '</div>' : '')+
+    '</div>';
+    if(!verde && !isTransito){
+      row += '<div style="display:flex;flex-direction:column;gap:6px;">'+
+        '<select class="small-select" onchange="window.__motivoVeiculo(\''+v.id+'\',this.value)">'+
+          '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
+        '</select>'+
+        (v.motivo==='Em deslocamento para outra cidade' ?
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
+            '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">Cidade destino:</span>'+
+            '<select class="small-select" onchange="window.__setDestino(\''+v.id+'\',this.value)">'+
+              '<option value="">Selecione…</option>'+
+              TODAS_CIDADES.filter(function(cc){return cc!==v.cidade;}).map(function(cc){
+                return '<option value="'+esc(cc)+'"'+(cc===v.cidadeDestino?' selected':'')+'>'+esc(cc)+'</option>';
+              }).join('')+
+            '</select>'+
+            (v.cidadeDestino ? '<span style="font-size:11.5px;color:var(--amber-dk);font-weight:600;">→ '+esc(v.cidadeDestino)+'</span>' : '')+
+          '</div>' : '')+
+      '</div>';
+    }
+    if(isTransito){
+      row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:5px 10px;" onclick="window.__marcarChegou(\''+v.id+'\',\''+v.cidadeDestino+'\')" title="Marcar como chegou na cidade destino">✅ Chegou</button>';
+    } else {
+      row += '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')" title="Remover veículo">remover</button>';
+    }
+    row += '</div>';
+    return row;
+  }
 
   POLOS.forEach(function(p){
     html += '<div class="section-title" style="margin-top:6px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
     p.cidades.forEach(function(c){
-      var lista = porCidade[c];
-      var disponiveis = lista.filter(function(v){return v.status==='Disponível';}).length;
-      html += '<div class="vehicle-card"><div class="vehicle-head"><span>'+esc(c)+'</span><span class="mono" style="font-weight:500;font-size:11.5px;">'+disponiveis+'/'+lista.length+' disponível(eis)</span></div><div class="vehicle-body">';
-      if(!lista.length){
-        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum veículo cadastrado para esta cidade.</div>';
+      var proprios   = porCidade[c].proprios;
+      var emTransito = porCidade[c].emTransito;
+      var total      = proprios.length + emTransito.length;
+      var disponiveis= proprios.filter(function(v){return v.status==='Disponível';}).length;
+      html += '<div class="vehicle-card">'+
+        '<div class="vehicle-head">'+
+          '<span>'+esc(c)+'</span>'+
+          '<span class="mono" style="font-weight:500;font-size:11.5px;">'+disponiveis+'/'+total+' disponível(eis)'+(emTransito.length?' · '+emTransito.length+' em trânsito':'')+' </span>'+
+        '</div><div class="vehicle-body">';
+      if(!proprios.length && !emTransito.length){
+        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum veículo cadastrado ou em trânsito para esta cidade.</div>';
       } else {
-        lista.forEach(function(v){
-          var verde = v.status==='Disponível';
-          html += '<div class="vrow">'+
-            '<button class="dotbtn '+(verde?'on':'off')+'" title="alternar disponibilidade" onclick="window.__toggleVeiculo(\''+v.id+'\')"><span class="dot"></span>'+(verde?'Disponível':'Indisponível')+'</button>'+
-            '<div class="vinfo">'+
-              '<div class="vname">'+esc(v.nome||'Veículo')+' — '+esc(catLabel(v.categoria))+'</div>'+
-              '<div class="vsub">'+(verde?'Pronto para uso':'Motivo: '+esc(v.motivo||'não informado'))+(v.atualizadoPor?' · '+esc(v.atualizadoPor):'')+'</div>'+
-              '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;">'+
-                manutBadge(v)+
-                '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão: <input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" onchange="window.__setManutencao(\''+v.id+'\', this.value)"></label>'+
-              '</div>'+
-            '</div>'+
-            (!verde ? '<div style="display:flex;flex-direction:column;gap:6px;">'+
-              '<select class="small-select" onchange="window.__motivoVeiculo(\''+v.id+'\', this.value)">'+
-                '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
-              '</select>'+
-              (v.motivo==='Em deslocamento para outra cidade' ?
-                '<div style="display:flex;align-items:center;gap:6px;font-size:12px;">'+
-                  '<span style="color:var(--ink-soft);">Cidade destino:</span>'+
-                  '<select class="small-select" onchange="window.__setDestino(\''+v.id+'\', this.value)">'+
-                    '<option value="">Selecione…</option>'+
-                    TODAS_CIDADES.filter(function(c){return c!==v.cidade;}).map(function(c){return '<option value="'+esc(c)+'"'+(c===v.cidadeDestino?' selected':'')+'>'+esc(c)+'</option>';}).join('')+
-                  '</select>'+
-                '</div>' : '')+
-            '</div>' : '')+
-            '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')">remover</button>'+
-          '</div>';
-        });
-      }
-      /* veículos em trânsito para esta cidade */
-      var emTransito = state.veiculos.filter(function(v){ return v.cidadeDestino===c && v.status==='Indisponível' && v.motivo==='Em deslocamento para outra cidade'; });
-      if(emTransito.length){
-        html += '<div style="margin-top:4px;padding:6px 10px;background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;font-size:12px;">'+
-          '🚛 <b>Em trânsito para cá:</b> '+
-          emTransito.map(function(v){return '<span style="font-weight:600;">'+esc(v.nome||'Veículo')+' ('+esc(catLabel(v.categoria))+') — vem de '+esc(v.cidade)+'</span>';}).join(', ')+
-        '</div>';
+        proprios.forEach(function(v){ html += renderVRow(v, false); });
+        emTransito.forEach(function(v){ html += renderVRow(v, true); });
       }
       html += '</div></div>';
     });
@@ -1977,7 +1998,22 @@ window.__setDestino = async function(id, cidade){
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
-  showToast('Cidade destino: '+esc(cidade)+'.');
+  showToast('Destino definido: '+esc(cidade)+'.');
+  renderVeiculosTab();
+};
+
+window.__marcarChegou = async function(id, cidadeDestino){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v || !cidadeDestino) return;
+  var cidadeOrigem = v.cidade;
+  v.cidade = cidadeDestino;
+  v.cidadeDestino = '';
+  v.motivo = '';
+  v.status = 'Disponível';
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ Veículo chegou e está disponível em '+esc(cidadeDestino)+'.');
   renderVeiculosTab();
 };
 
