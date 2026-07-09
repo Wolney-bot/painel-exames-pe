@@ -895,6 +895,13 @@ function agendadosMesAtual(cidade){
   return state.diarios.filter(function(d){ return d.cidade===cidade && d.mes===mes; })
     .reduce(function(s,d){ return s+d.agendados; }, 0);
 }
+function diasComLancamento(cidade){
+  var mes = state.mesSelecionado;
+  var datas = state.diarios
+    .filter(function(d){ return d.cidade===cidade && d.mes===mes; })
+    .map(function(d){ return d.dataISO; });
+  return new Set(datas).size;
+}
 /* exames agendados para hoje nas semanas */
 function examesHoje(data){
   var lista = [];
@@ -972,6 +979,38 @@ function renderOverview(){
     if(manutVencida.length) html += '<div class="alert-banner" style="background:var(--red-soft);border-color:#E8B6AC;color:var(--red);">🔧 <div><b>'+manutVencida.length+' veículo(s) com revisão vencida.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencida.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade);}).join(' · ') +'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
     if(manutVencendo.length) html += '<div class="alert-banner" style="background:var(--amber-soft);border-color:#E8C98A;color:var(--amber-dk);margin-top:6px;">⚠️ <div><b>'+manutVencendo.length+' veículo(s) com revisão nos próximos 7 dias.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencendo.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade)+' ('+esc(v.proximaRevisaoISO)+')';}).join(' · ')+'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
     html += '</div>';
+  }
+
+  /* 🗓️ Alerta C/D/E — exames amanhã */
+  var examesAmanha = [];
+  state.semanas.forEach(function(w){
+    (w.entradas||[]).forEach(function(e){
+      var catsAmanha = [];
+      if(e.datasExatas){
+        ['C','D','E'].forEach(function(k){
+          if(e.datasExatas[k]===amanhaISO && e.categorias.indexOf(k)>-1) catsAmanha.push(k);
+        });
+      } else if(e.dataExata===amanhaISO){
+        catsAmanha = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
+      }
+      if(catsAmanha.length){
+        examesAmanha.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:catsAmanha, status:e.status});
+      }
+    });
+  });
+  if(examesAmanha.length){
+    html += '<div class="alert-banner" style="background:#EEF4FF;border:1px solid #93B4F5;color:#1E3A8A;margin-bottom:14px;">'+
+      '📅 <div>'+
+        '<b>Amanhã ('+dataParaDisplay(amanhaISO)+'): '+examesAmanha.length+' cidade(s) com exame C/D/E</b>'+
+        '<div style="font-weight:400;margin-top:3px;display:flex;flex-wrap:wrap;gap:8px;">'+
+          examesAmanha.map(function(ex){
+            return '<span style="background:#fff;border:1px solid #93B4F5;border-radius:7px;padding:2px 8px;font-size:11.5px;">'+
+              '<b>'+esc(ex.cidade)+'</b> — '+ex.cats.map(function(k){return esc(catLabel(k));}).join(', ')+'</span>';
+          }).join('')+
+        '</div>'+
+      '</div>'+
+      '<button class="x" style="color:#1E3A8A;" onclick="window.__setTab(\'agenda\')">ver agenda</button>'+
+    '</div>';
   }
 
   /* KPIs táticos semáforo */
@@ -1354,7 +1393,7 @@ function renderPlanejamentoTab(){
     '<button class="btn btn-amber" onclick="window.__exportarPlanejamento()">⬇ Exportar CSV</button>'+
   '</div>';
   html += '<div class="table-wrap"><table><thead><tr>'+
-    '<th>Cidade</th><th>Polo</th><th>Responsável</th><th>Papel</th><th>Meta mensal</th><th>Dias previstos</th><th>Realizado (auto)</th><th>% Meta</th><th>Status</th><th>Obs.</th>'+
+    '<th>Cidade</th><th>Polo</th><th>Responsável</th><th>Papel</th><th>Meta mensal</th><th>Dias previstos</th><th>Dias c/ lançamento</th><th>Realizado (auto)</th><th>% Meta</th><th>Status</th><th>Obs.</th>'+
   '</tr></thead><tbody>'+
     state.planejamento.map(function(row, idx){
       return '<tr>'+
@@ -1366,6 +1405,11 @@ function renderPlanejamentoTab(){
         '</select></td>'+
         '<td><input type="number" min="0" value="'+row.metaMensal+'" onchange="window.__planUpdate('+idx+', \'metaMensal\', this.value, true)"></td>'+
         '<td><input type="text" value="'+esc(row.diasPrevistos)+'" placeholder="ex: 3x/sem" onchange="window.__planUpdate('+idx+', \'diasPrevistos\', this.value)"></td>'+
+        (function(){
+          var dias = diasComLancamento(row.cidade);
+          return '<td style="text-align:center;"><b class="mono">'+dias+'</b>'+
+            '<div style="font-size:10.5px;color:var(--ink-soft);">dias no mês</div></td>';
+        })()+
         '<td style="text-align:center;"><b class="mono">'+realizadoMesAtual(row.cidade)+'</b>'+
           '<div style="font-size:10.5px;color:var(--ink-soft);">'+agendadosMesAtual(row.cidade)+' agend.</div></td>'+
         (function(){
@@ -1555,10 +1599,11 @@ window.__planUpdate = async function(idx, field, value, isNumber){
 };
 
 window.__exportarPlanejamento = function(){
-  var rows = [['Cidade','Polo','Responsável','Papel','Meta mensal','Dias previstos','Realizado','% atingido','Status','Observações']];
+  var rows = [['Cidade','Polo','Responsável','Papel','Meta mensal','Dias previstos','Dias c/ lançamento','Realizado (auto)','% atingido','Status','Observações']];
   state.planejamento.forEach(function(r){
-    var pct = r.metaMensal>0 ? Math.round((r.qtdRealizada/r.metaMensal)*100) : 0;
-    rows.push([r.cidade,r.poloNome,r.responsavel,r.papel,r.metaMensal,r.diasPrevistos,r.qtdRealizada,pct+'%',r.status,r.observacoes]);
+    var real = realizadoMesAtual(r.cidade);
+    var pct = r.metaMensal>0 ? Math.round(real/r.metaMensal*100) : 0;
+    rows.push([r.cidade,r.poloNome,r.responsavel,r.papel,r.metaMensal,r.diasPrevistos,diasComLancamento(r.cidade),real,pct+'%',r.status,r.observacoes]);
   });
   downloadCSV(rows, 'planejamento.csv');
 };
