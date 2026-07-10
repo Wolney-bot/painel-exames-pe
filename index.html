@@ -2002,7 +2002,15 @@ function renderVeiculosTab(){
   POLOS.forEach(function(p){
     html += '<div class="section-title" style="margin-top:6px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
     p.cidades.forEach(function(c){
-      var proprios   = porCidade[c].proprios;
+      var proprios   = porCidade[c].proprios.slice().sort(function(a,b){
+        var catOrder = {A:0,B:1,C:2,D:3,E:4};
+        var ca = catOrder[a.categoria]??9, cb = catOrder[b.categoria]??9;
+        if(ca !== cb) return ca - cb;
+        var na = parseFloat((a.nome||'').replace(/[^0-9.]/g,'')) || 0;
+        var nb = parseFloat((b.nome||'').replace(/[^0-9.]/g,'')) || 0;
+        if(na !== nb) return na - nb;
+        return (a.nome||'').localeCompare(b.nome||'');
+      });
       var emTransito = porCidade[c].emTransito;
       var total      = proprios.length + emTransito.length;
       var disponiveis= proprios.filter(function(v){return v.status==='Disponível';}).length;
