@@ -241,6 +241,30 @@
   .tri-nav button{background:var(--teal-soft);border:none;border-radius:8px;padding:6px 12px;font-weight:700;color:var(--teal-dk);font-size:13px;}
   .tri-nav .tri-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;min-width:170px;text-align:center;}
 
+  /* histórico de veículos */
+  .hist-wrap{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;}
+  .hist-tabs{display:flex;gap:4px;margin-bottom:10px;}
+  .hist-tab{border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+  .hist-tab.active{background:var(--teal);color:#fff;}
+  .hist-tab:not(.active){background:var(--gray-soft);color:var(--ink-soft);}
+  .hist-timeline{display:flex;flex-direction:column;gap:0;}
+  .hist-entry{display:flex;gap:10px;position:relative;padding-bottom:10px;}
+  .hist-entry:last-child{padding-bottom:0;}
+  .hist-dot{width:28px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:0;}
+  .hist-dot-circle{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+  .hist-dot-line{width:2px;flex:1;background:var(--line);margin-top:3px;}
+  .hist-entry:last-child .hist-dot-line{display:none;}
+  .hist-content{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12px;}
+  .hist-content .htitle{font-weight:700;color:var(--ink);font-size:12.5px;}
+  .hist-content .hmeta{color:var(--ink-soft);font-size:11px;margin-top:2px;}
+  .hist-content .hobs{color:var(--ink-soft);margin-top:4px;font-style:italic;border-top:1px dashed var(--line);padding-top:4px;}
+  /* checklist */
+  .ck-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-bottom:10px;}
+  .ck-item{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px;}
+  .ck-item.ok{border-color:var(--green);background:var(--green-soft);}
+  .ck-item.nok{border-color:var(--red-soft);background:var(--red-soft);}
+  .ck-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--green);cursor:pointer;}
+
   .login-wrap{padding:60px 20px;display:flex;justify-content:center;}
   .login-card{max-width:380px;width:100%;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;text-align:center;}
   .login-card h2{font-family:'Space Grotesk',sans-serif;margin:8px 0 4px;font-size:18px;}
@@ -292,6 +316,14 @@ var STATUS_PLAN = ['Planejado','Em execução','Concluído','Atrasado'];
 var MOTIVOS_INTERRUPCAO = ['Falha operacional','Veículo quebrado','Cancelamento pelo Detran','Outro'];
 var STATUS_ENTRADA = ['Planejado','Realizado','Interrompido'];
 var MOTIVOS_INDISPONIVEL = ['Manutenção / quebra','Revisão programada','Acidente','Documentação vencida','Em deslocamento para outra cidade','Outro'];
+var CHECKLIST_ITEMS = [
+  'Câmera frontal','Câmera traseira','Câmera lateral',
+  'Computador de bordo / tablet','GPS / rastreador',
+  'Extintor de incêndio','Triângulo de sinalização',
+  'Colete reflexivo','Kit de primeiros socorros',
+  'CRLV / documentação','Seguro obrigatório',
+  'Tacógrafo','Manômetro de pneus'
+];
 
 /* ---------------- estado ---------------- */
 var state = {
@@ -316,7 +348,8 @@ var state = {
   alertasFechados: false,
   planAcesso: [],
   agendaData: new Date().toISOString().slice(0,10),
-  agendaView: 'semana'
+  agendaView: 'semana',
+  veiculoExpandido: null
 };
 window.state = state;
 
@@ -1922,12 +1955,23 @@ function renderVeiculosTab(){
           '</div>' : '')+
       '</div>';
     }
+    var exp = state.veiculoExpandido;
+    var isExpanded = exp && exp.id===v.id;
+    row += '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">';
+    row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 9px;" onclick="window.__expandVeiculo(\''+v.id+'\',\'historico\')">'+
+      (isExpanded && exp.aba==='historico' ? '▲ Histórico' : '▼ Histórico')+'</button>';
+    var todosItens = CHECKLIST_ITEMS.concat(v.checklistCustom||[]);
+    var okCk = Object.values(v.checklist||{}).filter(Boolean).length;
+    row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 9px;color:'+(okCk===todosItens.length?'var(--green)':'var(--amber-dk)')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'checklist\')">'+
+      '✅ '+okCk+'/'+todosItens.length+'</button>';
     if(isTransito){
-      row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:5px 10px;" onclick="window.__marcarChegou(\''+v.id+'\',\''+v.cidadeDestino+'\')" title="Marcar como chegou na cidade destino">✅ Chegou</button>';
+      row += '<button class="btn btn-primary" style="font-size:11.5px;padding:5px 10px;" onclick="window.__marcarChegou(\''+v.id+'\',\''+v.cidadeDestino+'\')" >✅ Chegou</button>';
     } else {
-      row += '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')" title="Remover veículo">remover</button>';
+      row += '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')" >remover</button>';
     }
     row += '</div>';
+    row += '</div>';
+    row += renderVeiculoDetail(v);
     return row;
   }
 
@@ -1967,12 +2011,33 @@ window.__addVeiculo = async function(){
   renderVeiculosTab();
 };
 
+/* helper — adiciona entrada ao histórico do veículo */
+function addHistorico(v, tipo, descricao, extra){
+  if(!v.historico) v.historico = [];
+  var entry = Object.assign({
+    id: 'H'+Date.now().toString(36).toUpperCase(),
+    tipo: tipo, descricao: descricao,
+    por: state.perfil ? state.perfil.nome+' ('+state.perfil.papel+')' : '—',
+    dataISO: new Date().toISOString().slice(0,10),
+    em: nowStr(), observacoes: ''
+  }, extra||{});
+  v.historico.unshift(entry);
+}
+function histDotColor(tipo){
+  if(tipo==='deslocamento') return 'var(--amber)';
+  if(tipo==='status') return 'var(--teal)';
+  if(tipo==='revisao') return 'var(--green)';
+  if(tipo==='checklist') return '#6366F1';
+  return 'var(--gray)';
+}
+
 window.__toggleVeiculo = async function(id){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   v.status = v.status==='Disponível' ? 'Indisponível' : 'Disponível';
-  if(v.status==='Disponível') v.motivo='';
+  if(v.status==='Disponível'){ v.motivo=''; v.cidadeDestino=''; }
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
+  addHistorico(v, 'status', 'Status alterado para '+v.status, {cidade:v.cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   renderVeiculosTab();
 };
@@ -1981,8 +2046,10 @@ window.__motivoVeiculo = async function(id, val){
   v.motivo = val;
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
+  if(val) addHistorico(v, 'status', 'Motivo: '+val, {cidade:v.cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Motivo registrado.');
+  renderVeiculosTab();
 };
 window.__excluirVeiculo = async function(id){
   if(!confirm('Remover este veículo?')) return;
@@ -1990,43 +2057,150 @@ window.__excluirVeiculo = async function(id){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   renderVeiculosTab();
 };
-
 window.__setDestino = async function(id, cidade){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v) return;
+  var antes = v.cidadeDestino;
   v.cidadeDestino = cidade;
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
+  if(cidade && cidade!==antes) addHistorico(v, 'deslocamento', 'Deslocamento definido → '+cidade, {cidadeOrigem:v.cidade, cidadeDestino:cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
-  showToast('Destino definido: '+esc(cidade)+'.');
+  showToast('Destino: '+esc(cidade)+'.');
   renderVeiculosTab();
 };
-
 window.__marcarChegou = async function(id, cidadeDestino){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v || !cidadeDestino) return;
   var cidadeOrigem = v.cidade;
-  v.cidade = cidadeDestino;
-  v.cidadeDestino = '';
-  v.motivo = '';
-  v.status = 'Disponível';
+  addHistorico(v, 'deslocamento', 'Chegou em '+cidadeDestino+' (vindo de '+cidadeOrigem+')', {cidadeOrigem:cidadeOrigem, cidadeDestino:cidadeDestino});
+  v.cidade = cidadeDestino; v.cidadeDestino=''; v.motivo=''; v.status='Disponível';
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
-  showToast('✅ Veículo chegou e está disponível em '+esc(cidadeDestino)+'.');
+  showToast('✅ Disponível em '+esc(cidadeDestino)+'.');
   renderVeiculosTab();
 };
-
 window.__setManutencao = async function(id, dataISO){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v) return;
   v.proximaRevisaoISO = dataISO;
-  v.atualizadoPor = state.sessao.nome+' ('+state.sessao.cargo+')';
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
+  addHistorico(v, 'revisao', 'Próxima revisão → '+dataParaDisplay(dataISO), {cidade:v.cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
-  showToast('Data de revisão salva para '+esc(v.cidade)+'.');
+  showToast('Data de revisão salva.');
   renderVeiculosTab();
 };
+
+/* --- histórico e checklist --- */
+window.__expandVeiculo = function(id, aba){
+  if(state.veiculoExpandido && state.veiculoExpandido.id===id && state.veiculoExpandido.aba===aba){
+    state.veiculoExpandido = null;
+  } else {
+    state.veiculoExpandido = {id:id, aba:aba||'historico'};
+  }
+  renderVeiculosTab();
+};
+window.__addVeiculoObs = async function(id){
+  var obs = document.getElementById('obs-'+id);
+  if(!obs || !obs.value.trim()) return;
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  addHistorico(v, 'obs', 'Observação: '+obs.value.trim(), {observacoes:obs.value.trim(), cidade:v.cidade});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Observação salva.');
+  renderVeiculosTab();
+};
+window.__toggleChecklist = async function(id, item, checked){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  if(!v.checklist) v.checklist = {};
+  v.checklist[item] = checked;
+  v.checklistPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.checklistEm = nowStr();
+  var ok = Object.values(v.checklist).filter(Boolean).length;
+  var total = Object.keys(v.checklist).length;
+  addHistorico(v, 'checklist', 'Checklist — '+item+': '+(checked?'✓ OK':'✗ Pendente')+' ('+ok+'/'+total+')', {cidade:v.cidade});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  renderVeiculosTab();
+};
+window.__addChecklistItem = async function(id){
+  var input = document.getElementById('ck-new-'+id);
+  if(!input || !input.value.trim()) return;
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  if(!v.checklistCustom) v.checklistCustom = [];
+  var item = input.value.trim();
+  if(v.checklistCustom.indexOf(item)===-1 && CHECKLIST_ITEMS.indexOf(item)===-1){
+    v.checklistCustom.push(item);
+    await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+    showToast('Item adicionado.');
+  }
+  renderVeiculosTab();
+};
+
+function renderVeiculoDetail(v){
+  var exp = state.veiculoExpandido;
+  if(!exp || exp.id!==v.id) return '';
+  var aba = exp.aba;
+  var todosItens = CHECKLIST_ITEMS.concat(v.checklistCustom||[]);
+  var ck = v.checklist || {};
+  var okCount = todosItens.filter(function(i){return ck[i];}).length;
+  var hist = v.historico || [];
+
+  var html = '<div class="hist-wrap">';
+  html += '<div class="hist-tabs">'+
+    '<button class="hist-tab '+(aba==='historico'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'historico\')">📋 Histórico</button>'+
+    '<button class="hist-tab '+(aba==='checklist'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'checklist\')">✅ Equipamentos ('+okCount+'/'+todosItens.length+')</button>'+
+  '</div>';
+
+  if(aba==='historico'){
+    html += '<div style="display:flex;gap:8px;margin-bottom:12px;">'+
+      '<input id="obs-'+v.id+'" type="text" placeholder="Registrar observação manual…" style="flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;">'+
+      '<button class="btn btn-primary" onclick="window.__addVeiculoObs(\''+v.id+'\')" >+ Registrar</button>'+
+    '</div>';
+    if(!hist.length){
+      html += '<div style="font-size:12.5px;color:var(--ink-soft);">Sem movimentações registradas. Mudanças de status, deslocamentos e revisões são registradas automaticamente.</div>';
+    } else {
+      html += '<div class="hist-timeline">';
+      hist.forEach(function(h){
+        var cor = histDotColor(h.tipo);
+        html += '<div class="hist-entry">'+
+          '<div class="hist-dot"><div class="hist-dot-circle" style="background:'+cor+';"></div><div class="hist-dot-line"></div></div>'+
+          '<div class="hist-content">'+
+            '<div class="htitle">'+esc(h.descricao)+'</div>'+
+            '<div class="hmeta">'+esc(h.por)+' · '+esc(h.em)+'</div>'+
+            (h.cidadeOrigem && h.cidadeDestino ? '<div style="font-size:11px;margin-top:2px;color:var(--amber-dk);">'+esc(h.cidadeOrigem)+' → '+esc(h.cidadeDestino)+'</div>' : '')+
+            (h.observacoes ? '<div class="hobs">'+esc(h.observacoes)+'</div>' : '')+
+          '</div>'+
+        '</div>';
+      });
+      html += '</div>';
+    }
+  } else {
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
+      '<div style="font-size:12.5px;font-weight:700;color:'+(okCount===todosItens.length?'var(--green)':'var(--ink-soft)')+';">'+okCount+'/'+todosItens.length+' itens OK</div>'+
+      (v.checklistPor ? '<div style="font-size:11px;color:var(--ink-soft);">'+esc(v.checklistPor)+' · '+esc(v.checklistEm)+'</div>' : '')+
+    '</div>';
+    html += '<div class="ck-grid">';
+    todosItens.forEach(function(item){
+      var ok = !!ck[item];
+      html += '<label class="ck-item '+(ok?'ok':'nok')+'">'+
+        '<input type="checkbox" '+(ok?'checked':'')+' onchange="window.__toggleChecklist(\''+v.id+'\',\''+esc(item)+'\',this.checked)">'+
+        '<span>'+esc(item)+'</span>'+
+      '</label>';
+    });
+    html += '</div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px;">'+
+        '<input id="ck-new-'+v.id+'" type="text" placeholder="Novo item personalizado…" style="flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;">'+
+        '<button class="btn btn-ghost" onclick="window.__addChecklistItem(\''+v.id+'\')">+ Adicionar</button>'+
+      '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 
 /* ===================================================================
    CHECK-IN DIÁRIO
