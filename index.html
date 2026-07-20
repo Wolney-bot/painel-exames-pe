@@ -14,7 +14,7 @@
   *{box-sizing:border-box;}
   #app{font-family:'Inter',sans-serif;color:var(--ink);background:var(--bg);border-radius:18px;overflow:hidden;position:relative;min-height:600px;}
   .dsp{font-family:'Space Grotesk',sans-serif;}
-  .mono{font-family:'IBM Plex Mono',monospace;}
+  .mono{font-family:IBM Plex Mono,monospace;}
   button{cursor:pointer;font-family:inherit;}
   input,select,textarea{font-family:inherit;font-size:14px;}
   ::selection{background:var(--amber-soft);}
@@ -80,7 +80,7 @@
   .city-pin:hover{border-color:var(--teal);}
   .pin-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
   .pin-name{flex:1;font-size:13px;font-weight:500;}
-  .pin-count{font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);}
+  .pin-count{font-size:11px;font-family:IBM Plex Mono,monospace;color:var(--ink-soft);}
 
   /* filters */
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -123,7 +123,7 @@
   tbody input,tbody select{width:100%;border:1px solid transparent;border-radius:6px;padding:5px 6px;background:transparent;}
   tbody input:hover,tbody select:hover{border-color:var(--line);background:#fff;}
   tbody input:focus,tbody select:focus{border-color:var(--teal);background:#fff;outline:none;}
-  .pct{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .pct{font-family:IBM Plex Mono,monospace;font-weight:600;}
   .polo-tag{font-size:10.5px;color:var(--ink-soft);}
 
   .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--teal-dk);color:#fff;padding:9px 18px;border-radius:30px;font-size:12.5px;box-shadow:0 4px 16px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;z-index:60;}
@@ -236,7 +236,7 @@
   .rel-body{padding:10px 14px;}
   .rel-linha{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px;}
   .rel-linha:last-child{border-bottom:none;}
-  .rel-val{font-family:'IBM Plex Mono',monospace;font-weight:700;}
+  .rel-val{font-family:IBM Plex Mono,monospace;font-weight:700;}
   .tri-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
   .tri-nav button{background:var(--teal-soft);border:none;border-radius:8px;padding:6px 12px;font-weight:700;color:var(--teal-dk);font-size:13px;}
   .tri-nav .tri-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;min-width:170px;text-align:center;}
@@ -264,6 +264,16 @@
   .ck-item.ok{border-color:var(--green);background:var(--green-soft);}
   .ck-item.nok{border-color:var(--red-soft);background:var(--red-soft);}
   .ck-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--green);cursor:pointer;}
+
+  /* bloco de notas / demandas */
+  .demanda-card{background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;}
+  .demanda-card.vencida{border-color:var(--red);background:var(--red-soft);}
+  .demanda-card.hoje{border-color:var(--amber);background:var(--amber-soft);}
+  .demanda-card.ok{border-color:var(--green);background:var(--green-soft);opacity:.75;}
+  .demanda-check{width:18px;height:18px;accent-color:var(--green);cursor:pointer;flex-shrink:0;margin-top:2px;}
+  .demanda-body{flex:1;}
+  .demanda-titulo{font-weight:700;font-size:13.5px;line-height:1.3;}
+  .demanda-meta{font-size:11.5px;color:var(--ink-soft);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;}
 
   .login-wrap{padding:60px 20px;display:flex;justify-content:center;}
   .login-card{max-width:380px;width:100%;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;text-align:center;}
@@ -324,6 +334,9 @@ var CHECKLIST_ITEMS = [
   'CRLV / documentação','Seguro obrigatório',
   'Tacógrafo','Manômetro de pneus'
 ];
+var TURNO_ESPECIAL = { 'Recife':'duplo_ambos', 'Petrolina':'dividido' };
+var MINUTOS_PROVA = 12;
+var MINUTOS_TURNO = 240;
 
 /* ---------------- estado ---------------- */
 var state = {
@@ -343,13 +356,15 @@ var state = {
   diarios: [],
   checkins: [],
   mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
-  relTri: null,
+  relMes: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
   formOpen: false,
   alertasFechados: false,
   planAcesso: [],
   agendaData: new Date().toISOString().slice(0,10),
   agendaView: 'semana',
-  veiculoExpandido: null
+  veiculoExpandido: null,
+  metaConfig: {},
+  demandas: []
 };
 window.state = state;
 
@@ -471,6 +486,11 @@ async function init(){
   state.diarios   = di ? JSON.parse(di) : [];
   state.usuarios  = us ? JSON.parse(us) : [];
   state.checkins  = ci ? JSON.parse(ci) : [];
+
+  var mc = await storageGet('meta-config', true);
+  state.metaConfig = mc ? JSON.parse(mc) : {};
+  var dm = await storageGet('demandas-lista', true);
+  state.demandas = dm ? JSON.parse(dm) : [];
 
   var pa = await storageGet('plan-acesso', true);
   state.planAcesso = pa ? JSON.parse(pa) : [];
@@ -717,6 +737,10 @@ window.__sincronizar = async function(silent){
   if(di) state.diarios = JSON.parse(di);
   var ci2 = await storageGet('checkins-lista', true);
   if(ci2) state.checkins = JSON.parse(ci2);
+  var mc2 = await storageGet('meta-config', true);
+  if(mc2) state.metaConfig = JSON.parse(mc2);
+  var dm2 = await storageGet('demandas-lista', true);
+  if(dm2) state.demandas = JSON.parse(dm2);
   if(us){ state.usuarios = JSON.parse(us);
     // atualiza sessão se o usuário foi aprovado/revogado
     if(state.sessao){
@@ -918,18 +942,18 @@ window.__irParaAtrasados = function(){
    VISÃO GERAL
 =================================================================== */
 /* helper: realizado no mês atual por cidade (calculado dos diários) */
-function realizadoMesAtual(cidade){
-  var mes = state.mesSelecionado;
+function realizadoMesAtual(cidade, mesOverride){
+  var mes = mesOverride || state.mesSelecionado;
   return state.diarios.filter(function(d){ return d.cidade===cidade && d.mes===mes; })
     .reduce(function(s,d){ return s+d.realizados; }, 0);
 }
-function agendadosMesAtual(cidade){
-  var mes = state.mesSelecionado;
+function agendadosMesAtual(cidade, mesOverride){
+  var mes = mesOverride || state.mesSelecionado;
   return state.diarios.filter(function(d){ return d.cidade===cidade && d.mes===mes; })
     .reduce(function(s,d){ return s+d.agendados; }, 0);
 }
-function diasComLancamento(cidade){
-  var mes = state.mesSelecionado;
+function diasComLancamento(cidade, mesOverride){
+  var mes = mesOverride || state.mesSelecionado;
   var datas = state.diarios
     .filter(function(d){ return d.cidade===cidade && d.mes===mes; })
     .map(function(d){ return d.dataISO; });
@@ -1011,6 +1035,30 @@ function renderOverview(){
     html += '<div style="margin-bottom:14px;">';
     if(manutVencida.length) html += '<div class="alert-banner" style="background:var(--red-soft);border-color:#E8B6AC;color:var(--red);">🔧 <div><b>'+manutVencida.length+' veículo(s) com revisão vencida.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencida.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade);}).join(' · ') +'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
     if(manutVencendo.length) html += '<div class="alert-banner" style="background:var(--amber-soft);border-color:#E8C98A;color:var(--amber-dk);margin-top:6px;">⚠️ <div><b>'+manutVencendo.length+' veículo(s) com revisão nos próximos 7 dias.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencendo.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade)+' ('+esc(v.proximaRevisaoISO)+')';}).join(' · ')+'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
+    html += '</div>';
+  }
+
+  /* 🗒️ Alertas de demandas vencidas */
+  var demandasVencidas = state.demandas.filter(function(d){
+    return d.status!=='Concluída' && d.prazo && d.prazo < hoje;
+  });
+  var demandasHoje2 = state.demandas.filter(function(d){
+    return d.status!=='Concluída' && d.prazo === hoje;
+  });
+  if(demandasVencidas.length || demandasHoje2.length){
+    html += '<div style="margin-bottom:14px;">';
+    if(demandasVencidas.length){
+      html += '<div class="alert-banner" style="background:var(--red-soft);border-color:#E8B6AC;color:var(--red);">📝 <div>'+
+        '<b>'+demandasVencidas.length+' demanda(s) com prazo vencido.</b>'+
+        '<div style="font-weight:400;margin-top:2px;">'+demandasVencidas.slice(0,3).map(function(d){return esc(d.nota.substring(0,40))+(d.nota.length>40?'…':'')+(d.cidade?' · '+esc(d.cidade):'');}).join(' | ')+'</div>'+
+      '</div><button class="x" onclick="window.__setTab(\'planejamento\')">ver demandas</button></div>';
+    }
+    if(demandasHoje2.length){
+      html += '<div class="alert-banner" style="background:var(--amber-soft);border-color:#E8C98A;color:var(--amber-dk);margin-top:6px;">📝 <div>'+
+        '<b>'+demandasHoje2.length+' demanda(s) com prazo hoje.</b>'+
+        '<div style="font-weight:400;margin-top:2px;">'+demandasHoje2.map(function(d){return esc(d.nota.substring(0,40))+(d.nota.length>40?'…':'');}).join(' | ')+'</div>'+
+      '</div><button class="x" onclick="window.__setTab(\'planejamento\')">ver demandas</button></div>';
+    }
     html += '</div>';
   }
 
@@ -1532,7 +1580,7 @@ function renderPlanejamentoTab(){
           '</div>'+
           '<div style="text-align:right;font-size:12.5px;">'+
             'Meta: <b>'+meta+'</b> &nbsp;|&nbsp; Agendados: <b>'+totalAgendados+'</b> &nbsp;|&nbsp; Realizados: <b>'+totalRealizados+'</b>'+
-            ' &nbsp;<span style="font-family:\'IBM Plex Mono\',monospace;font-size:13px;font-weight:700;color:'+barColor+';">'+pct+'%</span>'+
+            ' &nbsp;<span style="font-family:IBM Plex Mono,monospace;font-size:13px;font-weight:700;color:'+barColor+';">'+pct+'%</span>'+
           '</div>'+
         '</div>'+
         '<div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:'+pct+'%;background:'+barColor+';"></div></div>'+
@@ -1562,6 +1610,78 @@ function renderPlanejamentoTab(){
       '</tr>';
     }).join('') +
     '</tbody></table></div>';
+  }
+
+  /* ============================================================
+     BLOCO DE NOTAS / DEMANDAS
+  ============================================================ */
+  html += '<hr class="diario-sep">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'+
+    '<div class="section-title" style="margin:0;">📝 Bloco de demandas</div>'+
+    '<span style="font-size:12px;color:var(--ink-soft);">Anotações e tarefas com prazo e cidade vinculada</span>'+
+  '</div>';
+
+  /* formulário nova demanda */
+  html += '<div class="card" style="margin-bottom:14px;">'+
+    '<div class="section-title" style="font-size:13px;">Nova demanda</div>'+
+    '<div class="form-grid">'+
+      '<label>Cidade<select id="dm-cidade"><option value="">Geral (sem cidade)</option>'+
+        TODAS_CIDADES.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>'; }).join('')+
+      '</select></label>'+
+      '<label>Prazo<input id="dm-prazo" type="date" value="'+new Date().toISOString().slice(0,10)+'"></label>'+
+      '<label class="full">Descrição da demanda<input id="dm-nota" type="text" placeholder="Descreva a tarefa ou anotação…"></label>'+
+    '</div>'+
+    '<button class="btn btn-primary" onclick="window.__addDemanda()">+ Adicionar demanda</button>'+
+  '</div>';
+
+  /* listagem */
+  var hoje2 = new Date().toISOString().slice(0,10);
+  var demOrdenadas = state.demandas.slice().sort(function(a,b){ return (a.prazo||'').localeCompare(b.prazo||''); });
+  var pendentes2 = demOrdenadas.filter(function(d){ return d.status!=='Concluída'; });
+  var concluidas = demOrdenadas.filter(function(d){ return d.status==='Concluída'; });
+
+  if(!pendentes2.length && !concluidas.length){
+    html += '<div class="empty card"><b>Nenhuma demanda registrada.</b>Use o formulário acima para adicionar tarefas e anotações.</div>';
+  } else {
+    /* pendentes */
+    if(pendentes2.length){
+      html += '<div class="section-title" style="font-size:13px;">Pendentes ('+pendentes2.length+')</div>';
+      pendentes2.forEach(function(d){
+        var vencida = d.prazo && d.prazo < hoje2;
+        var ehHoje  = d.prazo === hoje2;
+        var cls = vencida ? 'vencida' : ehHoje ? 'hoje' : '';
+        html += '<div class="demanda-card '+cls+'">'+
+          '<input type="checkbox" class="demanda-check" onchange="window.__concluirDemanda(\''+d.id+'\',this.checked)" title="Marcar como concluída">'+
+          '<div class="demanda-body">'+
+            '<div class="demanda-titulo">'+esc(d.nota)+'</div>'+
+            '<div class="demanda-meta">'+
+              (d.cidade ? '<span>📍 '+esc(d.cidade)+'</span>' : '<span>🌐 Geral</span>')+
+              (d.prazo ? '<span>'+(vencida?'🔴':ehHoje?'🟡':'📅')+' Prazo: <b>'+dataParaDisplay(d.prazo)+'</b>'+(vencida?' (VENCIDA!)':ehHoje?' (hoje!)':'')+'</span>' : '')+
+              '<span>'+esc(d.criadoPor)+'</span>'+
+            '</div>'+
+          '</div>'+
+          '<button class="icon-btn" onclick="window.__excluirDemanda(\''+d.id+'\')">excluir</button>'+
+        '</div>';
+      });
+    }
+    /* concluídas */
+    if(concluidas.length){
+      html += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12.5px;color:var(--ink-soft);font-weight:700;">Concluídas ('+concluidas.length+')</summary><div style="margin-top:8px;">';
+      concluidas.forEach(function(d){
+        html += '<div class="demanda-card ok">'+
+          '<input type="checkbox" class="demanda-check" checked onchange="window.__concluirDemanda(\''+d.id+'\',this.checked)">'+
+          '<div class="demanda-body">'+
+            '<div class="demanda-titulo" style="text-decoration:line-through;opacity:.7;">'+esc(d.nota)+'</div>'+
+            '<div class="demanda-meta">'+
+              (d.cidade ? '<span>📍 '+esc(d.cidade)+'</span>' : '')+
+              (d.prazo ? '<span>Prazo: '+dataParaDisplay(d.prazo)+'</span>' : '')+
+            '</div>'+
+          '</div>'+
+          '<button class="icon-btn" onclick="window.__excluirDemanda(\''+d.id+'\')">excluir</button>'+
+        '</div>';
+      });
+      html += '</div></details>';
+    }
   }
 
   document.getElementById('tabContent').innerHTML = html;
@@ -1602,6 +1722,43 @@ window.__excluirDiario = async function(id){
   state.diarios = state.diarios.filter(function(d){ return d.id!==id; });
   await storageSet('diarios-lista', JSON.stringify(state.diarios), true);
   showToast('Lançamento excluído.');
+  renderPlanejamentoTab();
+};
+
+/* --- demandas / bloco de notas --- */
+window.__addDemanda = async function(){
+  var nota   = (document.getElementById('dm-nota').value || '').trim();
+  var prazo  = document.getElementById('dm-prazo').value || '';
+  var cidade = document.getElementById('dm-cidade').value || '';
+  if(!nota){ showToast('Descreva a demanda antes de adicionar.'); return; }
+  var nova = {
+    id: 'DM'+Date.now().toString(36).toUpperCase(),
+    nota: nota, prazo: prazo, cidade: cidade,
+    status: 'Pendente',
+    criadoPor: state.perfil ? state.perfil.nome+' ('+state.perfil.papel+')' : '—',
+    criadoEm: nowStr()
+  };
+  state.demandas.push(nova);
+  await storageSet('demandas-lista', JSON.stringify(state.demandas), true);
+  showToast('Demanda adicionada.');
+  renderPlanejamentoTab();
+};
+
+window.__concluirDemanda = async function(id, checked){
+  var d = state.demandas.filter(function(x){ return x.id===id; })[0];
+  if(!d) return;
+  d.status = checked ? 'Concluída' : 'Pendente';
+  d.concluidoEm = checked ? nowStr() : '';
+  await storageSet('demandas-lista', JSON.stringify(state.demandas), true);
+  showToast(checked ? '✅ Demanda concluída!' : 'Demanda reaberta.');
+  renderPlanejamentoTab();
+};
+
+window.__excluirDemanda = async function(id){
+  if(!confirm('Excluir esta demanda?')) return;
+  state.demandas = state.demandas.filter(function(x){ return x.id!==id; });
+  await storageSet('demandas-lista', JSON.stringify(state.demandas), true);
+  showToast('Demanda excluída.');
   renderPlanejamentoTab();
 };
 
@@ -2343,27 +2500,51 @@ function manutBadge(v){
 }
 
 /* ===================================================================
-   RELATÓRIO TRIMESTRAL
+   RELATÓRIO TRIMESTRAL + META REAL CALCULADA
 =================================================================== */
-function trimestreAtual(){
-  var d = new Date(); var m = d.getMonth();
-  return {ano: d.getFullYear(), tri: Math.floor(m/3)+1};
-}
-function nomeTrimestre(ano, tri){ return 'T'+tri+' / '+ano; }
-function mesesDoTrimestre(ano, tri){
-  var inicio = (tri-1)*3;
-  return [inicio, inicio+1, inicio+2].map(function(m){ return ano+'-'+String(m+1).padStart(2,'0'); });
+/* funções mensais para relatório */
+function mesRelAtual(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+
+/* --- Cálculo de capacidade por cidade --- */
+function examesPorTurno(){ return Math.floor(MINUTOS_TURNO / MINUTOS_PROVA); } /* 20 */
+
+function calcularCapacidade(cidade){
+  var cfg = state.metaConfig[cidade] || {};
+  var exams = cfg.examinadores || 0;
+  var dias  = cfg.diasMes || 0;
+  var turno = TURNO_ESPECIAL[cidade] || 'simples';
+  var ept   = examesPorTurno(); /* 20 */
+
+  var veicA = state.veiculos.filter(function(v){ return v.cidade===cidade && v.categoria==='A' && v.status==='Disponível'; }).length;
+  var veicB = state.veiculos.filter(function(v){ return v.cidade===cidade && v.categoria==='B' && v.status==='Disponível'; }).length;
+
+  var capDiaria = 0;
+  var descTurno = '';
+  if(turno==='duplo_ambos'){
+    /* Recife: A+B nos dois turnos */
+    capDiaria = Math.min(veicA + veicB, exams) * ept * 2;
+    descTurno = 'Duplo (A+B manhã e tarde)';
+  } else if(turno==='dividido'){
+    /* Petrolina: B manhã, A tarde */
+    capDiaria = Math.min(veicB, exams) * ept + Math.min(veicA, exams) * ept;
+    descTurno = 'Dividido (B manhã / A tarde)';
+  } else {
+    /* Turno único */
+    capDiaria = Math.min(veicA + veicB, exams) * ept;
+    descTurno = 'Turno único';
+  }
+
+  return {
+    veicA:veicA, veicB:veicB, examinadores:exams, diasMes:dias,
+    turno:turno, descTurno:descTurno,
+    capDiaria:capDiaria,
+    metaMensal: capDiaria * dias
+  };
 }
 
 function renderRelatorioTab(){
-  var t = state.relTri || trimestreAtual();
-  var meses = mesesDoTrimestre(t.ano, t.tri);
-
-  /* dados do trimestre */
-  var diariosT = state.diarios.filter(function(d){ return meses.indexOf(d.mes)>-1; });
-  var chekinT  = state.checkins.filter(function(c){ return meses.some(function(m){ return c.dataISO && c.dataISO.startsWith(m); }); });
-  var chamadosT= state.chamados.filter(function(c){ return c.criadoEm && meses.some(function(m){ return c.criadoEm.startsWith(m.slice(5,7)+'/'+m.slice(0,4)); }); });
-
+  var mes = state.relMes || mesRelAtual();
+  var diariosT = state.diarios.filter(function(d){ return d.mes === mes; });
   var totalAgend = diariosT.reduce(function(s,d){return s+d.agendados;},0);
   var totalReal  = diariosT.reduce(function(s,d){return s+d.realizados;},0);
   var taxaGeral  = totalAgend>0 ? Math.round(totalReal/totalAgend*100) : 0;
@@ -2372,46 +2553,127 @@ function renderRelatorioTab(){
   var interrup   = 0;
   state.semanas.forEach(function(w){ (w.entradas||[]).forEach(function(e){ if(e.status==='Interrompido') interrup++; }); });
   var veicIndisp = state.veiculos.filter(function(v){return v.status==='Indisponível';}).length;
-  var ausencias  = chekinT.reduce(function(s,c){return s+(c.ausencias||0);},0);
-
-  /* por polo */
+  var checkinT   = state.checkins.filter(function(c){ return c.dataISO && c.dataISO.startsWith(mes); });
+  var ausencias  = checkinT.reduce(function(s,c){return s+(c.ausencias||0);},0);
   var porPolo = POLOS.map(function(p){
-    var ag = diariosT.filter(function(d){ return CIDADE_POLO[d.cidade] && CIDADE_POLO[d.cidade].id===p.id; }).reduce(function(s,d){return s+d.agendados;},0);
-    var re = diariosT.filter(function(d){ return CIDADE_POLO[d.cidade] && CIDADE_POLO[d.cidade].id===p.id; }).reduce(function(s,d){return s+d.realizados;},0);
-    var ch = state.chamados.filter(function(c){return c.poloId===p.id;}).length;
+    var ag=diariosT.filter(function(d){return CIDADE_POLO[d.cidade]&&CIDADE_POLO[d.cidade].id===p.id;}).reduce(function(s,d){return s+d.agendados;},0);
+    var re=diariosT.filter(function(d){return CIDADE_POLO[d.cidade]&&CIDADE_POLO[d.cidade].id===p.id;}).reduce(function(s,d){return s+d.realizados;},0);
+    var ch=state.chamados.filter(function(c){return c.poloId===p.id;}).length;
     return {nome:p.nome+' — '+p.regiao, agendados:ag, realizados:re, chamados:ch};
   });
-
-  /* por tipo de chamado */
   var porTipo = TIPOS_PROBLEMA.map(function(t){
-    var n = state.chamados.filter(function(c){return c.tipoProblema===t;}).length;
-    return {tipo:t, n:n};
+    return {tipo:t, n:state.chamados.filter(function(c){return c.tipoProblema===t;}).length};
   }).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
 
+  /* ---- HTML ---- */
   var html = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'+
     '<div class="section-title" style="margin:0;">📊 Relatório operacional</div>'+
     '<button class="btn btn-amber" onclick="window.__exportarRelatorio()">⬇ Exportar CSV</button>'+
   '</div>';
 
-  html += '<div class="tri-nav">'+
-    '<button onclick="window.__triAnterior()">← Trimestre anterior</button>'+
-    '<span class="tri-label">'+nomeTrimestre(t.ano, t.tri)+'</span>'+
-    '<button onclick="window.__triProximo()">Próximo trimestre →</button>'+
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">'+
+    '<span style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:14px;">📆 Período:</span>'+
+    '<input type="month" id="input-rel-mes" value="'+mes+'" style="border:2px solid var(--teal);border-radius:9px;padding:7px 12px;font-size:14px;font-weight:700;color:var(--teal-dk);background:#fff;cursor:pointer;">'+
+    '<span style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;color:var(--teal-dk);">'+nomeMes(mes)+'</span>'+
   '</div>';
 
-  /* bloco resumo */
-  html += '<div class="rel-bloco"><div class="rel-head">📈 Resumo executivo — '+nomeTrimestre(t.ano, t.tri)+'</div><div class="rel-body">'+
+  /* ============================================================
+     BLOCO 1 — META REAL CALCULADA
+  ============================================================ */
+  html += '<div class="rel-bloco"><div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;">'+
+    '<span>🎯 Meta real calculada por cidade</span>'+
+    '<span style="font-size:11.5px;font-weight:400;opacity:.8;">⏱ '+MINUTOS_PROVA+' min/prova · turno '+MINUTOS_TURNO+' min = '+examesPorTurno()+' exames/veículo/turno</span>'+
+  '</div><div class="rel-body">';
+
+  /* Legenda dos turnos especiais */
+  html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;">'+
+    '<span style="background:var(--teal-soft);color:var(--teal-dk);border-radius:20px;padding:2px 10px;font-weight:600;">🌅🌇 Recife — A+B nos dois turnos</span>'+
+    '<span style="background:var(--amber-soft);color:var(--amber-dk);border-radius:20px;padding:2px 10px;font-weight:600;">🌅 Petrolina — B manhã / A tarde</span>'+
+    '<span style="background:var(--gray-soft);color:var(--ink-soft);border-radius:20px;padding:2px 10px;font-weight:600;">🌅 Demais — turno único</span>'+
+  '</div>';
+
+  /* Formulário de configuração global */
+  html += '<div style="font-size:12.5px;font-weight:700;margin-bottom:10px;color:var(--ink-soft);">Configure os critérios por cidade:</div>';
+
+  /* tabela de configuração */
+  html += '<div style="overflow-x:auto;border-radius:10px;box-shadow:var(--shadow);margin-bottom:6px;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px;">'+
+    '<thead><tr>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:left;font-size:11.5px;">Cidade</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Turno</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Veíc. A<br><span style="font-weight:400;opacity:.8;font-size:10.5px;">disponíveis</span></th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Veíc. B<br><span style="font-weight:400;opacity:.8;font-size:10.5px;">disponíveis</span></th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Examinadores</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Dias/mês</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Cap. diária</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Meta mensal</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">Realizado mês</th>'+
+      '<th style="background:var(--teal);color:#fff;padding:9px 10px;text-align:center;">% Meta</th>'+
+    '</tr></thead><tbody>';
+
+  var totalMetaMensal = 0;
+  var totalRealizadoReal = 0;
+
+  TODAS_CIDADES.forEach(function(cidade){
+    var cap = calcularCapacidade(cidade);
+    var realizado = realizadoMesAtual(cidade, mes);
+    var pct = cap.metaMensal > 0 ? Math.round(realizado / cap.metaMensal * 100) : 0;
+    var pctCor = pct >= 100 ? 'var(--green)' : pct >= 70 ? 'var(--amber-dk)' : pct > 0 ? 'var(--red)' : 'var(--ink-soft)';
+    var polo = CIDADE_POLO[cidade];
+    totalMetaMensal += cap.metaMensal;
+    totalRealizadoReal += realizado;
+
+    var turnoBadge = '';
+    if(TURNO_ESPECIAL[cidade]==='duplo_ambos'){
+      turnoBadge = '<span style="background:var(--teal-soft);color:var(--teal-dk);border-radius:20px;padding:2px 7px;font-size:10.5px;font-weight:700;">Duplo</span>';
+    } else if(TURNO_ESPECIAL[cidade]==='dividido'){
+      turnoBadge = '<span style="background:var(--amber-soft);color:var(--amber-dk);border-radius:20px;padding:2px 7px;font-size:10.5px;font-weight:700;">Dividido</span>';
+    } else {
+      turnoBadge = '<span style="background:var(--gray-soft);color:var(--ink-soft);border-radius:20px;padding:2px 7px;font-size:10.5px;font-weight:700;">Único</span>';
+    }
+
+    html += '<tr style="border-bottom:1px solid var(--line);">'+
+      '<td style="padding:7px 10px;"><b>'+esc(cidade)+'</b><div style="font-size:10.5px;color:var(--ink-soft);">'+esc(polo.nome)+'</div></td>'+
+      '<td style="padding:7px 10px;text-align:center;">'+turnoBadge+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;font-family:IBM Plex Mono,monospace;font-weight:700;color:'+(cap.veicA>0?'var(--teal)':'var(--red)')+'">'+cap.veicA+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;font-family:IBM Plex Mono,monospace;font-weight:700;color:'+(cap.veicB>0?'var(--teal)':'var(--red)')+'">'+cap.veicB+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;"><input type="number" min="0" value="'+cap.examinadores+'" data-cidade="'+esc(cidade)+'" data-campo="examinadores" style="width:60px;border:1px solid var(--line);border-radius:7px;padding:4px 6px;text-align:center;font-size:13px;" onchange="window.__mcfg(this)"></td>'+  
+      '<td style="padding:7px 10px;text-align:center;"><input type="number" min="0" value="'+cap.diasMes+'" data-cidade="'+esc(cidade)+'" data-campo="diasMes" style="width:60px;border:1px solid var(--line);border-radius:7px;padding:4px 6px;text-align:center;font-size:13px;" onchange="window.__mcfg(this)"></td>'+  
+      '<td style="padding:7px 10px;text-align:center;font-family:IBM Plex Mono,monospace;font-weight:700;">'+cap.capDiaria+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;font-family:IBM Plex Mono,monospace;font-weight:700;color:var(--teal-dk);">'+cap.metaMensal+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;font-family:IBM Plex Mono,monospace;">'+realizado+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;"><b style="color:'+pctCor+';">'+pct+'%</b>'+
+        (cap.metaMensal>0 ? '<div style="height:5px;background:var(--gray-soft);border-radius:3px;margin-top:3px;overflow:hidden;"><div style="width:'+Math.min(100,pct)+'%;height:100%;background:'+pctCor+';border-radius:3px;"></div></div>' : '')+
+      '</td>'+
+    '</tr>';
+  });
+
+  /* totais */
+  var pctTotal = totalMetaMensal > 0 ? Math.round(totalRealizadoReal/totalMetaMensal*100) : 0;
+  html += '<tr style="background:var(--teal-soft);font-weight:700;border-top:2px solid var(--teal);">'+
+    '<td colspan="7" style="padding:8px 10px;">TOTAL GERAL</td>'+
+    '<td style="padding:8px 10px;text-align:center;font-family:IBM Plex Mono,monospace;color:var(--teal-dk);">'+totalMetaMensal+'</td>'+
+    '<td style="padding:8px 10px;text-align:center;font-family:IBM Plex Mono,monospace;">'+totalRealizadoReal+'</td>'+
+    '<td style="padding:8px 10px;text-align:center;"><b style="color:'+(pctTotal>=100?'var(--green)':pctTotal>=70?'var(--amber-dk)':'var(--red)')+'">'+pctTotal+'%</b></td>'+
+  '</tr>';
+
+  html += '</tbody></table></div>';
+  html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">* Capacidade calculada automaticamente: veículos disponíveis cadastrados na aba Veículos. Examinadores e dias/mês são configuráveis acima.</div>';
+  html += '</div></div>';
+
+  /* ============================================================
+     BLOCO 2 — RESUMO EXECUTIVO
+  ============================================================ */
+  html += '<div class="rel-bloco"><div class="rel-head">📈 Resumo executivo — '+nomeMes(mes)+'</div><div class="rel-body">'+
     '<div class="rel-linha"><span>Total exames agendados</span><span class="rel-val">'+totalAgend+'</span></div>'+
     '<div class="rel-linha"><span>Total exames realizados</span><span class="rel-val">'+totalReal+'</span></div>'+
-    '<div class="rel-linha"><span>Taxa de realização geral</span><span class="rel-val" style="color:'+(taxaGeral>=90?'var(--green)':taxaGeral>=70?'var(--amber-dk)':'var(--red)')+'">'+taxaGeral+'%</span></div>'+
+    '<div class="rel-linha"><span>Taxa de realização</span><span class="rel-val" style="color:'+(taxaGeral>=90?'var(--green)':taxaGeral>=70?'var(--amber-dk)':'var(--red)')+'">'+taxaGeral+'%</span></div>'+
     '<div class="rel-linha"><span>Interrupções registradas</span><span class="rel-val" style="color:'+(interrup===0?'var(--green)':'var(--red)')+'">'+interrup+'</span></div>'+
-    '<div class="rel-linha"><span>Chamados em aberto</span><span class="rel-val" style="color:'+(abertosCham===0?'var(--green)':'var(--amber-dk)')+'">'+abertosCham+'/'+totalCham+'</span></div>'+
-    '<div class="rel-linha"><span>Veículos indisponíveis (atual)</span><span class="rel-val" style="color:'+(veicIndisp===0?'var(--green)':'var(--red)')+'">'+veicIndisp+'/'+state.veiculos.length+'</span></div>'+
-    '<div class="rel-linha"><span>Ausências registradas (check-ins)</span><span class="rel-val">'+ausencias+'</span></div>'+
-    '<div class="rel-linha"><span>Check-ins realizados</span><span class="rel-val">'+chekinT.length+'</span></div>'+
+    '<div class="rel-linha"><span>Chamados em aberto</span><span class="rel-val">'+abertosCham+'/'+totalCham+'</span></div>'+
+    '<div class="rel-linha"><span>Veículos indisponíveis</span><span class="rel-val" style="color:'+(veicIndisp===0?'var(--green)':'var(--red)')+'">'+veicIndisp+'/'+state.veiculos.length+'</span></div>'+
+    '<div class="rel-linha"><span>Ausências (check-ins)</span><span class="rel-val">'+ausencias+'</span></div>'+
   '</div></div>';
 
-  /* por polo */
+  /* BLOCO 3 — por polo */
   html += '<div class="rel-bloco"><div class="rel-head">🗺️ Desempenho por polo</div><div class="rel-body">';
   porPolo.forEach(function(p){
     var taxa = p.agendados>0 ? Math.round(p.realizados/p.agendados*100) : 0;
@@ -2424,23 +2686,14 @@ function renderRelatorioTab(){
   });
   html += '</div></div>';
 
-  /* por tipo de chamado */
-  if(porTipo.length){
-    html += '<div class="rel-bloco"><div class="rel-head">🛠️ Chamados por tipo de problema</div><div class="rel-body">';
-    porTipo.forEach(function(x){
-      html += '<div class="rel-linha"><span>'+esc(x.tipo)+'</span><span class="rel-val">'+x.n+'</span></div>';
-    });
-    html += '</div></div>';
-  }
-
-  /* princípios operacionais */
-  html += '<div class="rel-bloco"><div class="rel-head">📌 Princípios operacionais — status</div><div class="rel-body">'+
+  /* BLOCO 4 — princípios */
+  html += '<div class="rel-bloco"><div class="rel-head">📌 Princípios operacionais</div><div class="rel-body">'+
     [
-      {p:'Problema sem responsável vira caos.', ok: abertosCham < totalCham/2},
-      {p:'Indicadores mostram a verdade da operação.', ok: totalReal>0},
-      {p:'Veículos disponíveis sustentam a operação.', ok: veicIndisp < state.veiculos.length*0.05},
-      {p:'Preventivas em dia evitam paradas.', ok: state.veiculos.filter(function(v){return v.proximaRevisaoISO && diasAteManutencao(v)<0;}).length===0},
-      {p:'Check-ins diários geram visibilidade.', ok: chekinT.length >= 20}
+      {p:'Problema sem responsável vira caos.', ok:abertosCham < totalCham/2},
+      {p:'Indicadores mostram a verdade da operação.', ok:totalReal>0},
+      {p:'Veículos disponíveis sustentam a operação.', ok:veicIndisp < state.veiculos.length*0.05},
+      {p:'Preventivas em dia evitam paradas.', ok:state.veiculos.filter(function(v){return v.proximaRevisaoISO && diasAteManutencao(v)<0;}).length===0},
+      {p:'Check-ins diários geram visibilidade.', ok:checkinT.length >= 20}
     ].map(function(x){
       return '<div class="rel-linha"><span style="font-style:italic;">'+esc(x.p)+'</span>'+
         '<span class="pill '+(x.ok?'green':'red')+'">'+(x.ok?'✓ ok':'⚠ atenção')+'</span></div>';
@@ -2448,30 +2701,38 @@ function renderRelatorioTab(){
   '</div></div>';
 
   document.getElementById('tabContent').innerHTML = html;
+  /* nav buttons via addEventListener — evita problemas de escaping em onclick */
+  var inputMes = document.getElementById('input-rel-mes');
+  if(inputMes) inputMes.addEventListener('change', function(){ if(this.value){ state.relMes = this.value; renderRelatorioTab(); } });
 }
 
-window.__triAnterior = function(){
-  var t = state.relTri || trimestreAtual();
-  if(t.tri===1){ state.relTri={ano:t.ano-1,tri:4}; } else { state.relTri={ano:t.ano,tri:t.tri-1}; }
-  renderRelatorioTab();
-};
-window.__triProximo = function(){
-  var t = state.relTri || trimestreAtual();
-  if(t.tri===4){ state.relTri={ano:t.ano+1,tri:1}; } else { state.relTri={ano:t.ano,tri:t.tri+1}; }
-  renderRelatorioTab();
+window.__mcfg = async function(el){
+  window.__setMetaConfig(el.dataset.cidade, el.dataset.campo, el.value);
 };
 
-window.__exportarRelatorio = function(){
-  var t = state.relTri || trimestreAtual();
-  var meses = mesesDoTrimestre(t.ano, t.tri);
-  var diariosT = state.diarios.filter(function(d){ return meses.indexOf(d.mes)>-1; });
-  var rows = [['Polo','Cidade','Mês','Categoria','Agendados','Realizados','Taxa %','Registrado por']];
-  diariosT.forEach(function(d){
-    var taxa = d.agendados>0 ? Math.round(d.realizados/d.agendados*100) : 0;
-    rows.push([CIDADE_POLO[d.cidade]?CIDADE_POLO[d.cidade].nome:'', d.cidade, d.mes, catLabel(d.categoria), d.agendados, d.realizados, taxa+'%', d.registradoPor]);
-  });
-  downloadCSV(rows, 'relatorio_'+nomeTrimestre(t.ano,t.tri).replace(' / ','-')+'.csv');
+window.__setMetaConfig = async function(cidade, campo, val){
+  if(!state.metaConfig[cidade]) state.metaConfig[cidade] = {};
+  state.metaConfig[cidade][campo] = parseInt(val,10) || 0;
+  await storageSet('meta-config', JSON.stringify(state.metaConfig), true);
+  showToast('Meta de '+esc(cidade)+' atualizada.');
 };
+
+window.__relMesAnterior = function(){ state.relMes = mesAnterior(state.relMes || mesRelAtual()); renderRelatorioTab(); };
+window.__relMesProximo  = function(){ state.relMes = mesProximo(state.relMes  || mesRelAtual()); renderRelatorioTab(); };
+
+window.__exportarRelatorio = function(){
+  var mes = state.relMes || mesRelAtual(); /* report month */
+  var rows = [['Cidade','Polo','Turno','Veíc A','Veíc B','Examinadores','Dias/mês','Cap. diária','Meta mensal','Realizado mês','% Meta']];
+  TODAS_CIDADES.forEach(function(cidade){
+    var cap = calcularCapacidade(cidade);
+    var real = realizadoMesAtual(cidade, mes);
+    var pct = cap.metaMensal>0 ? Math.round(real/cap.metaMensal*100) : 0;
+    rows.push([cidade, CIDADE_POLO[cidade].nome, cap.descTurno, cap.veicA, cap.veicB,
+      cap.examinadores, cap.diasMes, cap.capDiaria, cap.metaMensal, real, pct+'%']);
+  });
+  downloadCSV(rows, 'meta_real_'+mes+'.csv');
+};
+
 
 /* ---------------- csv export ---------------- */
 function downloadCSV(rows, filename){
