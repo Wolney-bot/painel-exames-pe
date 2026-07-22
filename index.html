@@ -337,6 +337,7 @@ var CHECKLIST_ITEMS = [
 var TURNO_ESPECIAL = { 'Recife':'duplo_ambos', 'Petrolina':'dividido' };
 var MINUTOS_PROVA = 12;
 var MINUTOS_TURNO = 240;
+var MOTIVOS_DESLOCAMENTO = ['Substituição planejada','Problema mecânico','Sinistro / Acidente','Apoio operacional','Outro'];
 
 /* ---------------- estado ---------------- */
 var state = {
@@ -2124,15 +2125,25 @@ function renderVeiculosTab(){
           '<option value="">Motivo…</option>'+ MOTIVOS_INDISPONIVEL.map(function(m){return '<option value="'+m+'"'+(m===v.motivo?' selected':'')+'>'+esc(m)+'</option>';}).join('') +
         '</select>'+
         (v.motivo==='Em deslocamento para outra cidade' ?
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
-            '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">Cidade destino:</span>'+
-            '<select class="small-select" onchange="window.__setDestino(\''+v.id+'\',this.value)">'+
-              '<option value="">Selecione…</option>'+
-              TODAS_CIDADES.filter(function(cc){return cc!==v.cidade;}).map(function(cc){
-                return '<option value="'+esc(cc)+'"'+(cc===v.cidadeDestino?' selected':'')+'>'+esc(cc)+'</option>';
-              }).join('')+
-            '</select>'+
-            (v.cidadeDestino ? '<span style="font-size:11.5px;color:var(--amber-dk);font-weight:600;">→ '+esc(v.cidadeDestino)+'</span>' : '')+
+          '<div style="display:flex;flex-direction:column;gap:6px;">'+
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
+              '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">Cidade destino:</span>'+
+              '<select class="small-select" onchange="window.__setDestino(\''+v.id+'\',this.value)">'+
+                '<option value="">Selecione…</option>'+
+                TODAS_CIDADES.filter(function(cc){return cc!==v.cidade;}).map(function(cc){
+                  return '<option value="'+esc(cc)+'"'+(cc===v.cidadeDestino?' selected':'')+'>'+esc(cc)+'</option>';
+                }).join('')+
+              '</select>'+
+              (v.cidadeDestino ? '<span style="font-size:11.5px;color:var(--amber-dk);font-weight:600;">→ '+esc(v.cidadeDestino)+'</span>' : '')+
+            '</div>'+
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
+              '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">Motivo real:</span>'+
+              '<select class="small-select" onchange="window.__setMotivoDeslocamento(\''+v.id+'\',this.value)">'+
+                '<option value="">Selecione o motivo real…</option>'+
+                MOTIVOS_DESLOCAMENTO.map(function(mr){ return '<option value="'+esc(mr)+'"'+(mr===v.motivoDeslocamento?' selected':'')+'>'+esc(mr)+'</option>'; }).join('')+
+              '</select>'+
+              (v.motivoDeslocamento ? '<span style="font-size:11.5px;color:var(--red);font-weight:600;">⚠ '+esc(v.motivoDeslocamento)+'</span>' : '')+
+            '</div>'+
           '</div>' : '')+
       '</div>';
     }
@@ -2253,9 +2264,21 @@ window.__setDestino = async function(id, cidade){
   v.cidadeDestino = cidade;
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
-  if(cidade && cidade!==antes) addHistorico(v, 'deslocamento', 'Deslocamento definido → '+cidade, {cidadeOrigem:v.cidade, cidadeDestino:cidade});
+  if(cidade && cidade!==antes) addHistorico(v, 'deslocamento', 'Deslocamento definido → '+cidade+(v.motivoDeslocamento?' ('+v.motivoDeslocamento+')':''), {cidadeOrigem:v.cidade, cidadeDestino:cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Destino: '+esc(cidade)+'.');
+  renderVeiculosTab();
+};
+
+window.__setMotivoDeslocamento = async function(id, motivo){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.motivoDeslocamento = motivo;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  if(motivo) addHistorico(v, 'deslocamento', 'Motivo real do deslocamento: '+motivo+(v.cidadeDestino?' → '+v.cidadeDestino:''), {cidade:v.cidade, cidadeDestino:v.cidadeDestino||''});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Motivo registrado: '+esc(motivo));
   renderVeiculosTab();
 };
 window.__marcarChegou = async function(id, cidadeDestino){
@@ -2661,7 +2684,73 @@ function renderRelatorioTab(){
   html += '</div></div>';
 
   /* ============================================================
-     BLOCO 2 — RESUMO EXECUTIVO
+     BLOCO 2 — RELATÓRIO DE MANUTENÇÃO / QUEBRA (para e-mail)
+  ============================================================ */
+  var MOTIVOS_MANUT = ['Manutenção / quebra','Revisão programada','Acidente','Sinistro'];
+  var manutEntradas = [];
+  state.veiculos.forEach(function(v){
+    /* histórico do mês */
+    (v.historico||[]).forEach(function(h){
+      if(h.dataISO && h.dataISO.startsWith(mes)){
+        var isManut = MOTIVOS_MANUT.some(function(m){ return h.descricao && h.descricao.toLowerCase().indexOf(m.toLowerCase())>-1; });
+        if(isManut){
+          manutEntradas.push({
+            veiculo: v.nome||'Veículo', categoria: v.categoria,
+            cidade: h.cidade||v.cidade, polo: CIDADE_POLO[v.cidade]?CIDADE_POLO[v.cidade].nome:'—',
+            descricao: h.descricao, data: h.dataISO, dataDisplay: dataParaDisplay(h.dataISO),
+            por: h.por||'—', observacoes: h.observacoes||'',
+            motivoDeslocamento: v.motivoDeslocamento||''
+          });
+        }
+      }
+    });
+    /* veículo atualmente indisponível por manutenção sem histórico no mês */
+    if(MOTIVOS_MANUT.indexOf(v.motivo)>-1 && !(v.historico||[]).some(function(h){ return h.dataISO&&h.dataISO.startsWith(mes)&&MOTIVOS_MANUT.some(function(m){return h.descricao&&h.descricao.indexOf(m)>-1;}); })){
+      manutEntradas.push({
+        veiculo: v.nome||'Veículo', categoria: v.categoria,
+        cidade: v.cidade, polo: CIDADE_POLO[v.cidade]?CIDADE_POLO[v.cidade].nome:'—',
+        descricao: 'Motivo atual: '+v.motivo, data: '', dataDisplay: 'Em aberto',
+        por: v.atualizadoPor||'—', observacoes: '',
+        motivoDeslocamento: v.motivoDeslocamento||''
+      });
+    }
+  });
+
+  html += '<div class="rel-bloco"><div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;">'+
+    '<span>🔧 Manutenção / Quebra — '+nomeMes(mes)+'</span>'+
+    '<button class="btn" style="background:var(--amber);color:var(--teal-dk);font-size:12px;padding:5px 12px;" onclick="window.__gerarEmailManutencao()">✉ Gerar e-mail</button>'+
+  '</div><div class="rel-body">';
+
+  if(!manutEntradas.length){
+    html += '<div style="font-size:12.5px;color:var(--green);font-weight:600;">✅ Nenhuma manutenção ou quebra registrada no histórico deste mês.</div>';
+  } else {
+    html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">'+manutEntradas.length+' ocorrência(s) encontrada(s) no histórico dos veículos.</div>';
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px;">'+
+      '<thead><tr style="background:var(--teal);color:#fff;">'+
+        '<th style="padding:8px 10px;text-align:left;">Veículo / Cat.</th>'+
+        '<th style="padding:8px 10px;text-align:left;">Cidade / Polo</th>'+
+        '<th style="padding:8px 10px;text-align:left;">Ocorrência</th>'+
+        '<th style="padding:8px 10px;text-align:left;">Data</th>'+
+        '<th style="padding:8px 10px;text-align:left;">Registrado por</th>'+
+        '<th style="padding:8px 10px;text-align:left;">Observações</th>'+
+      '</tr></thead><tbody>';
+    manutEntradas.forEach(function(e,i){
+      html += '<tr style="border-bottom:1px solid var(--line);background:'+(i%2===0?'#fff':'var(--bg)')+'">'+
+        '<td style="padding:7px 10px;"><b>'+esc(e.veiculo)+'</b><br><span style="font-size:11px;color:var(--ink-soft);">Cat. '+esc(e.categoria)+'</span></td>'+
+        '<td style="padding:7px 10px;">'+esc(e.cidade)+'<br><span style="font-size:11px;color:var(--ink-soft);">'+esc(e.polo)+'</span></td>'+
+        '<td style="padding:7px 10px;">'+esc(e.descricao)+(e.motivoDeslocamento?'<br><span style="font-size:11px;color:var(--red);">⚠ '+esc(e.motivoDeslocamento)+'</span>':'')+'</td>'+
+        '<td style="padding:7px 10px;font-family:\'IBM Plex Mono\',monospace;font-size:12px;">'+esc(e.dataDisplay)+'</td>'+
+        '<td style="padding:7px 10px;font-size:11.5px;">'+esc(e.por)+'</td>'+
+        '<td style="padding:7px 10px;font-size:11.5px;font-style:italic;color:var(--ink-soft);">'+esc(e.observacoes||'—')+'</td>'+
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '<div style="font-size:11px;color:var(--ink-soft);margin-top:6px;">* Dados extraídos do histórico de movimentações da aba Veículos.</div>';
+  }
+  html += '</div></div>';
+
+  /* ============================================================
+     BLOCO 3 — RESUMO EXECUTIVO
   ============================================================ */
   html += '<div class="rel-bloco"><div class="rel-head">📈 Resumo executivo — '+nomeMes(mes)+'</div><div class="rel-body">'+
     '<div class="rel-linha"><span>Total exames agendados</span><span class="rel-val">'+totalAgend+'</span></div>'+
@@ -2708,6 +2797,50 @@ function renderRelatorioTab(){
 
 window.__mcfg = async function(el){
   window.__setMetaConfig(el.dataset.cidade, el.dataset.campo, el.value);
+};
+
+window.__gerarEmailManutencao = function(){
+  var mes = state.relMes || mesRelAtual();
+  var MOTIVOS_MANUT = ['Manutenção / quebra','Revisão programada','Acidente','Sinistro'];
+  var entradas = [];
+  state.veiculos.forEach(function(v){
+    (v.historico||[]).forEach(function(h){
+      if(h.dataISO && h.dataISO.startsWith(mes)){
+        var isManut = MOTIVOS_MANUT.some(function(m){ return h.descricao && h.descricao.toLowerCase().indexOf(m.toLowerCase())>-1; });
+        if(isManut) entradas.push({veiculo:v.nome||'Veículo', categoria:v.categoria, cidade:h.cidade||v.cidade, polo:CIDADE_POLO[v.cidade]?CIDADE_POLO[v.cidade].nome:'—', descricao:h.descricao, dataDisplay:dataParaDisplay(h.dataISO), por:h.por||'—', obs:h.observacoes||'', motivoReal:v.motivoDeslocamento||''});
+      }
+    });
+    if(MOTIVOS_MANUT.indexOf(v.motivo)>-1 && !(v.historico||[]).some(function(h){return h.dataISO&&h.dataISO.startsWith(mes)&&MOTIVOS_MANUT.some(function(m){return h.descricao&&h.descricao.indexOf(m)>-1;});})){
+      entradas.push({veiculo:v.nome||'Veículo', categoria:v.categoria, cidade:v.cidade, polo:CIDADE_POLO[v.cidade]?CIDADE_POLO[v.cidade].nome:'—', descricao:'Motivo: '+v.motivo, dataDisplay:'Em aberto', por:v.atualizadoPor||'—', obs:'', motivoReal:v.motivoDeslocamento||''});
+    }
+  });
+
+  var assunto = encodeURIComponent('Relatório de Manutenção e Quebra — '+nomeMes(mes)+' — Exames PE');
+  var corpo = 'Relatório de Veículos em Manutenção / Quebra\n';
+  corpo += 'Período: '+nomeMes(mes)+'\n';
+  corpo += 'Gerado em: '+nowStr()+'\n';
+  corpo += '='.repeat(60)+'\n\n';
+
+  if(!entradas.length){
+    corpo += 'Nenhuma manutenção ou quebra registrada neste mês.\n';
+  } else {
+    entradas.forEach(function(e, i){
+      corpo += (i+1)+'. Veículo: '+e.veiculo+' — Categoria '+e.categoria+'\n';
+      corpo += '   Cidade: '+e.cidade+' ('+e.polo+')\n';
+      corpo += '   Ocorrência: '+e.descricao+'\n';
+      if(e.motivoReal) corpo += '   Motivo real: '+e.motivoReal+'\n';
+      corpo += '   Data: '+e.dataDisplay+'\n';
+      corpo += '   Registrado por: '+e.por+'\n';
+      if(e.obs) corpo += '   Observações: '+e.obs+'\n';
+      corpo += '\n';
+    });
+    corpo += '='.repeat(60)+'\n';
+    corpo += 'Total de ocorrências: '+entradas.length+'\n';
+  }
+
+  corpo += '\nEnviado via Painel de Controle Operacional — Exames PE';
+  window.open('mailto:?subject='+assunto+'&body='+encodeURIComponent(corpo));
+  showToast('Abrindo cliente de e-mail…');
 };
 
 window.__setMetaConfig = async function(cidade, campo, val){
