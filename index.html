@@ -280,6 +280,13 @@
   .filtro-prio button{border:none;border-radius:20px;padding:5px 14px;font-size:12.5px;font-weight:700;cursor:pointer;}
   .filtro-prio .ativo{box-shadow:0 0 0 2px var(--teal);}
 
+  /* veículo CDE na agenda */
+  .cde-veiculo-bloco{background:#EEF4FF;border:1px solid #93B4F5;border-radius:10px;padding:10px 12px;margin-top:8px;}
+  .cde-veiculo-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:12.5px;}
+  .cde-veiculo-linha:last-child{margin-bottom:0;}
+  .cde-cat-tag{background:#1E3A8A;color:#fff;font-weight:700;border-radius:6px;padding:2px 8px;font-size:11.5px;}
+  .alim-check{accent-color:#E07000;width:15px;height:15px;}
+
   .login-wrap{padding:60px 20px;display:flex;justify-content:center;}
   .login-card{max-width:380px;width:100%;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;text-align:center;}
   .login-card h2{font-family:'Space Grotesk',sans-serif;margin:8px 0 4px;font-size:18px;}
@@ -331,14 +338,16 @@ var STATUS_PLAN = ['Planejado','Em execução','Concluído','Atrasado'];
 var MOTIVOS_INTERRUPCAO = ['Falha operacional','Veículo quebrado','Cancelamento pelo Detran','Outro'];
 var STATUS_ENTRADA = ['Planejado','Realizado','Interrompido'];
 var MOTIVOS_INDISPONIVEL = ['Manutenção / quebra','Revisão programada','Acidente','Documentação vencida','Em deslocamento para outra cidade','Outro'];
-var CHECKLIST_ITEMS = [
-  'Câmera frontal','Câmera traseira','Câmera lateral',
-  'Computador de bordo / tablet','GPS / rastreador',
-  'Extintor de incêndio','Triângulo de sinalização',
-  'Colete reflexivo','Kit de primeiros socorros',
-  'CRLV / documentação','Seguro obrigatório',
-  'Tacógrafo','Manômetro de pneus'
+var CHECKLIST_BASE = [
+  'Câmera frontal','Câmera lateral','Câmera interna','Câmera traseira',
+  'Leitor biométrico','Case','Chave de roda','Macaco',
+  'Triângulo','Estepe','CRLV'
 ];
+function getChecklistItems(categoria){
+  var items = CHECKLIST_BASE.slice();
+  if(['C','D','E'].indexOf(categoria) > -1) items.push('Tacógrafo');
+  return items;
+}
 var TURNO_ESPECIAL = { 'Recife':'duplo_ambos', 'Petrolina':'dividido' };
 var MINUTOS_PROVA = 12;
 var MINUTOS_TURNO = 240;
@@ -1066,6 +1075,37 @@ function renderOverview(){
         '<div style="font-weight:400;margin-top:2px;">'+demandasHoje2.map(function(d){return esc(d.nota.substring(0,40))+(d.nota.length>40?'…':'');}).join(' | ')+'</div>'+
       '</div><button class="x" onclick="window.__setTab(\'planejamento\')">ver demandas</button></div>';
     }
+    html += '</div>';
+  }
+
+  /* 🚗 Alertas: veículo indisponível com agendamento CDE na semana */
+  var alertasVeicCDE = [];
+  state.veiculos.filter(function(v){ return v.status==='Indisponível'; }).forEach(function(v){
+    var agend = [];
+    state.semanas.forEach(function(w){
+      (w.entradas||[]).forEach(function(e){
+        if(!e.veiculosCDE) return;
+        ['C','D','E'].forEach(function(cat){
+          var cd = e.veiculosCDE[cat];
+          if(cd && cd.veiculoId===v.id && e.datasExatas && e.datasExatas[cat] && e.datasExatas[cat] >= hoje){
+            agend.push({semana:w.label, cidade:e.cidade, cat:cat, data:dataParaDisplay(e.datasExatas[cat])});
+          }
+        });
+      });
+    });
+    if(agend.length) alertasVeicCDE.push({veiculo:v, agend:agend});
+  });
+  if(alertasVeicCDE.length){
+    html += '<div style="margin-bottom:14px;">';
+    alertasVeicCDE.forEach(function(a){
+      html += '<div class="alert-banner" style="background:#FFF0EE;border-color:#E8B6AC;color:#C44536;">'+
+        '🚗 <div>'+
+          '<b>'+esc(a.veiculo.nome||'Veículo')+' (Cat.'+esc(a.veiculo.categoria)+') está INDISPONÍVEL com '+a.agend.length+' agendamento(s) CDE na semana.</b>'+
+          '<div style="font-weight:400;margin-top:3px;">'+a.agend.map(function(ag){ return '<b>'+esc(ag.cidade)+'</b> — Cat.'+esc(ag.cat)+' em '+esc(ag.data); }).join(' · ')+'</div>'+
+        '</div>'+
+        '<button class="x" style="color:#C44536;" onclick="window.__setTab(\'agenda\')">ver agenda</button>'+
+      '</div>';
+    });
     html += '</div>';
   }
 
@@ -2048,6 +2088,53 @@ function renderWeekCard(w, numero){
             '<label class="full">Detalhes<input type="text" placeholder="Explique o ocorrido…" value="'+esc(e.detalhes||'')+'" onchange="window.__entradaDetalhes(\''+w.id+'\',\''+e.id+'\', this.value)"></label>'+
           '</div>'+
         '</div>'+
+        (function(){
+          /* Seção de veículo/motorista/alimentação para Cat C, D, E */
+          var catsCDE = e.categorias.filter(function(c){ return c==='C'||c==='D'||c==='E'; });
+          if(!catsCDE.length) return '';
+          var cdeData = e.veiculosCDE || {};
+          var bloco = '<div class="cde-veiculo-bloco">'+
+            '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:12.5px;color:#1E3A8A;margin-bottom:8px;">🚗 Veículo / Motorista / Alimentação — '+esc(e.cidade)+'</div>';
+          catsCDE.forEach(function(cat){
+            var dataExata = e.datasExatas && e.datasExatas[cat] ? dataParaDisplay(e.datasExatas[cat]) : '(data não definida)';
+            var cd = cdeData[cat] || {};
+            /* veículos da categoria na cidade ou em deslocamento para ela */
+            var veicsDisponiveis = state.veiculos.filter(function(v){
+              return v.categoria===cat && (v.cidade===e.cidade || v.cidadeDestino===e.cidade);
+            });
+            var veicsTodos = state.veiculos.filter(function(v){ return v.categoria===cat; });
+            var veicsLista = veicsDisponiveis.length ? veicsDisponiveis : veicsTodos;
+            bloco += '<div class="cde-veiculo-linha" style="border-top:1px dashed #93B4F5;padding-top:6px;">'+
+              '<span class="cde-cat-tag">Cat. '+esc(cat)+'</span>'+
+              '<span style="font-size:11.5px;color:#1E3A8A;">📅 '+esc(dataExata)+'</span>'+
+            '</div>'+
+            '<div class="cde-veiculo-linha">'+
+              '<label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Veículo:</label>'+
+              '<select class="small-select" style="min-width:160px;" onchange="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'veiculoId\',this.value)">'+
+                '<option value="">Selecione o veículo…</option>'+
+                veicsLista.map(function(v){
+                  var ind = v.status==='Indisponível' ? ' ⚠️' : '';
+                  return '<option value="'+v.id+'"'+(v.id===cd.veiculoId?' selected':'')+'>'+esc(v.nome||'Veículo')+ind+' ('+esc(v.cidade)+')</option>';
+                }).join('')+
+              '</select>'+
+            '</div>'+
+            '<div class="cde-veiculo-linha">'+
+              '<label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Motorista:</label>'+
+              '<input type="text" value="'+esc(cd.motorista||'')+'" placeholder="Nome do motorista" style="flex:1;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12.5px;" onblur="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'motorista\',this.value)">'+
+            '</div>'+
+            '<div class="cde-veiculo-linha">'+
+              '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer;">'+
+                '<input type="checkbox" class="alim-check" '+(cd.alimentacao?'checked':'')+' onchange="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'alimentacao\',this.checked)">'+
+                '🍽 Solicitar alimentação para este dia'+
+              '</label>'+
+            '</div>'+
+            (cd.alimentacao ? '<div class="cde-veiculo-linha">'+
+              '<input type="text" value="'+esc(cd.obsAlimentacao||'')+'" placeholder="Obs. alimentação (ex: almoço no local, marmita…)" style="flex:1;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12.5px;background:var(--amber-soft);" onblur="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'obsAlimentacao\',this.value)">'+
+            '</div>' : '');
+          });
+          bloco += '</div>';
+          return bloco;
+        })()+
         (e.atualizadoPor ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:6px;">atualizado por '+esc(e.atualizadoPor)+' em '+esc(e.atualizadoEm)+'</div>' : '')+
       '</div>';
     });
@@ -2058,6 +2145,21 @@ function renderWeekCard(w, numero){
 
 window.__dc = function(field, val){ state.draftChamado[field] = val; };
 window.__dw = function(field, val){ state.draftWeek[field] = val; };
+
+window.__setVeiculoCDE = async function(wId, eId, cat, field, val){
+  var w = state.semanas.filter(function(x){return x.id===wId;})[0];
+  if(!w) return;
+  var e = w.entradas.filter(function(x){return x.id===eId;})[0];
+  if(!e) return;
+  if(!e.veiculosCDE) e.veiculosCDE = {};
+  if(!e.veiculosCDE[cat]) e.veiculosCDE[cat] = {};
+  e.veiculosCDE[cat][field] = val;
+  e.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  e.atualizadoEm  = nowStr();
+  await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
+  if(field !== 'motorista' && field !== 'obsAlimentacao') renderAgendaTab();
+  else showToast('Salvo.');
+};
 
 window.__criarSemana = async function(){
   var d = state.draftWeek;
@@ -2224,7 +2326,7 @@ function renderVeiculosTab(){
     row += '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">';
     row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 9px;" onclick="window.__expandVeiculo(\''+v.id+'\',\'historico\')">'+
       (isExpanded && exp.aba==='historico' ? '▲ Histórico' : '▼ Histórico')+'</button>';
-    var todosItens = CHECKLIST_ITEMS.concat(v.checklistCustom||[]);
+    var todosItens = getChecklistItems(v.categoria).concat(v.checklistCustom||[]);
     var okCk = Object.values(v.checklist||{}).filter(Boolean).length;
     row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 9px;color:'+(okCk===todosItens.length?'var(--green)':'var(--amber-dk)')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'checklist\')">'+
       '✅ '+okCk+'/'+todosItens.length+'</button>';
@@ -2416,7 +2518,7 @@ window.__addChecklistItem = async function(id){
   if(!v) return;
   if(!v.checklistCustom) v.checklistCustom = [];
   var item = input.value.trim();
-  if(v.checklistCustom.indexOf(item)===-1 && CHECKLIST_ITEMS.indexOf(item)===-1){
+  if(v.checklistCustom.indexOf(item)===-1 && CHECKLIST_BASE.indexOf(item)===-1 && item!=="Tacógrafo"){
     v.checklistCustom.push(item);
     await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
     showToast('Item adicionado.');
@@ -2428,7 +2530,7 @@ function renderVeiculoDetail(v){
   var exp = state.veiculoExpandido;
   if(!exp || exp.id!==v.id) return '';
   var aba = exp.aba;
-  var todosItens = CHECKLIST_ITEMS.concat(v.checklistCustom||[]);
+  var todosItens = getChecklistItems(v.categoria).concat(v.checklistCustom||[]);
   var ck = v.checklist || {};
   var okCount = todosItens.filter(function(i){return ck[i];}).length;
   var hist = v.historico || [];
