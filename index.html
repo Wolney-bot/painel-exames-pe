@@ -1001,11 +1001,17 @@ function examesHoje(data){
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
-        var di = dataParaDisplay(data);
-        function toISO(s){ var p=s.split('/'); return p[2]+'-'+p[1]+'-'+p[0]; }
+        function toISO(s){ var p=s.split('/'); if(p.length===3) return p[2]+'-'+p[1]+'-'+p[0]; if(p.length===2) return new Date().getFullYear()+'-'+p[1]+'-'+p[0]; return s; }
         var wIni = w.inicio.indexOf('/')>-1 ? toISO(w.inicio) : w.inicio;
         var wFim = w.fim.indexOf('/')>-1   ? toISO(w.fim)   : w.fim;
-        if(data >= wIni && data <= wFim) cats = cats.concat(abCats);
+        if(data >= wIni && data <= wFim){
+          /* respeita diasSelecionados se não é todos os dias */
+          if(e.todosOsDias !== false || !e.diasSelecionados || !e.diasSelecionados.length){
+            cats = cats.concat(abCats);
+          } else if(e.diasSelecionados.indexOf(data) > -1){
+            cats = cats.concat(abCats);
+          }
+        }
       }
       if(cats.length) lista.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats, status:e.status});
     });
@@ -1605,9 +1611,9 @@ function renderPlanejamentoTab(){
 
   /* --- seletor de mês --- */
   html += '<div class="nav-mes">'+
-    '<button onclick="window.__mesAnterior()">← Mês anterior</button>'+
+    '<button id="plan-mes-ant">← Mês anterior</button>'+
     '<span class="mes-label">'+nomeMes(mes)+'</span>'+
-    '<button onclick="window.__mesProximo()">Próximo mês →</button>'+
+    '<button id="plan-mes-prox">Próximo mês →</button>'+
   '</div>';
 
   /* --- progresso por cidade --- */
@@ -1814,6 +1820,12 @@ function renderPlanejamentoTab(){
   }
 
   document.getElementById('tabContent').innerHTML = html;
+
+  /* addEventListener for month nav — avoids onclick issues */
+  var bAnt = document.getElementById('plan-mes-ant');
+  var bProx = document.getElementById('plan-mes-prox');
+  if(bAnt) bAnt.addEventListener('click', function(){ state.mesSelecionado = mesAnterior(state.mesSelecionado); renderPlanejamentoTab(); });
+  if(bProx) bProx.addEventListener('click', function(){ state.mesSelecionado = mesProximo(state.mesSelecionado); renderPlanejamentoTab(); });
 }
 
 window.__mesAnterior = function(){ state.mesSelecionado = mesAnterior(state.mesSelecionado); renderPlanejamentoTab(); };
@@ -2030,14 +2042,40 @@ function renderAgendaTab(){
     if(p.length===2) return new Date(ano, parseInt(p[1])-1, parseInt(p[0])).getTime();
     return 0;
   }
+  function getMesDaSemana(w){
+    var s = w.inicio||'';
+    if(!s) return '';
+    var p = s.split('/');
+    var ano = new Date().getFullYear();
+    if(p.length===3) return p[2]+'-'+String(parseInt(p[1])).padStart(2,'0');
+    if(p.length===2) return ano+'-'+String(parseInt(p[1])).padStart(2,'0');
+    return '';
+  }
   var semanasOrd = state.semanas.slice().sort(function(a,b){
-    var da = parseDataSemana(a.inicio);
-    var db = parseDataSemana(b.inicio);
-    if(da && db) return db - da; /* mais recente primeiro */
-    return (b.criadoTs||0) - (a.criadoTs||0);
+    var da = parseDataSemana(a.inicio), db = parseDataSemana(b.inicio);
+    if(da && db) return da - db;
+    return (a.criadoTs||0) - (b.criadoTs||0);
   });
-  html += semanasOrd.map(function(w, idx){ return renderWeekCard(w, semanasOrd.length - idx); }).join('');
+  var mesCount = {};
+  semanasOrd.forEach(function(w){
+    var mes = getMesDaSemana(w);
+    mesCount[mes] = (mesCount[mes]||0)+1;
+    w._numMes = mesCount[mes]; w._mes = mes;
+  });
+  html += semanasOrd.slice().reverse().map(function(w){ return renderWeekCard(w, w._numMes); }).join('');
   document.getElementById('tabContent').innerHTML = html;
+
+  /* addEventListener para seleção de dias A/B */
+  document.querySelectorAll('.todos-input').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      window.__draftEntryTodos(this.dataset.wid, this.checked);
+    });
+  });
+  document.querySelectorAll('.dia-input').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      window.__draftEntryDia(this.dataset.wid, this.dataset.date, this.checked);
+    });
+  });
 }
 
 window.__agendaView = function(v){ state.agendaView = v; renderAgendaTab(); };
@@ -2082,6 +2120,55 @@ function renderWeekCard(w, numero){
         '</label>';
       }).join('')+
     '</div>' : '')+
+    (function(){
+      /* A/B: opção de todos os dias ou dias específicos */
+      var temAB = draft.cats && draft.cats.some(function(c){return c==='A'||c==='B';});
+      if(!temAB) return '';
+      var todosOsDias = draft.todosOsDias !== false; /* default true */
+      var diasSel = draft.diasSelecionados || [];
+      /* gerar dias da semana a partir de w.inicio / w.fim */
+      function parseDDMM(s){
+        if(!s) return null;
+        var p = s.split('/');
+        var ano = new Date().getFullYear();
+        if(p.length===3) return new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+        if(p.length===2) return new Date(ano, parseInt(p[1])-1, parseInt(p[0]));
+        return null;
+      }
+      var dIni = parseDDMM(w.inicio), dFim = parseDDMM(w.fim);
+      var diasDaSemana = [];
+      if(dIni && dFim){
+        var cur = new Date(dIni);
+        while(cur <= dFim){
+          diasDaSemana.push(cur.toISOString().slice(0,10));
+          cur.setDate(cur.getDate()+1);
+        }
+      }
+      var bloco = '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:8px;padding:8px 10px;margin-top:6px;">'+
+        '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--teal-dk);">📅 Frequência Cat. A / B nesta semana</div>'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+(todosOsDias?'0':'8px')+';">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer;">'+
+            '<input type="checkbox" '+(todosOsDias?'checked':'')+' id="todos-'+w.id+'" data-wid="'+w.id+'" class="todos-input"> Todos os dias da semana'+
+          '</label>'+
+        '</div>';
+      if(!todosOsDias && diasDaSemana.length){
+        bloco += '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">Selecione os dias que haverá exame A/B:</div>'+
+          '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+        diasDaSemana.forEach(function(d){
+          var checked = diasSel.indexOf(d) > -1;
+          var nome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];
+          var partes = d.split('-');
+          var label = nome+' '+partes[2]+'/'+partes[1];
+          bloco += '<label style="display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;">'+
+            '<input type="checkbox" '+(checked?'checked':'')+' data-wid="'+w.id+'" data-date="'+d+'" class="dia-input"> '+esc(label)+'</label>';
+        });
+        bloco += '</div>';
+      } else if(!todosOsDias && !diasDaSemana.length){
+        bloco += '<div style="font-size:11.5px;color:var(--red);">⚠️ Informe início e fim da semana para selecionar dias específicos.</div>';
+      }
+      bloco += '</div>';
+      return bloco;
+    })()+
     '<button class="btn btn-primary" onclick="window.__addEntrada(\''+w.id+'\')">+ Agendar cidade</button>'+
   '</div>';
 
@@ -2166,6 +2253,20 @@ function renderWeekCard(w, numero){
 window.__dc = function(field, val){ state.draftChamado[field] = val; };
 window.__dw = function(field, val){ state.draftWeek[field] = val; };
 
+window.__draftEntryTodos = function(wId, checked){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:true, diasSelecionados:[]};
+  state.draftEntry[wId].todosOsDias = checked;
+  if(checked) state.draftEntry[wId].diasSelecionados = [];
+  renderAgendaTab();
+};
+window.__draftEntryDia = function(wId, date, checked){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:true, diasSelecionados:[]};
+  var dias = state.draftEntry[wId].diasSelecionados || [];
+  if(checked){ if(dias.indexOf(date)===-1) dias.push(date); }
+  else { dias = dias.filter(function(d){return d!==date;}); }
+  state.draftEntry[wId].diasSelecionados = dias;
+};
+
 window.__setVeiculoCDE = async function(wId, eId, cat, field, val){
   var w = state.semanas.filter(function(x){return x.id===wId;})[0];
   if(!w) return;
@@ -2230,16 +2331,19 @@ window.__addEntrada = async function(wId){
   if(semData.length){ showToast('Informe a data exata para: '+semData.map(function(c){return catLabel(c);}).join(', ')); return; }
   var w = state.semanas.filter(function(x){return x.id===wId;})[0];
   w.entradas = w.entradas || [];
+  var temAB = d.cats.some(function(c){return c==='A'||c==='B';});
   w.entradas.push({
     id:'E'+Date.now().toString(36).toUpperCase(),
     cidade:d.cidade, categorias:d.cats.slice(),
     datasExatas: Object.assign({}, datasExatas),
     dataExata: catsCDE.length ? (datasExatas[catsCDE[0]]||'') : '',
+    todosOsDias: temAB ? (d.todosOsDias !== false) : null,
+    diasSelecionados: temAB && d.todosOsDias === false ? (d.diasSelecionados||[]).slice() : [],
     status:'Planejado', motivo:'', detalhes:'',
     atualizadoPor:'', atualizadoEm:''
   });
   await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
-  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:'', datasExatas:{}};
+  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:true, diasSelecionados:[]};
   showToast('Cidade agendada.');
   renderAgendaTab();
 };
@@ -2310,7 +2414,10 @@ function renderVeiculosTab(){
       '<div class="vsub">'+(isTransito ? '🚛 Vem de '+esc(v.cidade)+' · chegará em breve' : (verde?'Pronto para uso':'Motivo: '+esc(v.motivo||'não informado')))+(v.atualizadoPor?' · '+esc(v.atualizadoPor):'')+'</div>'+
       (!isTransito ? '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;">'+
         manutBadge(v)+
-        '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão:<input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" onchange="window.__setManutencao(\''+v.id+'\',this.value)"></label>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;">'+
+          '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Última revisão:<input type="date" value="'+esc(v.ultimaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" id="ultr-'+v.id+'" data-vid="'+v.id+'" class="ultr-input"></label>'+
+          '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão:<input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;color:var(--teal-dk);font-weight:700;" id="proxr-'+v.id+'" data-vid="'+v.id+'" class="proxr-input"></label>'+
+        '</div>'+
       '</div>' : '')+
     '</div>';
     if(!verde && !isTransito){
@@ -2392,6 +2499,14 @@ function renderVeiculosTab(){
   });
 
   document.getElementById('tabContent').innerHTML = html;
+
+  /* addEventListener for revision inputs — avoids onclick string escaping */
+  document.querySelectorAll('.ultr-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__setUltimaRevisao(this.dataset.vid, this.value); });
+  });
+  document.querySelectorAll('.proxr-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__setManutencao(this.dataset.vid, this.value); });
+  });
 }
 
 window.__addVeiculo = async function(){
@@ -2496,6 +2611,22 @@ window.__setManutencao = async function(id, dataISO){
   addHistorico(v, 'revisao', 'Próxima revisão → '+dataParaDisplay(dataISO), {cidade:v.cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Data de revisão salva.');
+  renderVeiculosTab();
+};
+
+window.__setUltimaRevisao = async function(id, dataISO){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v || !dataISO) return;
+  v.ultimaRevisaoISO = dataISO;
+  /* calcula próxima automaticamente: +12 meses */
+  var d = new Date(dataISO+'T00:00:00');
+  d.setFullYear(d.getFullYear()+1);
+  v.proximaRevisaoISO = d.toISOString().slice(0,10);
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  addHistorico(v,'revisao','Última revisão: '+dataParaDisplay(dataISO)+' → Próxima: '+dataParaDisplay(v.proximaRevisaoISO),{cidade:v.cidade});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ Próxima revisão calculada: '+dataParaDisplay(v.proximaRevisaoISO));
   renderVeiculosTab();
 };
 
@@ -4197,11 +4328,17 @@ function examesHoje(data){
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
-        var di = dataParaDisplay(data);
-        function toISO(s){ var p=s.split('/'); return p[2]+'-'+p[1]+'-'+p[0]; }
+        function toISO(s){ var p=s.split('/'); if(p.length===3) return p[2]+'-'+p[1]+'-'+p[0]; if(p.length===2) return new Date().getFullYear()+'-'+p[1]+'-'+p[0]; return s; }
         var wIni = w.inicio.indexOf('/')>-1 ? toISO(w.inicio) : w.inicio;
         var wFim = w.fim.indexOf('/')>-1   ? toISO(w.fim)   : w.fim;
-        if(data >= wIni && data <= wFim) cats = cats.concat(abCats);
+        if(data >= wIni && data <= wFim){
+          /* respeita diasSelecionados se não é todos os dias */
+          if(e.todosOsDias !== false || !e.diasSelecionados || !e.diasSelecionados.length){
+            cats = cats.concat(abCats);
+          } else if(e.diasSelecionados.indexOf(data) > -1){
+            cats = cats.concat(abCats);
+          }
+        }
       }
       if(cats.length) lista.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats, status:e.status});
     });
@@ -4801,9 +4938,9 @@ function renderPlanejamentoTab(){
 
   /* --- seletor de mês --- */
   html += '<div class="nav-mes">'+
-    '<button onclick="window.__mesAnterior()">← Mês anterior</button>'+
+    '<button id="plan-mes-ant">← Mês anterior</button>'+
     '<span class="mes-label">'+nomeMes(mes)+'</span>'+
-    '<button onclick="window.__mesProximo()">Próximo mês →</button>'+
+    '<button id="plan-mes-prox">Próximo mês →</button>'+
   '</div>';
 
   /* --- progresso por cidade --- */
@@ -5226,13 +5363,27 @@ function renderAgendaTab(){
     if(p.length===2) return new Date(ano, parseInt(p[1])-1, parseInt(p[0])).getTime();
     return 0;
   }
+  function getMesDaSemana(w){
+    var s = w.inicio||'';
+    if(!s) return '';
+    var p = s.split('/');
+    var ano = new Date().getFullYear();
+    if(p.length===3) return p[2]+'-'+String(parseInt(p[1])).padStart(2,'0');
+    if(p.length===2) return ano+'-'+String(parseInt(p[1])).padStart(2,'0');
+    return '';
+  }
   var semanasOrd = state.semanas.slice().sort(function(a,b){
-    var da = parseDataSemana(a.inicio);
-    var db = parseDataSemana(b.inicio);
-    if(da && db) return db - da; /* mais recente primeiro */
-    return (b.criadoTs||0) - (a.criadoTs||0);
+    var da = parseDataSemana(a.inicio), db = parseDataSemana(b.inicio);
+    if(da && db) return da - db;
+    return (a.criadoTs||0) - (b.criadoTs||0);
   });
-  html += semanasOrd.map(function(w, idx){ return renderWeekCard(w, semanasOrd.length - idx); }).join('');
+  var mesCount = {};
+  semanasOrd.forEach(function(w){
+    var mes = getMesDaSemana(w);
+    mesCount[mes] = (mesCount[mes]||0)+1;
+    w._numMes = mesCount[mes]; w._mes = mes;
+  });
+  html += semanasOrd.slice().reverse().map(function(w){ return renderWeekCard(w, w._numMes); }).join('');
   document.getElementById('tabContent').innerHTML = html;
 }
 
@@ -5506,7 +5657,10 @@ function renderVeiculosTab(){
       '<div class="vsub">'+(isTransito ? '🚛 Vem de '+esc(v.cidade)+' · chegará em breve' : (verde?'Pronto para uso':'Motivo: '+esc(v.motivo||'não informado')))+(v.atualizadoPor?' · '+esc(v.atualizadoPor):'')+'</div>'+
       (!isTransito ? '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;">'+
         manutBadge(v)+
-        '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão:<input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" onchange="window.__setManutencao(\''+v.id+'\',this.value)"></label>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;">'+
+          '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Última revisão:<input type="date" value="'+esc(v.ultimaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" id="ultr-'+v.id+'" data-vid="'+v.id+'" class="ultr-input"></label>'+
+          '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão:<input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;color:var(--teal-dk);font-weight:700;" id="proxr-'+v.id+'" data-vid="'+v.id+'" class="proxr-input"></label>'+
+        '</div>'+
       '</div>' : '')+
     '</div>';
     if(!verde && !isTransito){
@@ -5681,17 +5835,6 @@ window.__marcarChegou = async function(id, cidadeDestino){
   v.atualizadoEm = nowStr();
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('✅ Disponível em '+esc(cidadeDestino)+'.');
-  renderVeiculosTab();
-};
-window.__setManutencao = async function(id, dataISO){
-  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
-  if(!v) return;
-  v.proximaRevisaoISO = dataISO;
-  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
-  v.atualizadoEm = nowStr();
-  addHistorico(v, 'revisao', 'Próxima revisão → '+dataParaDisplay(dataISO), {cidade:v.cidade});
-  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
-  showToast('Data de revisão salva.');
   renderVeiculosTab();
 };
 
