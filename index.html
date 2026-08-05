@@ -2084,7 +2084,7 @@ window.__agendaSetData = function(d){ state.agendaData = d; renderAgendaTab(); }
 function renderWeekCard(w, numero){
   var entradas = w.entradas || [];
   var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
-  var numLabel = numero ? 'Semana '+numero : '';
+  var numLabel = numero ? 'Semana '+numero+(w._mes ? ' / '+nomeMes(w._mes) : '') : '';
   var html = '<div class="week-card" style="border:2px solid var(--teal);">'+
     '<div class="week-head" style="background:linear-gradient(135deg,var(--teal-dk),var(--teal));border-bottom:3px solid var(--amber);">'+
       '<div style="display:flex;align-items:center;gap:12px;">'+
@@ -2178,7 +2178,21 @@ function renderWeekCard(w, numero){
     entradas.forEach(function(e){
       html += '<div class="entry-row">'+
         '<div class="entry-top"><div><b>'+esc(e.cidade)+'</b> <span class="polo-tag">'+esc(CIDADE_POLO[e.cidade].nome)+'</span>'+
-        '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div></div>'+
+        '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div>'+
+        (function(){
+          var temAB = e.categorias.some(function(c){return c==='A'||c==='B';});
+          if(!temAB) return '';
+          if(e.todosOsDias===false && e.diasSelecionados && e.diasSelecionados.length){
+            var nomes = e.diasSelecionados.map(function(d){
+              var partes = d.split('-');
+              var diaSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];
+              return diaSem+' '+partes[2]+'/'+partes[1];
+            });
+            return '<div style="font-size:11px;color:var(--teal-dk);margin-top:3px;font-weight:600;">📅 Dias A/B: '+esc(nomes.join(' · '))+'</div>';
+          }
+          return '<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">📅 A/B todos os dias da semana</div>';
+        })()+
+        '</div></div>'+
         '<span class="pill '+(e.status==='Realizado'?'green':e.status==='Interrompido'?'red':'gray')+'">'+esc(e.status)+'</span></div>'+
         '<div class="entry-status-row">'+
           '<span style="font-size:11.5px;color:var(--ink-soft);">Resultado:</span>'+
@@ -5393,7 +5407,7 @@ window.__agendaSetData = function(d){ state.agendaData = d; renderAgendaTab(); }
 function renderWeekCard(w, numero){
   var entradas = w.entradas || [];
   var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
-  var numLabel = numero ? 'Semana '+numero : '';
+  var numLabel = numero ? 'Semana '+numero+(w._mes ? ' / '+nomeMes(w._mes) : '') : '';
   var html = '<div class="week-card" style="border:2px solid var(--teal);">'+
     '<div class="week-head" style="background:linear-gradient(135deg,var(--teal-dk),var(--teal));border-bottom:3px solid var(--amber);">'+
       '<div style="display:flex;align-items:center;gap:12px;">'+
@@ -5438,7 +5452,21 @@ function renderWeekCard(w, numero){
     entradas.forEach(function(e){
       html += '<div class="entry-row">'+
         '<div class="entry-top"><div><b>'+esc(e.cidade)+'</b> <span class="polo-tag">'+esc(CIDADE_POLO[e.cidade].nome)+'</span>'+
-        '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div></div>'+
+        '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div>'+
+        (function(){
+          var temAB = e.categorias.some(function(c){return c==='A'||c==='B';});
+          if(!temAB) return '';
+          if(e.todosOsDias===false && e.diasSelecionados && e.diasSelecionados.length){
+            var nomes = e.diasSelecionados.map(function(d){
+              var partes = d.split('-');
+              var diaSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];
+              return diaSem+' '+partes[2]+'/'+partes[1];
+            });
+            return '<div style="font-size:11px;color:var(--teal-dk);margin-top:3px;font-weight:600;">📅 Dias A/B: '+esc(nomes.join(' · '))+'</div>';
+          }
+          return '<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">📅 A/B todos os dias da semana</div>';
+        })()+
+        '</div></div>'+
         '<span class="pill '+(e.status==='Realizado'?'green':e.status==='Interrompido'?'red':'gray')+'">'+esc(e.status)+'</span></div>'+
         '<div class="entry-status-row">'+
           '<span style="font-size:11.5px;color:var(--ink-soft);">Resultado:</span>'+
