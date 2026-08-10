@@ -403,6 +403,7 @@ var state = {
   veiculoExpandido: null,
   semanaEditando: null,
   entradaEditando: null,
+  chamadoEditando: null,
   metaConfig: {},
   demandas: [],
   filtroPrioDemanda: 'Todas'
@@ -1167,64 +1168,62 @@ function diasComLancamento(cidade, mesOverride){
 }
 /* exames agendados para hoje nas semanas */
 function examesHoje(data){
-  var mapa = {}; /* cidade → {polo, cats:[], status} — evita duplicatas */
+  /* Leniente — inclui cidades com todosOsDias=true dentro do período.
+     Usado na força tarefa do sábado e no mapa de dias. */
+  var mapa = {};
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
-      /* CDE: data exata */
       if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
-      /* A/B: verifica se a data está dentro do período e respeita diasSelecionados */
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
-        var wIni = dateToISO(w.inicio) || w.inicio;
-        var wFim = dateToISO(w.fim)   || w.fim;
+        var wIni = dateToISO(w.inicio)||w.inicio, wFim = dateToISO(w.fim)||w.fim;
         if(data >= wIni && data <= wFim){
           if(e.todosOsDias === false){
-            /* dias específicos: só inclui se esta data foi marcada */
             if((e.diasSelecionados||[]).indexOf(data) > -1) cats = cats.concat(abCats);
           } else {
-            /* todos os dias: inclui normalmente */
-            cats = cats.concat(abCats);
+            cats = cats.concat(abCats); /* todosOsDias=true: inclui todos os dias do período */
           }
         }
       }
       if(cats.length){
-        /* mescla categorias para evitar cidade duplicada + registra semana de origem */
-        if(mapa[e.cidade]){
-          cats.forEach(function(c){ if(mapa[e.cidade].cats.indexOf(c)===-1) mapa[e.cidade].cats.push(c); });
-          if(mapa[e.cidade].semanas.indexOf(w.label)===-1) mapa[e.cidade].semanas.push(w.label);
-        } else {
-          mapa[e.cidade] = {cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats.slice(), status:e.status, semanas:[w.label]};
-        }
+        if(mapa[e.cidade]){ cats.forEach(function(c){if(mapa[e.cidade].cats.indexOf(c)===-1) mapa[e.cidade].cats.push(c);}); if(mapa[e.cidade].semanas.indexOf(w.label)===-1) mapa[e.cidade].semanas.push(w.label); }
+        else { mapa[e.cidade]={cidade:e.cidade,polo:CIDADE_POLO[e.cidade],cats:cats.slice(),status:e.status,semanas:[w.label]}; }
       }
     });
   });
   return Object.values(mapa);
 }
 
-/* exames explicitamente marcados para sábado — apenas dias selecionados, não "todos os dias" */
-function examesSabadoExplicito(data){
+function examesDiaEstrito(data){
+  /* Estrito — só mostra cidades com dias EXPLICITAMENTE marcados.
+     Usado na confirmação operacional diária (check-in). */
   var mapa = {};
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
-      /* CDE: data exata é sábado? */
       if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
-      /* A/B: SÓ aparece na força tarefa se foi explicitamente marcado para este dia */
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
-      if(abCats.length && e.todosOsDias === false && (e.diasSelecionados||[]).indexOf(data) > -1){
-        cats = cats.concat(abCats);
+      /* A/B: SÓ inclui se dias foram explicitamente selecionados */
+      if(abCats.length && e.todosOsDias === false){
+        var wIni=dateToISO(w.inicio)||w.inicio, wFim=dateToISO(w.fim)||w.fim;
+        if(data>=wIni && data<=wFim && (e.diasSelecionados||[]).indexOf(data) > -1){
+          cats = cats.concat(abCats);
+        }
       }
       if(cats.length){
-        if(mapa[e.cidade]){ cats.forEach(function(c){ if(mapa[e.cidade].cats.indexOf(c)===-1) mapa[e.cidade].cats.push(c); }); }
-        else { mapa[e.cidade] = {cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats.slice(), status:e.status}; }
+        if(mapa[e.cidade]){ cats.forEach(function(c){if(mapa[e.cidade].cats.indexOf(c)===-1) mapa[e.cidade].cats.push(c);}); if(mapa[e.cidade].semanas.indexOf(w.label)===-1) mapa[e.cidade].semanas.push(w.label); }
+        else { mapa[e.cidade]={cidade:e.cidade,polo:CIDADE_POLO[e.cidade],cats:cats.slice(),status:e.status,semanas:[w.label]}; }
       }
     });
   });
   return Object.values(mapa);
 }
+
+/* examesSabadoExplicito — só cidades com sábado EXPLICITAMENTE em diasSelecionados ou CDE com data exata no sábado */
+function examesSabadoExplicito(data){ return examesDiaEstrito(data); }
 
 function renderOverview(){
   var hoje = hojeLocal();
@@ -1343,9 +1342,10 @@ function renderOverview(){
   }
 
   /* 🟡 Alerta sábado — força tarefa (só cidades explicitamente marcadas para o sábado) */
+  function _localISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   var proximoSab = (function(){
-    var d = new Date(hoje); var dias = 0;
-    while(dias<7){ d.setDate(d.getDate()+1); if(d.getDay()===6) return d.toISOString().slice(0,10); dias++; }
+    var d = new Date(hoje+'T12:00:00'); /* T12 evita offset UTC-3 virar dia anterior */
+    for(var i=0;i<7;i++){ d.setDate(d.getDate()+1); if(d.getDay()===6) return _localISO(d); }
     return null;
   })();
   var ehSabHoje = new Date(hoje+'T12:00:00').getDay()===6;
@@ -1419,8 +1419,8 @@ function renderOverview(){
   });
   html += '</div><div style="text-align:right;margin-bottom:14px;"><button class="btn btn-primary" onclick="window.__setTab(\'checkin\')">+ Fazer check-in →</button></div>';
 
-  /* exames do dia + meta mensal */
-  var examesDoDia = examesHoje(hoje);
+  /* exames do dia (só cidades com hoje marcado explicitamente) + meta mensal */
+  var examesDoDia = examesDiaEstrito(hoje);
   var mesAtual = state.mesSelecionado;
   var totalMeta = state.planejamento.reduce(function(s,r){return s+(r.metaMensal||0);},0);
   var totalRealizadoMes = state.planejamento.reduce(function(s,r){return s+realizadoMesAtual(r.cidade);},0);
@@ -1646,9 +1646,14 @@ function renderChamadosList(){
     return;
   }
   el.innerHTML = list.map(function(c){
+    var editando = state.chamadoEditando === c.id;
     return '<div class="ticket">'+
       '<div class="ticket-top">'+
-        '<div><div class="ticket-id mono">'+c.id+'</div><div class="ticket-title">'+esc(c.titulo)+'</div>'+
+        '<div><div class="ticket-id mono">'+c.id+'</div>'+
+        (editando
+          ? '<input id="ech-titulo-'+c.id+'" type="text" value="'+esc(c.titulo)+'" style="width:100%;border:1px solid var(--teal);border-radius:7px;padding:5px 9px;font-size:14px;font-weight:700;margin:4px 0;">'
+          : '<div class="ticket-title">'+esc(c.titulo)+'</div>'
+        )+
         '<div class="ticket-meta">'+
           '<span class="pill teal">'+esc(c.cidade)+'</span>'+
           '<span class="pill gray">'+esc(catLabel(c.categoria))+'</span>'+
@@ -1656,17 +1661,54 @@ function renderChamadosList(){
           '<span class="pill '+prioridadePillClass(c.prioridade)+'">'+esc(c.prioridade)+'</span>'+
           (isAtrasado(c) ? '<span class="pill red">⏰ atrasado · '+horasAberto(c)+'h</span>' : '')+
         '</div></div>'+
-        '<select class="status-select" style="color:'+ (c.status==='Aberto'?'var(--red)':c.status==='Em andamento'?'var(--amber-dk)':c.status==='Resolvido'?'#2E6B49':'var(--ink-soft)') +';" onchange="window.__mudarStatus(\''+c.id+'\', this.value)">'+
+        '<select class="status-select" id="ssel-'+c.id+'" data-cid="'+c.id+'" style="color:'+(c.status==='Aberto'?'var(--red)':c.status==='Em andamento'?'var(--amber-dk)':c.status==='Resolvido'?'#2E6B49':'var(--ink-soft)')+';font-weight:600;">'+
           STATUS_CHAMADO.map(function(s){return '<option value="'+s+'"'+(s===c.status?' selected':'')+'>'+esc(s)+'</option>';}).join('')+
         '</select>'+
       '</div>'+
-      (c.descricao? '<div class="ticket-desc">'+esc(c.descricao)+'</div>' : '')+
-      '<div class="ticket-actions">'+
-        '<span style="font-size:11.5px;color:var(--ink-soft);">aberto por '+esc(c.responsavelNome)+' ('+esc(c.responsavelPapel)+') em '+esc(c.criadoEm)+'</span>'+
-        '<button class="icon-btn" onclick="window.__excluirChamado(\''+c.id+'\')">excluir</button>'+
+      (editando
+        ? '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:9px;padding:12px;margin:8px 0;">'+
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+              '<label style="font-size:12px;">Prioridade<select id="ech-prio-'+c.id+'" class="small-select">'+
+                ['Alta','Média','Baixa'].map(function(p){return '<option value="'+p+'"'+(p===c.prioridade?' selected':'')+'>'+p+'</option>';}).join('')+
+              '</select></label>'+
+              '<label style="font-size:12px;">Tipo de problema<select id="ech-tipo-'+c.id+'" class="small-select">'+
+                TIPOS_PROBLEMA.map(function(t){return '<option value="'+t+'"'+(t===c.tipoProblema?' selected':'')+'>'+esc(t)+'</option>';}).join('')+
+              '</select></label>'+
+            '</div>'+
+            '<label style="font-size:12px;display:block;margin-bottom:8px;">Descrição<textarea id="ech-desc-'+c.id+'" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:7px;font-size:12.5px;resize:vertical;min-height:70px;">'+esc(c.descricao||'')+'</textarea></label>'+
+            '<div style="display:flex;gap:8px;">'+
+              '<button class="btn btn-primary" id="btn-salvar-ch-'+c.id+'" data-cid="'+c.id+'">✅ Salvar alterações</button>'+
+              '<button class="btn btn-ghost" onclick="window.__cancelarEditChamado()">Cancelar</button>'+
+            '</div>'+
+          '</div>'
+        : (c.descricao? '<div class="ticket-desc">'+esc(c.descricao)+'</div>' : '')
+      )+
+      '<div class="ticket-actions" style="justify-content:space-between;">'+
+        '<span style="font-size:11.5px;color:var(--ink-soft);">aberto por '+esc(c.responsavelNome)+' ('+esc(c.responsavelPapel)+') em '+esc(c.criadoEm)+(c.editadoPor?' · editado por '+esc(c.editadoPor):'')+'</span>'+
+        '<div style="display:flex;gap:8px;margin-top:4px;">'+
+          '<button class="btn" style="font-size:12px;padding:4px 12px;background:var(--teal-soft);color:var(--teal-dk);border:1px solid var(--teal);border-radius:7px;font-weight:700;cursor:pointer;" id="btn-edit-ch-'+c.id+'" data-cid="'+c.id+'">'+(editando?'▲ Fechar':'✏️ Editar')+'</button>'+
+          '<button class="btn" style="font-size:12px;padding:4px 12px;background:#fff5f5;color:var(--red);border:1px solid var(--red);border-radius:7px;font-weight:700;cursor:pointer;" id="del-ch-'+c.id+'" data-cid="'+c.id+'">🗑 Excluir</button>'+
+        '</div>'+
       '</div>'+
     '</div>';
   }).join('');
+
+  document.querySelectorAll('[id^="btn-edit-ch-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var cid = this.dataset.cid;
+      state.chamadoEditando = state.chamadoEditando === cid ? null : cid;
+      renderChamadosList();
+    });
+  });
+  document.querySelectorAll('[id^="btn-salvar-ch-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarChamado(this.dataset.cid); });
+  });
+  document.querySelectorAll('[id^="ssel-"]').forEach(function(sel){
+    sel.addEventListener('change', function(){ window.__mudarStatus(this.dataset.cid, this.value); });
+  });
+  document.querySelectorAll('[id^="del-ch-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__excluirChamado(this.dataset.cid); });
+  });
 }
 
 window.__setFiltro = function(key, val){
@@ -1719,6 +1761,28 @@ window.__mudarStatus = async function(id, novoStatus){
   c.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
   showToast('Status atualizado para "'+novoStatus+'".');
+  renderChamadosList();
+};
+
+window.__cancelarEditChamado = function(){ state.chamadoEditando = null; renderChamadosList(); };
+
+window.__salvarChamado = async function(id){
+  var c = state.chamados.filter(function(x){return x.id===id;})[0];
+  if(!c) return;
+  var titulo = (document.getElementById('ech-titulo-'+id)||{}).value || '';
+  var prio   = (document.getElementById('ech-prio-'+id)||{}).value  || c.prioridade;
+  var tipo   = (document.getElementById('ech-tipo-'+id)||{}).value  || c.tipoProblema;
+  var desc   = (document.getElementById('ech-desc-'+id)||{}).value  || '';
+  if(!titulo.trim()){ showToast('O título não pode ficar em branco.'); return; }
+  c.titulo       = titulo.trim();
+  c.prioridade   = prio;
+  c.tipoProblema = tipo;
+  c.descricao    = desc.trim();
+  c.atualizadoEm = nowStr();
+  c.editadoPor   = state.perfil.nome+' ('+state.perfil.papel+')';
+  await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
+  state.chamadoEditando = null;
+  showToast('✅ Chamado '+id+' atualizado.');
   renderChamadosList();
 };
 
@@ -2289,12 +2353,7 @@ function renderAgendaTab(){
   html += semanasOrd.slice().reverse().map(function(w){ return renderWeekCard(w, w._numMes); }).join('');
   document.getElementById('tabContent').innerHTML = html;
 
-  /* addEventListener para seleção de dias A/B */
-  document.querySelectorAll('.todos-input').forEach(function(cb){
-    cb.addEventListener('change', function(){
-      window.__draftEntryTodos(this.dataset.wid, this.checked);
-    });
-  });
+  /* addEventListener para checkboxes de dias A/B */
   document.querySelectorAll('.dia-input').forEach(function(cb){
     cb.addEventListener('change', function(){
       window.__draftEntryDia(this.dataset.wid, this.dataset.date, this.checked);
@@ -2469,26 +2528,24 @@ function renderWeekCard(w, numero){
         }
       }
       var bloco = '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:8px;padding:8px 10px;margin-top:6px;">'+
-        '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--teal-dk);">📅 Frequência Cat. A / B nesta semana</div>'+
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+(todosOsDias?'0':'8px')+';">'+
-          '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer;">'+
-            '<input type="checkbox" '+(todosOsDias?'checked':'')+' id="todos-'+w.id+'" data-wid="'+w.id+'" class="todos-input"> Todos os dias da semana'+
-          '</label>'+
-        '</div>';
-      if(!todosOsDias && diasDaSemana.length){
-        bloco += '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">Selecione os dias que haverá exame A/B:</div>'+
-          '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+        '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--teal-dk);">📅 Marque os dias com exame A/B nesta semana</div>';
+      if(diasDaSemana.length){
+        bloco += '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
         diasDaSemana.forEach(function(d){
           var checked = diasSel.indexOf(d) > -1;
-          var nome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];
+          var diaSem = new Date(d+'T12:00:00').getDay();
+          var ehSab  = diaSem === 6;
+          var nome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][diaSem];
           var partes = d.split('-');
           var label = nome+' '+partes[2]+'/'+partes[1];
-          bloco += '<label style="display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;">'+
-            '<input type="checkbox" '+(checked?'checked':'')+' data-wid="'+w.id+'" data-date="'+d+'" class="dia-input"> '+esc(label)+'</label>';
+          var bg = checked ? (ehSab ? '#FFF3CD' : 'var(--teal-soft)') : '#f5f5f5';
+          var border = checked ? (ehSab ? '#FFD700' : 'var(--teal)') : 'var(--line)';
+          bloco += '<label style="display:flex;align-items:center;gap:4px;background:'+bg+';border:1px solid '+border+';border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;">'+
+            '<input type="checkbox" '+(checked?'checked':'')+' data-wid="'+w.id+'" data-date="'+d+'" class="dia-input"> '+esc(label)+(ehSab?' 🟡':'')+'</label>';
         });
-        bloco += '</div>';
-      } else if(!todosOsDias && !diasDaSemana.length){
-        bloco += '<div style="font-size:11.5px;color:var(--red);">⚠️ Informe início e fim da semana para selecionar dias específicos.</div>';
+        bloco += '</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">🟡 Sábados marcados aparecem no alerta de Força Tarefa</div>';
+      } else {
+        bloco += '<div style="font-size:11.5px;color:var(--red);">⚠️ Informe início e fim da semana para ver os dias disponíveis.</div>';
       }
       bloco += '</div>';
       return bloco;
@@ -2637,13 +2694,13 @@ window.__dc = function(field, val){ state.draftChamado[field] = val; };
 window.__dw = function(field, val){ state.draftWeek[field] = val; };
 
 window.__draftEntryTodos = function(wId, checked){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:true, diasSelecionados:[]};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
   state.draftEntry[wId].todosOsDias = checked;
   if(checked) state.draftEntry[wId].diasSelecionados = [];
   renderAgendaTab();
 };
 window.__draftEntryDia = function(wId, date, checked){
-  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:true, diasSelecionados:[]};
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
   var dias = state.draftEntry[wId].diasSelecionados || [];
   if(checked){ if(dias.indexOf(date)===-1) dias.push(date); }
   else { dias = dias.filter(function(d){return d!==date;}); }
@@ -2705,9 +2762,14 @@ window.__draftEntryDataCat = function(wId, cat, val){
 };
 
 window.__addEntrada = async function(wId){
-  var d = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
+  var d = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
   if(!d.cidade){ showToast('Selecione a cidade.'); return; }
   if(!d.cats.length){ showToast('Selecione ao menos uma categoria.'); return; }
+  /* A/B precisam ter dias selecionados */
+  var temABval = d.cats.some(function(c){return c==='A'||c==='B';});
+  if(temABval && d.todosOsDias === false && (!d.diasSelecionados || !d.diasSelecionados.length)){
+    showToast('Selecione ao menos um dia para as categorias A/B.'); return;
+  }
   var catsCDE = d.cats.filter(function(c){return c==='C'||c==='D'||c==='E';});
   var datasExatas = d.datasExatas || {};
   var semData = catsCDE.filter(function(c){return !datasExatas[c];});
@@ -2720,13 +2782,13 @@ window.__addEntrada = async function(wId){
     cidade:d.cidade, categorias:d.cats.slice(),
     datasExatas: Object.assign({}, datasExatas),
     dataExata: catsCDE.length ? (datasExatas[catsCDE[0]]||'') : '',
-    todosOsDias: temAB ? (d.todosOsDias !== false) : null,
-    diasSelecionados: temAB && d.todosOsDias === false ? (d.diasSelecionados||[]).slice() : [],
+    todosOsDias: temAB ? false : null,
+    diasSelecionados: temAB ? (d.diasSelecionados||[]).slice() : [],
     status:'Planejado', motivo:'', detalhes:'',
     atualizadoPor:'', atualizadoEm:''
   });
   await storageSet('semanas-lista', JSON.stringify(state.semanas), true);
-  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:true, diasSelecionados:[]};
+  state.draftEntry[wId] = {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
   showToast('Cidade agendada.');
   renderAgendaTab();
 };
@@ -3177,7 +3239,7 @@ function renderVeiculoDetail(v){
 function renderCheckinTab(){
   var hoje = hojeLocal();
   var hojeDisplay = dataParaDisplay(hoje);
-  var exHoje = examesHoje(hoje);
+  var exHoje = examesDiaEstrito(hoje); /* apenas cidades com dias explicitamente marcados na agenda */
   var confHoje = state.checkins.filter(function(c){ return c.dataISO===hoje && c.tipo==='conf'; });
 
   function getConf(cidade){ return confHoje.filter(function(c){ return c.cidade===cidade; })[0]; }
@@ -3199,7 +3261,7 @@ function renderCheckinTab(){
 
   if(!exHoje.length){
     html += '<div class="empty card"><b>Nenhuma cidade com exame agendado para hoje.</b>'
-      + 'Os exames precisam estar cadastrados na Agenda Semanal com data exata (Cat. C/D/E) ou dentro do período da semana (Cat. A/B).</div>';
+      + ' Verifique se as semanas estão cadastradas na Agenda Semanal com as datas corretas.</div>';
   } else {
     /* agrupar por polo */
     POLOS.forEach(function(polo){
@@ -3256,7 +3318,21 @@ function renderCheckinTab(){
               + '</div>'
             : '')
           + (conf && status==='confirmado' ?
-              '<div style="font-size:11px;color:#2E6B49;margin-top:4px;">Confirmado por ' + esc(conf.responsavel||'') + ' às ' + esc(conf.criadoEm||'') + '</div>'
+              '<div style="font-size:11px;color:#2E6B49;margin-top:4px;">✅ Confirmado por ' + esc(conf.responsavel||'') + ' às ' + esc(conf.criadoEm||'') + '</div>'
+            : '')
+          /* histórico de eventos do dia — aparece mesmo após confirmar */
+          + (conf && conf.historico && conf.historico.length ?
+              '<div style="margin-top:6px;border-top:1px dashed var(--amber);padding-top:5px;">'
+              + '<div style="font-size:11px;font-weight:700;color:var(--amber-dk);margin-bottom:3px;">📋 Eventos do dia:</div>'
+              + conf.historico.map(function(h){
+                  var icon = h.status==='ocorrencia'?'⚠️':h.status==='cancelado'?'❌':'✅';
+                  var cor  = h.status==='ocorrencia'?'var(--amber-dk)':h.status==='cancelado'?'var(--red)':'#2E6B49';
+                  return '<div style="font-size:11px;color:'+cor+';margin-bottom:2px;">'
+                    + icon+' <b>'+h.status.charAt(0).toUpperCase()+h.status.slice(1)+'</b>'
+                    + (h.obs ? ' — '+esc(h.obs) : '')
+                    + ' <span style="color:var(--ink-soft);">· '+esc(h.hora)+'</span></div>';
+                }).join('')
+              + '</div>'
             : '')
           + '</div>'
           + '</div>';
@@ -3304,14 +3380,14 @@ window.__confByIdx = async function(cidx, statusCode){
   var statusMap = ['confirmado','ocorrencia','cancelado'];
   var status = statusMap[statusCode] || 'confirmado';
   var hoje = hojeLocal();
-  var lista = examesHoje(hoje);
+  var lista = examesDiaEstrito(hoje);
   if(cidx < lista.length) await window.__confCidade(lista[cidx].cidade, status);
 };
 
 window.__confObsByIdx = async function(el){
   var cidx = parseInt(el.dataset.cidx,10)||0;
   var hoje = hojeLocal();
-  var lista = examesHoje(hoje);
+  var lista = examesDiaEstrito(hoje);
   if(cidx < lista.length) await window.__confObs(lista[cidx].cidade, el.value);
 };
 
@@ -3320,16 +3396,29 @@ window.__confCidade = async function(cidade, status){
   var existing = state.checkins.filter(function(c){
     return c.dataISO===hoje && c.cidade===cidade && c.tipo==='conf';
   })[0];
+
   if(existing){
-    existing.status = status;
+    /* registra no histórico ANTES de sobrescrever o status atual */
+    if(!existing.historico) existing.historico = [];
+    /* só salva no histórico se o status mudou e havia obs registrada */
+    if(existing.status !== status){
+      existing.historico.push({
+        status:   existing.status,
+        obs:      existing.obs || '',
+        hora:     nowStr(),
+        resp:     existing.responsavel
+      });
+    }
+    existing.status     = status;
+    existing.obs        = status === 'confirmado' ? '' : existing.obs; /* limpa obs só ao confirmar */
     existing.responsavel = state.perfil.nome+' ('+state.perfil.papel+')';
-    existing.criadoEm = nowStr();
+    existing.criadoEm   = nowStr();
   } else {
     state.checkins.unshift({
       id:'CI'+Date.now().toString(36).toUpperCase(),
       tipo:'conf', cidade:cidade, dataISO:hoje, status:status,
       obs:'', responsavel:state.perfil.nome+' ('+state.perfil.papel+')',
-      criadoEm:nowStr()
+      criadoEm:nowStr(), historico:[]
     });
   }
   if(status==='cancelado'||status==='ocorrencia'){
