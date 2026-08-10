@@ -1,5 +1,5 @@
 <meta charset="UTF-8">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
   :root{
@@ -359,7 +359,8 @@ var TIPOS_PROBLEMA = ['Problema mecânico','Infraestrutura do pátio de exame','
 var STATUS_PLAN = ['Planejado','Em execução','Concluído','Atrasado'];
 var MOTIVOS_INTERRUPCAO = ['Falha operacional','Veículo quebrado','Cancelamento pelo Detran','Outro'];
 var STATUS_ENTRADA = ['Planejado','Realizado','Interrompido'];
-var MOTIVOS_INDISPONIVEL = ['Manutenção / quebra','Revisão programada','Acidente','Documentação vencida','Em deslocamento para outra cidade','Outro'];
+var MOTIVOS_INDISPONIVEL = ['Manutenção / quebra','Revisão programada','Acidente','Documentação vencida','Em deslocamento para outra cidade','Na Locavel (Oficina)','Outro'];
+var LOCAVEL_NOME = 'Na Locavel (Oficina)';
 var CHECKLIST_BASE = [
   'Câmera frontal','Câmera lateral','Câmera interna','Câmera traseira',
   'Leitor biométrico','Case','Chave de roda','Macaco',
@@ -397,7 +398,7 @@ var state = {
   formOpen: false,
   alertasFechados: false,
   planAcesso: [],
-  agendaData: new Date().toISOString().slice(0,10),
+  agendaData: hojeLocal(),
   agendaView: 'semana',
   veiculoExpandido: null,
   semanaEditando: null,
@@ -408,12 +409,14 @@ var state = {
 };
 window.state = state;
 
-/* ====================================================================
-   SUPABASE — credenciais lidas do localStorage (configuradas na tela)
+/* ============================================================
+   SUPABASE — credenciais e storage via XHR direto à API REST
+   XHR não passa pelo postMessage do Service Worker do Vercel,
+   eliminando definitivamente o DataCloneError com Headers
 ==================================================================== */
 var SUPA_URL = '';
 var SUPA_KEY  = '';
-var sb = null;
+var sb = null;  /* usado apenas no diagnóstico Admin */
 
 function loadSupaCredentials(){
   var DEFAULT_URL = 'https://dvypppchbsntnhnqttdq.supabase.co';
@@ -421,106 +424,124 @@ function loadSupaCredentials(){
   try{
     SUPA_URL = localStorage.getItem('painelpe_supa_url') || DEFAULT_URL;
     SUPA_KEY  = localStorage.getItem('painelpe_supa_key') || DEFAULT_KEY;
-  }catch(e){
-    SUPA_URL = DEFAULT_URL;
-    SUPA_KEY  = DEFAULT_KEY;
-  }
+  }catch(e){ SUPA_URL = DEFAULT_URL; SUPA_KEY = DEFAULT_KEY; }
 }
 
-var _supaLastUrl = '';
-var _supaLastKey = '';
+var _supaLastUrl='', _supaLastKey='', _sbCreated=false;
 
+/* initSupaClient — mantido apenas para diagnóstico na aba Admin */
 function initSupaClient(){
-  if(!SUPA_URL || !SUPA_KEY) return;
-  // Já existe um cliente com as mesmas credenciais — reutiliza
-  if(sb && SUPA_URL === _supaLastUrl && SUPA_KEY === _supaLastKey) return;
-  if(window.supabase && window.supabase.createClient){
-    try{
-      sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-      });
-      _supaLastUrl = SUPA_URL;
-      _supaLastKey = SUPA_KEY;
-    }
-    catch(e){ sb = null; }
-  }
+  if(!SUPA_URL||!SUPA_KEY) return;
+  if(_sbCreated&&sb) return;
+  if(!(window.supabase&&window.supabase.createClient)) return;
+  try{
+    sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,
+            storageKey:'painel_exames_diag',
+            storage:{getItem:function(){return null;},setItem:function(){},removeItem:function(){}}},
+      realtime:{params:{eventsPerSecond:0}}
+    });
+    _supaLastUrl=SUPA_URL; _supaLastKey=SUPA_KEY; _sbCreated=true;
+  }catch(e){ sb=null; }
 }
 
-function supabaseConfigured(){ return !!(SUPA_URL && SUPA_KEY && sb); }
+/* supabaseConfigured: só precisa de URL e KEY, não do cliente SDK */
+function supabaseConfigured(){ return !!(SUPA_URL && SUPA_KEY); }
 
-/* ---------------- storage helpers (Supabase → localStorage) ---------------- */
+/* ── XHR direto à API REST — zero fetch, zero SW, zero DataCloneError ── */
+function _xhrGet(key){
+  return new Promise(function(resolve){
+    try{
+      var xhr=new XMLHttpRequest();
+      xhr.open('GET',SUPA_URL+'/rest/v1/kv_store?key=eq.'+encodeURIComponent(key)+'&select=value&limit=1',true);
+      xhr.setRequestHeader('apikey',SUPA_KEY);
+      xhr.setRequestHeader('Authorization','Bearer '+SUPA_KEY);
+      xhr.timeout=12000;
+      xhr.onload=function(){
+        try{ var d=JSON.parse(xhr.responseText); resolve(d&&d[0]?d[0].value:null); }catch(_){ resolve(null); }
+      };
+      xhr.onerror=function(){ resolve(null); };
+      xhr.ontimeout=function(){ resolve(null); };
+      xhr.send();
+    }catch(e){ resolve(null); }
+  });
+}
+function _xhrSet(key, value){
+  return new Promise(function(resolve){
+    try{
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST',SUPA_URL+'/rest/v1/kv_store',true);
+      xhr.setRequestHeader('apikey',SUPA_KEY);
+      xhr.setRequestHeader('Authorization','Bearer '+SUPA_KEY);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.setRequestHeader('Prefer','resolution=merge-duplicates');
+      xhr.timeout=12000;
+      xhr.onload=function(){ resolve(xhr.status>=200&&xhr.status<300); };
+      xhr.onerror=function(){ resolve(false); };
+      xhr.ontimeout=function(){ resolve(false); };
+      xhr.send(JSON.stringify([{key:key,value:value,updated_at:new Date().toISOString()}]));
+    }catch(e){ resolve(false); }
+  });
+}
+
+/* ---------------- storage helpers (XHR → fallback localStorage) ------------ */
 var LS_PREFIX = 'painelpe_';
 
 async function storageGet(key, shared){
   if(shared && supabaseConfigured()){
-    try{
-      var res = await sb.from('kv_store').select('value').eq('key', key).maybeSingle();
-      if(res.error){
-        var msg = res.error.message || JSON.stringify(res.error);
-        console.warn('storageGet ['+key+']:', msg);
-        return null;
-      }
-      return res.data ? res.data.value : null;
-    }catch(e){
-      var msg = (e && e.message) ? e.message : JSON.stringify(e);
-      console.warn('storageGet exception ['+key+']:', msg);
-      return null;
-    }
+    try{ return await _xhrGet(key); }
+    catch(e){ console.warn('storageGet ['+key+']:',(e&&e.message)||e); return null; }
   }
-  try{ var raw = localStorage.getItem(LS_PREFIX + key); return raw === null ? null : raw; }
+  try{ var r=localStorage.getItem(LS_PREFIX+key); return r===null?null:r; }
   catch(e){ return null; }
 }
 
-/* circuit breaker — para de mostrar toast após 3 falhas consecutivas */
-var _supaFalhas = 0;
-var _supaCircuitoAberto = false;
+/* circuit breaker */
+var _supaFalhas=0, _supaCircuitoAberto=false;
 
 async function storageSet(key, value, shared){
-  /* segurança: garantir que value é sempre string */
-  if(typeof value !== 'string') value = JSON.stringify(value);
+  if(typeof value!=='string') value=JSON.stringify(value);
   if(shared && supabaseConfigured()){
-    /* circuit breaker: se Supabase está consistentemente falhando, salva só no localStorage */
     if(_supaCircuitoAberto){
-      try{ localStorage.setItem(LS_PREFIX + key, value); } catch(e){}
+      try{ localStorage.setItem(LS_PREFIX+key,value); }catch(e){}
       return false;
     }
     try{
-      var res = await sb.from('kv_store').upsert({key:key, value:value, updated_at: new Date().toISOString()},{onConflict:'key'});
-      if(res.error){
+      var ok=await _xhrSet(key,value);
+      if(!ok){
         _supaFalhas++;
-        var errMsg = res.error.message || res.error.details || res.error.hint || JSON.stringify(res.error);
-        console.error('storageSet ['+key+'] (falha '+_supaFalhas+'):', errMsg);
-        if(_supaFalhas >= 3 && !_supaCircuitoAberto){
-          _supaCircuitoAberto = true;
+        console.error('storageSet ['+key+'] (falha '+_supaFalhas+'): servidor retornou erro HTTP');
+        if(_supaFalhas>=3){
+          _supaCircuitoAberto=true;
           showToast('⚠️ Banco desconectado. Salvando localmente. Verifique o Supabase.');
           _mostrarBannerConexao();
-        } else if(_supaFalhas < 3){
-          showToast('⚠️ Erro ao salvar ['+key+']: '+(errMsg.length>60?errMsg.slice(0,60)+'…':errMsg));
+        } else {
+          showToast('⚠️ Falha ao salvar ['+key+'] ('+_supaFalhas+'/3)');
         }
-        try{ localStorage.setItem(LS_PREFIX + key, value); } catch(e){}
+        try{ localStorage.setItem(LS_PREFIX+key,value); }catch(e){}
         return false;
       }
-      /* sucesso — reseta contador */
-      if(_supaFalhas > 0){ _supaFalhas = 0; _supaCircuitoAberto = false; _ocultarBannerConexao(); }
+      if(_supaFalhas>0){ _supaFalhas=0; _supaCircuitoAberto=false; _ocultarBannerConexao(); }
       return true;
     }catch(e){
       _supaFalhas++;
-      var msg = (e && e.message) ? e.message : (typeof e === 'string' ? e : 'Erro de rede');
-      console.error('storageSet exception ['+key+'] ('+_supaFalhas+'):', msg);
-      if(_supaFalhas >= 3 && !_supaCircuitoAberto){
-        _supaCircuitoAberto = true;
+      var msg=(e&&e.message)?e.message:'Erro de rede';
+      console.error('storageSet ['+key+'] ('+_supaFalhas+'):', msg);
+      if(_supaFalhas>=3){
+        _supaCircuitoAberto=true;
         showToast('⚠️ Sem conexão com o banco. Salvando localmente.');
         _mostrarBannerConexao();
-      } else if(_supaFalhas < 3){
+      } else {
         showToast('⚠️ Falha de conexão ('+_supaFalhas+'/3): '+msg.slice(0,50));
       }
-      try{ localStorage.setItem(LS_PREFIX + key, value); } catch(e2){}
+      try{ localStorage.setItem(LS_PREFIX+key,value); }catch(e2){}
       return false;
     }
   }
-  try{ localStorage.setItem(LS_PREFIX + key, value); return true; }
+  try{ localStorage.setItem(LS_PREFIX+key,value); return true; }
   catch(e){ showToast('Não foi possível salvar neste navegador.'); return false; }
 }
+
 
 function _mostrarBannerConexao(){
   var el = document.getElementById('conexao-banner');
@@ -1107,6 +1128,26 @@ window.__irParaAtrasados = function(){
    VISÃO GERAL
 =================================================================== */
 /* helper: realizado no mês atual por cidade (calculado dos diários) */
+/* helper: data local (evita bug UTC em fuso horário BR UTC-3) */
+function hojeLocal(){
+  var d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+/* helper: converte dd/mm ou dd/mm/yyyy para YYYY-MM-DD com zero-padding correto */
+function dateToISO(s){
+  if(!s) return '';
+  var p = s.split('/');
+  if(p.length===3){
+    var yr=parseInt(p[2]), mo=parseInt(p[1]), dy=parseInt(p[0]);
+    return yr+'-'+String(mo).padStart(2,'0')+'-'+String(dy).padStart(2,'0');
+  }
+  if(p.length===2){
+    var yr2=new Date().getFullYear(), mo2=parseInt(p[1]), dy2=parseInt(p[0]);
+    return yr2+'-'+String(mo2).padStart(2,'0')+'-'+String(dy2).padStart(2,'0');
+  }
+  return s; /* já em formato ISO ou desconhecido */
+}
+
 function realizadoMesAtual(cidade, mesOverride){
   var mes = mesOverride || state.mesSelecionado;
   return state.diarios.filter(function(d){ return d.cidade===cidade && d.mes===mes; })
@@ -1126,34 +1167,67 @@ function diasComLancamento(cidade, mesOverride){
 }
 /* exames agendados para hoje nas semanas */
 function examesHoje(data){
-  var lista = [];
+  var mapa = {}; /* cidade → {polo, cats:[], status} — evita duplicatas */
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
+      /* CDE: data exata */
       if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
+      /* A/B: verifica se a data está dentro do período e respeita diasSelecionados */
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
-        function toISO(s){ var p=s.split('/'); if(p.length===3) return p[2]+'-'+p[1]+'-'+p[0]; if(p.length===2) return new Date().getFullYear()+'-'+p[1]+'-'+p[0]; return s; }
-        var wIni = w.inicio.indexOf('/')>-1 ? toISO(w.inicio) : w.inicio;
-        var wFim = w.fim.indexOf('/')>-1   ? toISO(w.fim)   : w.fim;
+        var wIni = dateToISO(w.inicio) || w.inicio;
+        var wFim = dateToISO(w.fim)   || w.fim;
         if(data >= wIni && data <= wFim){
-          /* respeita diasSelecionados se não é todos os dias */
-          if(e.todosOsDias !== false || !e.diasSelecionados || !e.diasSelecionados.length){
-            cats = cats.concat(abCats);
-          } else if(e.diasSelecionados.indexOf(data) > -1){
+          if(e.todosOsDias === false){
+            /* dias específicos: só inclui se esta data foi marcada */
+            if((e.diasSelecionados||[]).indexOf(data) > -1) cats = cats.concat(abCats);
+          } else {
+            /* todos os dias: inclui normalmente */
             cats = cats.concat(abCats);
           }
         }
       }
-      if(cats.length) lista.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats, status:e.status});
+      if(cats.length){
+        /* mescla categorias para evitar cidade duplicada + registra semana de origem */
+        if(mapa[e.cidade]){
+          cats.forEach(function(c){ if(mapa[e.cidade].cats.indexOf(c)===-1) mapa[e.cidade].cats.push(c); });
+          if(mapa[e.cidade].semanas.indexOf(w.label)===-1) mapa[e.cidade].semanas.push(w.label);
+        } else {
+          mapa[e.cidade] = {cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats.slice(), status:e.status, semanas:[w.label]};
+        }
+      }
     });
   });
-  return lista;
+  return Object.values(mapa);
+}
+
+/* exames explicitamente marcados para sábado — apenas dias selecionados, não "todos os dias" */
+function examesSabadoExplicito(data){
+  var mapa = {};
+  state.semanas.forEach(function(w){
+    (w.entradas||[]).forEach(function(e){
+      var cats = [];
+      /* CDE: data exata é sábado? */
+      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
+      else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
+      /* A/B: SÓ aparece na força tarefa se foi explicitamente marcado para este dia */
+      var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
+      if(abCats.length && e.todosOsDias === false && (e.diasSelecionados||[]).indexOf(data) > -1){
+        cats = cats.concat(abCats);
+      }
+      if(cats.length){
+        if(mapa[e.cidade]){ cats.forEach(function(c){ if(mapa[e.cidade].cats.indexOf(c)===-1) mapa[e.cidade].cats.push(c); }); }
+        else { mapa[e.cidade] = {cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:cats.slice(), status:e.status}; }
+      }
+    });
+  });
+  return Object.values(mapa);
 }
 
 function renderOverview(){
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
   var total     = state.chamados.length;
   var aberto    = state.chamados.filter(function(c){return c.status==='Aberto';}).length;
   var andamento = state.chamados.filter(function(c){return c.status==='Em andamento';}).length;
@@ -1181,9 +1255,9 @@ function renderOverview(){
 
   /* alertas de manutenção */
   var amanha = new Date(); amanha.setDate(amanha.getDate()+1);
-  var amanhaISO = amanha.toISOString().slice(0,10);
+  var amanhaISO = (function(){ var d=new Date(hoje); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
   var em7dias = new Date(); em7dias.setDate(em7dias.getDate()+7);
-  var em7ISO = em7dias.toISOString().slice(0,10);
+  var em7ISO = (function(){ var d=new Date(hoje); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
   var manutVencendo = state.veiculos.filter(function(v){
     return v.proximaRevisaoISO && v.proximaRevisaoISO >= hoje && v.proximaRevisaoISO <= em7ISO;
   });
@@ -1268,14 +1342,14 @@ function renderOverview(){
     html += '</div>';
   }
 
-  /* 🟡 Alerta sábado — força tarefa */
+  /* 🟡 Alerta sábado — força tarefa (só cidades explicitamente marcadas para o sábado) */
   var proximoSab = (function(){
     var d = new Date(hoje); var dias = 0;
     while(dias<7){ d.setDate(d.getDate()+1); if(d.getDay()===6) return d.toISOString().slice(0,10); dias++; }
     return null;
   })();
   var ehSabHoje = new Date(hoje+'T12:00:00').getDay()===6;
-  var examesSabado = ehSabHoje ? examesHoje(hoje) : (proximoSab ? examesHoje(proximoSab) : []);
+  var examesSabado = ehSabHoje ? examesSabadoExplicito(hoje) : (proximoSab ? examesSabadoExplicito(proximoSab) : []);
   if(examesSabado.length){
     var labelSab = ehSabHoje ? 'HOJE (sábado)' : 'Sábado '+dataParaDisplay(proximoSab);
     html += '<div class="alert-banner" style="background:#FFF3CD;border:1px solid #FFD700;color:#856404;margin-bottom:14px;">'+
@@ -1749,7 +1823,7 @@ function renderPlanejamentoTab(){
       '<label>Cidade<select id="di-cidade"><option value="">Selecione</option>'+
         TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>';}).join('')+
       '</select></label>'+
-      '<label>Data<input id="di-data" type="date" value="'+new Date().toISOString().slice(0,10)+'"></label>'+
+      '<label>Data<input id="di-data" type="date" value="'+hojeLocal()+'"></label>'+
       '<label>Categoria<select id="di-cat">'+
         CAT_KEYS.map(function(k){return '<option value="'+k+'">'+esc(catLabel(k))+'</option>';}).join('')+
       '</select></label>'+
@@ -1853,7 +1927,7 @@ function renderPlanejamentoTab(){
       '<label>Cidade<select id="dm-cidade"><option value="">Geral (sem cidade)</option>'+
         TODAS_CIDADES.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>'; }).join('')+
       '</select></label>'+
-      '<label>Prazo<input id="dm-prazo" type="date" value="'+new Date().toISOString().slice(0,10)+'"></label>'+
+      '<label>Prazo<input id="dm-prazo" type="date" value="'+hojeLocal()+'"></label>'+
       '<label>Prioridade<select id="dm-prio">'+
         '<option value="Alto">🔴 Alto</option>'+
         '<option value="Médio" selected>🟡 Médio</option>'+
@@ -1876,7 +1950,7 @@ function renderPlanejamentoTab(){
   '</div>';
 
   /* helper urgência: combina prioridade + dias restantes */
-  var hoje2 = new Date().toISOString().slice(0,10);
+  var hoje2 = hojeLocal();
   function demandaVis(d){
     var prio = d.prioridade || 'Médio';
     var dias = d.prazo ? Math.round((new Date(d.prazo)-new Date(hoje2))/(1000*60*60*24)) : 999;
@@ -2097,7 +2171,7 @@ window.__exportarPlanejamento = function(){
    AGENDA SEMANAL
 =================================================================== */
 function renderAgendaTab(){
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
 
   /* --- cabeçalho com seletor de visualização --- */
   var html = '<div class="card" style="margin-bottom:14px;">'+
@@ -2112,7 +2186,7 @@ function renderAgendaTab(){
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'+
         '<label style="font-size:12.5px;font-weight:600;">Data:</label>'+
         '<input type="date" value="'+state.agendaData+'" onchange="window.__agendaSetData(this.value)" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;">'+
-        '<button class="btn btn-ghost" onclick="window.__agendaSetData(new Date().toISOString().slice(0,10))">Hoje</button>'+
+        '<button class="btn btn-ghost" onclick="window.__agendaSetData(hojeLocal())">Hoje</button>'+
       '</div>' : '')+
   '</div>';
 
@@ -2389,7 +2463,8 @@ function renderWeekCard(w, numero){
       if(dIni && dFim){
         var cur = new Date(dIni);
         while(cur <= dFim){
-          diasDaSemana.push(cur.toISOString().slice(0,10));
+          /* usa a data real do dia (ano+mês corretos), não hojeLocal */
+          diasDaSemana.push(cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0'));
           cur.setDate(cur.getDate()+1);
         }
       }
@@ -2456,7 +2531,7 @@ function renderWeekCard(w, numero){
           function parseDDW(s){if(!s)return null;var p=s.split('/');var ano=new Date().getFullYear();if(p.length===3)return new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));if(p.length===2)return new Date(ano,parseInt(p[1])-1,parseInt(p[0]));return null;}
           var dIniW=parseDDW(w.inicio),dFimW=parseDDW(w.fim);
           var diasSemana=[];
-          if(dIniW&&dFimW){var cur=new Date(dIniW);while(cur<=dFimW){diasSemana.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}}
+          if(dIniW&&dFimW){var cur=new Date(dIniW);while(cur<=dFimW){diasSemana.push((function(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })(cur));cur.setDate(cur.getDate()+1);}}
           var bloco='<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:10px;padding:12px;margin-bottom:6px;">';
           bloco+='<div style="font-size:12px;font-weight:700;color:var(--teal-dk);margin-bottom:8px;">✏️ Editar agendamento: <b>'+esc(e.cidade)+'</b></div>';
           if(catsCDE.length){
@@ -2754,6 +2829,23 @@ function renderVeiculosTab(){
               (v.motivoDeslocamento ? '<span style="font-size:11.5px;color:var(--red);font-weight:600;">⚠ '+esc(v.motivoDeslocamento)+'</span>' : '')+
             '</div>'+
           '</div>' : '')+
+        /* Bloco Locavel */
+        (v.motivo===LOCAVEL_NOME ?
+          '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:8px;padding:8px 10px;font-size:12px;">'+
+            '<div style="font-weight:700;color:#856404;margin-bottom:6px;">🔧 Na Locavel (Oficina)</div>'+
+            '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">Veículo veio de: <b>'+esc(v.cidade)+'</b></div>'+
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
+              '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">Destino quando sair:</span>'+
+              '<select class="small-select" onchange="window.__setDestinoLocavel(\''+v.id+'\',this.value)">'+
+                '<option value="">Selecione próxima cidade…</option>'+
+                '<option value="__volta__"'+(v.cidadeDestino==='__volta__'?' selected':'')+'>↩ Retornar para '+esc(v.cidade)+'</option>'+
+                TODAS_CIDADES.filter(function(cc){return cc!==v.cidade;}).map(function(cc){
+                  return '<option value="'+esc(cc)+'"'+(cc===v.cidadeDestino?' selected':'')+'>'+esc(cc)+'</option>';
+                }).join('')+
+              '</select>'+
+            '</div>'+
+            (v.cidadeDestino ? '<div style="margin-top:8px;"><button class="btn btn-primary" style="font-size:12px;padding:5px 12px;" id="btn-sair-locavel-'+v.id+'" data-vid="'+v.id+'">✅ Saiu da Locavel → '+(v.cidadeDestino==='__volta__'?esc(v.cidade):esc(v.cidadeDestino))+'</button></div>' : '')+
+          '</div>' : '')+
       '</div>';
     }
     var exp = state.veiculoExpandido;
@@ -2808,6 +2900,11 @@ function renderVeiculosTab(){
 
   document.getElementById('tabContent').innerHTML = html;
 
+  /* addEventListener for Locavel sair button */
+  document.querySelectorAll('[id^="btn-sair-locavel-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__sairLocavel(this.dataset.vid); });
+  });
+
   /* addEventListener for revision inputs — avoids onclick string escaping */
   document.querySelectorAll('.ultr-input').forEach(function(inp){
     inp.addEventListener('change', function(){ window.__setUltimaRevisao(this.dataset.vid, this.value); });
@@ -2835,7 +2932,7 @@ function addHistorico(v, tipo, descricao, extra){
     id: 'H'+Date.now().toString(36).toUpperCase(),
     tipo: tipo, descricao: descricao,
     por: state.perfil ? state.perfil.nome+' ('+state.perfil.papel+')' : '—',
-    dataISO: new Date().toISOString().slice(0,10),
+    dataISO: hojeLocal(),
     em: nowStr(), observacoes: ''
   }, extra||{});
   v.historico.unshift(entry);
@@ -2874,6 +2971,33 @@ window.__excluirVeiculo = async function(id){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   renderVeiculosTab();
 };
+window.__setDestinoLocavel = async function(id, proxCidade){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.cidadeDestino = proxCidade;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  renderVeiculosTab();
+};
+
+window.__sairLocavel = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v || !v.cidadeDestino) return;
+  var prox = v.cidadeDestino === '__volta__' ? v.cidade : v.cidadeDestino;
+  var cidadeAnterior = v.cidade;
+  addHistorico(v, 'deslocamento', 'Saiu da Locavel → '+prox+' (vindo de '+cidadeAnterior+')', {cidadeOrigem:'Locavel', cidadeDestino:prox});
+  v.cidade = prox;
+  v.cidadeDestino = '';
+  v.motivo = '';
+  v.status = 'Disponível';
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ Veículo liberado da Locavel → disponível em '+prox+'.');
+  renderVeiculosTab();
+};
+
 window.__setDestino = async function(id, cidade){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v) return;
@@ -3051,7 +3175,7 @@ function renderVeiculoDetail(v){
    CHECK-IN DIÁRIO
 =================================================================== */
 function renderCheckinTab(){
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
   var hojeDisplay = dataParaDisplay(hoje);
   var exHoje = examesHoje(hoje);
   var confHoje = state.checkins.filter(function(c){ return c.dataISO===hoje && c.tipo==='conf'; });
@@ -3123,6 +3247,7 @@ function renderCheckinTab(){
           + '<div class="conf-info">'
           + '<div class="conf-cidade-nome">' + esc(item.cidade) + '</div>'
           + '<div class="conf-cats">' + item.cats.map(function(k){ return '<span class="cat-tag">' + esc(catLabel(k)) + '</span>'; }).join('') + '</div>'
+          + (item.semanas && item.semanas.length ? '<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">📅 ' + esc(item.semanas.join(' · ')) + '</div>' : '')
           + cdeHtml
           + (conf && (status==='ocorrencia'||status==='cancelado') ?
               '<div class="conf-detail">'
@@ -3178,20 +3303,20 @@ function renderCheckinTab(){
 window.__confByIdx = async function(cidx, statusCode){
   var statusMap = ['confirmado','ocorrencia','cancelado'];
   var status = statusMap[statusCode] || 'confirmado';
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
   var lista = examesHoje(hoje);
   if(cidx < lista.length) await window.__confCidade(lista[cidx].cidade, status);
 };
 
 window.__confObsByIdx = async function(el){
   var cidx = parseInt(el.dataset.cidx,10)||0;
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
   var lista = examesHoje(hoje);
   if(cidx < lista.length) await window.__confObs(lista[cidx].cidade, el.value);
 };
 
 window.__confCidade = async function(cidade, status){
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
   var existing = state.checkins.filter(function(c){
     return c.dataISO===hoje && c.cidade===cidade && c.tipo==='conf';
   })[0];
@@ -3232,7 +3357,7 @@ window.__confCidade = async function(cidade, status){
 };
 
 window.__confObs = async function(cidade, obs){
-  var hoje = new Date().toISOString().slice(0,10);
+  var hoje = hojeLocal();
   var conf = state.checkins.filter(function(c){
     return c.dataISO===hoje && c.cidade===cidade && c.tipo==='conf';
   })[0];
