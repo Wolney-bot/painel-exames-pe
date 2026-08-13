@@ -477,11 +477,19 @@ function _xhrSet(key, value){
       xhr.setRequestHeader('Content-Type','application/json');
       xhr.setRequestHeader('Prefer','resolution=merge-duplicates');
       xhr.timeout=12000;
-      xhr.onload=function(){ resolve(xhr.status>=200&&xhr.status<300); };
-      xhr.onerror=function(){ resolve(false); };
-      xhr.ontimeout=function(){ resolve(false); };
+      xhr.onload=function(){
+        if(xhr.status>=200&&xhr.status<300){
+          resolve({ok:true});
+        } else {
+          var body='';
+          try{ var j=JSON.parse(xhr.responseText); body=j.message||j.error||j.hint||xhr.responseText; }catch(_){ body=xhr.responseText||'sem detalhes'; }
+          resolve({ok:false, status:xhr.status, msg:body.slice(0,120)});
+        }
+      };
+      xhr.onerror=function(){ resolve({ok:false, status:0, msg:'Erro de rede (sem conexão)'}); };
+      xhr.ontimeout=function(){ resolve({ok:false, status:0, msg:'Timeout — servidor não respondeu em 12s'}); };
       xhr.send(JSON.stringify([{key:key,value:value,updated_at:new Date().toISOString()}]));
-    }catch(e){ resolve(false); }
+    }catch(e){ resolve({ok:false, status:0, msg:(e&&e.message)||'Exceção interna'}); }
   });
 }
 
@@ -508,16 +516,25 @@ async function storageSet(key, value, shared){
       return false;
     }
     try{
-      var ok=await _xhrSet(key,value);
-      if(!ok){
+      var res=await _xhrSet(key,value);
+      if(!res.ok){
         _supaFalhas++;
-        console.error('storageSet ['+key+'] (falha '+_supaFalhas+'): servidor retornou erro HTTP');
+        /* monta mensagem útil por código HTTP */
+        var statusMsg = '';
+        if(res.status===0)          statusMsg = res.msg;
+        else if(res.status===401)   statusMsg = 'Credenciais inválidas (401) — verifique a chave Supabase';
+        else if(res.status===403)   statusMsg = 'Acesso negado (403) — verifique as políticas RLS da tabela kv_store';
+        else if(res.status===404)   statusMsg = 'Tabela kv_store não encontrada (404) — execute o setup do Supabase';
+        else if(res.status===429)   statusMsg = 'Limite de requisições atingido (429) — aguarde e tente novamente';
+        else if(res.status===503)   statusMsg = 'Projeto Supabase pausado ou indisponível (503) — restaure em app.supabase.com';
+        else                        statusMsg = 'HTTP '+res.status+(res.msg?' — '+res.msg:'');
+        console.error('storageSet ['+key+'] (falha '+_supaFalhas+'): '+statusMsg);
         if(_supaFalhas>=3){
           _supaCircuitoAberto=true;
-          showToast('⚠️ Banco desconectado. Salvando localmente. Verifique o Supabase.');
+          showToast('⚠️ Banco desconectado. Salvando localmente.');
           _mostrarBannerConexao();
         } else {
-          showToast('⚠️ Falha ao salvar ['+key+'] ('+_supaFalhas+'/3)');
+          showToast('⚠️ Falha ao salvar ('+_supaFalhas+'/3): '+statusMsg.slice(0,70));
         }
         try{ localStorage.setItem(LS_PREFIX+key,value); }catch(e){}
         return false;
@@ -1310,19 +1327,33 @@ function renderOverview(){
     html += '</div>';
   }
 
-  /* 🚗 Alertas: veículo indisponível com agendamento CDE na semana */
+  /* 🚗 Alertas: veículo CDE indisponível com agendamento na semana
+     Verifica por: (1) vinculo explícito via veiculosCDE OU (2) cidade + categoria do veículo */
   var alertasVeicCDE = [];
-  state.veiculos.filter(function(v){ return v.status==='Indisponível'; }).forEach(function(v){
+  state.veiculos.filter(function(v){
+    return v.status==='Indisponível' && (v.categoria==='C'||v.categoria==='D'||v.categoria==='E');
+  }).forEach(function(v){
     var agend = [];
+    var cat = v.categoria;
     state.semanas.forEach(function(w){
       (w.entradas||[]).forEach(function(e){
-        if(!e.veiculosCDE) return;
-        ['C','D','E'].forEach(function(cat){
-          var cd = e.veiculosCDE[cat];
-          if(cd && cd.veiculoId===v.id && e.datasExatas && e.datasExatas[cat] && e.datasExatas[cat] >= hoje){
-            agend.push({semana:w.label, cidade:e.cidade, cat:cat, data:dataParaDisplay(e.datasExatas[cat])});
+        /* verificação 1: vínculo explícito pelo seletor de veículo na agenda */
+        if(e.veiculosCDE){
+          ['C','D','E'].forEach(function(k){
+            var cd = e.veiculosCDE[k];
+            if(cd && cd.veiculoId===v.id && e.datasExatas && e.datasExatas[k] && e.datasExatas[k]>=hoje){
+              if(!agend.some(function(a){return a.cidade===e.cidade&&a.cat===k;}))
+                agend.push({semana:w.label, cidade:e.cidade, cat:k, data:dataParaDisplay(e.datasExatas[k]), motivo:'vinculado'});
+            }
+          });
+        }
+        /* verificação 2: cidade do veículo + categoria do veículo + data exata hoje ou futura */
+        if(e.cidade===v.cidade && e.categorias && e.categorias.indexOf(cat)>-1){
+          if(e.datasExatas && e.datasExatas[cat] && e.datasExatas[cat]>=hoje){
+            if(!agend.some(function(a){return a.cidade===e.cidade&&a.cat===cat;}))
+              agend.push({semana:w.label, cidade:e.cidade, cat:cat, data:dataParaDisplay(e.datasExatas[cat]), motivo:'categoria'});
           }
-        });
+        }
       });
     });
     if(agend.length) alertasVeicCDE.push({veiculo:v, agend:agend});
@@ -2826,7 +2857,56 @@ window.__entradaDetalhes = async function(wId, eId, val){
    VEÍCULOS
 =================================================================== */
 function renderVeiculosTab(){
-  var html = '<div class="card" style="margin-bottom:16px;">'+
+  /* ── Resumo da frota por categoria ─────────────────────────────── */
+  var totalVeic = state.veiculos.length;
+  var dispVeic  = state.veiculos.filter(function(v){return v.status==='Disponível';}).length;
+  var indispVeic= totalVeic - dispVeic;
+
+  /* agrupa por categoria */
+  var porCat = {};
+  CAT_KEYS.forEach(function(k){ porCat[k]={total:0,disp:0,indisp:0}; });
+  state.veiculos.forEach(function(v){
+    if(!porCat[v.categoria]) return;
+    porCat[v.categoria].total++;
+    if(v.status==='Disponível') porCat[v.categoria].disp++;
+    else porCat[v.categoria].indisp++;
+  });
+
+  var frotaHtml = '<div class="card" style="margin-bottom:14px;">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
+      '<div class="section-title" style="margin:0;">🚐 Resumo da frota</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        '<span class="pill green">✅ '+dispVeic+' disponíveis</span>'+
+        (indispVeic?'<span class="pill red">🔴 '+indispVeic+' indisponíveis</span>':'')+
+        '<span class="pill gray">Total: '+totalVeic+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">';
+
+  CAT_KEYS.forEach(function(k){
+    var c = porCat[k];
+    if(!c.total) return; /* oculta categorias sem veículo */
+    var pct = c.total>0 ? Math.round(c.disp/c.total*100) : 0;
+    var barCor = pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+    frotaHtml += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
+        '<span class="cat-tag" style="font-size:12.5px;">'+esc(catLabel(k))+'</span>'+
+        '<span style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:18px;color:var(--teal-dk);">'+c.total+'</span>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:5px;">'+
+        '<span style="color:#2E6B49;font-weight:600;">'+c.disp+' disp.</span>'+
+        (c.indisp?' · <span style="color:var(--red);font-weight:600;">'+c.indisp+' indisp.</span>':'')+
+      '</div>'+
+      '<div style="background:var(--line);border-radius:4px;height:5px;overflow:hidden;">'+
+        '<div style="background:'+barCor+';height:100%;width:'+pct+'%;border-radius:4px;transition:.3s;"></div>'+
+      '</div>'+
+    '</div>';
+  });
+
+  frotaHtml += '</div></div>';
+
+  var html = frotaHtml +
+    '<div class="card" style="margin-bottom:16px;">'+
     '<div class="section-title">🚐 Cadastrar veículo</div>'+
     '<div class="add-vehicle-form">'+
       '<label>Cidade<select id="v-cidade"><option value="">Selecione</option>'+ TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('') +'</select></label>'+
