@@ -3001,11 +3001,26 @@ function renderVeiculosTab(){
           '</div>' : '')+
         /* Bloco Locavel */
         (v.motivo===LOCAVEL_NOME ?
-          '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:8px;padding:8px 10px;font-size:12px;">'+
-            '<div style="font-weight:700;color:#856404;margin-bottom:6px;">🔧 Na Locavel (Oficina)</div>'+
-            '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">Veículo veio de: <b>'+esc(v.cidade)+'</b></div>'+
-            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
-              '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">Destino quando sair:</span>'+
+          '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:8px;padding:10px 12px;font-size:12px;">'+
+            '<div style="font-weight:700;color:#856404;margin-bottom:8px;font-size:13px;">🔧 Na Locavel (Oficina)</div>'+
+            '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">Veículo veio de: <b>'+esc(v.cidade)+'</b></div>'+
+            /* Motorista que levou */
+            '<label style="display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">'+
+              '<span style="font-weight:600;">👤 Motorista que levou:</span>'+
+              '<input type="text" id="loc-mot-in-'+v.id+'" value="'+esc(v.locavelMotoristaEntrada||'')+'" placeholder="Nome do motorista…" '+
+              'style="display:block;width:100%;border:1px solid #FFD700;border-radius:7px;padding:5px 8px;font-size:12px;background:#fff;margin-top:3px;">'+
+            '</label>'+
+            /* Observação / problema */
+            '<label style="display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">'+
+              '<span style="font-weight:600;">📝 Problema / observação:</span>'+
+              '<textarea id="loc-obs-'+v.id+'" placeholder="Descreva o problema do veículo…" rows="2" '+
+              'style="display:block;width:100%;border:1px solid #FFD700;border-radius:7px;padding:5px 8px;font-size:12px;background:#fff;resize:vertical;margin-top:3px;">'+esc(v.locavelObs||'')+'</textarea>'+
+            '</label>'+
+            '<button class="btn" style="font-size:12px;padding:4px 12px;background:var(--amber-soft);color:#856404;border:1px solid #FFD700;" id="btn-loc-obs-'+v.id+'" data-vid="'+v.id+'">💾 Salvar observação e motorista</button>'+
+            '<hr style="border:none;border-top:1px dashed #FFD700;margin:8px 0;">'+
+            /* Destino quando sair */
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">'+
+              '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">🏁 Destino quando sair:</span>'+
               '<select class="small-select" onchange="window.__setDestinoLocavel(\''+v.id+'\',this.value)">'+
                 '<option value="">Selecione próxima cidade…</option>'+
                 '<option value="__volta__"'+(v.cidadeDestino==='__volta__'?' selected':'')+'>↩ Retornar para '+esc(v.cidade)+'</option>'+
@@ -3014,7 +3029,14 @@ function renderVeiculosTab(){
                 }).join('')+
               '</select>'+
             '</div>'+
-            (v.cidadeDestino ? '<div style="margin-top:8px;"><button class="btn btn-primary" style="font-size:12px;padding:5px 12px;" id="btn-sair-locavel-'+v.id+'" data-vid="'+v.id+'">✅ Saiu da Locavel → '+(v.cidadeDestino==='__volta__'?esc(v.cidade):esc(v.cidadeDestino))+'</button></div>' : '')+
+            (v.cidadeDestino ?
+              '<label style="display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">'+
+                '<span style="font-weight:600;">👤 Motorista que vai retirar:</span>'+
+                '<input type="text" id="loc-mot-out-'+v.id+'" value="'+esc(v.locavelMotoristaSaida||'')+'" placeholder="Nome do motorista…" '+
+                'style="display:block;width:100%;border:1px solid var(--teal);border-radius:7px;padding:5px 8px;font-size:12px;background:#fff;margin-top:3px;">'+
+              '</label>'+
+              '<button class="btn btn-primary" style="font-size:12px;padding:5px 14px;" id="btn-sair-locavel-'+v.id+'" data-vid="'+v.id+'">✅ Saiu da Locavel → '+(v.cidadeDestino==='__volta__'?esc(v.cidade):esc(v.cidadeDestino))+'</button>'
+            : '')+
           '</div>' : '')+
       '</div>';
     }
@@ -3073,6 +3095,10 @@ function renderVeiculosTab(){
   /* addEventListener for Locavel sair button */
   document.querySelectorAll('[id^="btn-sair-locavel-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__sairLocavel(this.dataset.vid); });
+  });
+  /* addEventListener for Locavel obs/motorista save button */
+  document.querySelectorAll('[id^="btn-loc-obs-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarLocavelObs(this.dataset.vid); });
   });
 
   /* addEventListener for revision inputs — avoids onclick string escaping */
@@ -3141,6 +3167,27 @@ window.__excluirVeiculo = async function(id){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   renderVeiculosTab();
 };
+window.__salvarLocavelObs = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  var motIn  = (document.getElementById('loc-mot-in-'+id)||{}).value || '';
+  var obs    = (document.getElementById('loc-obs-'+id)||{}).value || '';
+  var changed = (motIn !== (v.locavelMotoristaEntrada||'')) || (obs !== (v.locavelObs||''));
+  v.locavelMotoristaEntrada = motIn.trim();
+  v.locavelObs = obs.trim();
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  if(changed){
+    addHistorico(v, 'manutencao',
+      'Locavel — '+(obs.trim()?'Problema: '+obs.trim():'sem descrição')+
+      (motIn.trim()?' | Motorista entrega: '+motIn.trim():''),
+      {cidade:v.cidade});
+  }
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ Observação e motorista salvos no histórico.');
+  renderVeiculosTab();
+};
+
 window.__setDestinoLocavel = async function(id, proxCidade){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v) return;
@@ -3156,11 +3203,21 @@ window.__sairLocavel = async function(id){
   if(!v || !v.cidadeDestino) return;
   var prox = v.cidadeDestino === '__volta__' ? v.cidade : v.cidadeDestino;
   var cidadeAnterior = v.cidade;
-  addHistorico(v, 'deslocamento', 'Saiu da Locavel → '+prox+' (vindo de '+cidadeAnterior+')', {cidadeOrigem:'Locavel', cidadeDestino:prox});
+  /* captura motorista de saída antes de renderizar */
+  var motOut = (document.getElementById('loc-mot-out-'+id)||{}).value || '';
+  v.locavelMotoristaSaida = motOut.trim();
+  var histMsg = 'Saiu da Locavel → '+prox+' (vindo de '+cidadeAnterior+')'+
+    (v.locavelObs ? ' | Problema: '+v.locavelObs : '')+
+    (v.locavelMotoristaEntrada ? ' | Entregou: '+v.locavelMotoristaEntrada : '')+
+    (motOut.trim() ? ' | Retirou: '+motOut.trim() : '');
+  addHistorico(v, 'deslocamento', histMsg, {cidadeOrigem:'Locavel', cidadeDestino:prox});
   v.cidade = prox;
   v.cidadeDestino = '';
   v.motivo = '';
   v.status = 'Disponível';
+  v.locavelObs = '';
+  v.locavelMotoristaEntrada = '';
+  v.locavelMotoristaSaida = '';
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
