@@ -467,7 +467,7 @@ function _xhrGet(key){
     }catch(e){ resolve(null); }
   });
 }
-function _xhrSet(key, value){
+function _xhrSet(key, value, _retry){
   return new Promise(function(resolve){
     try{
       var xhr=new XMLHttpRequest();
@@ -486,7 +486,16 @@ function _xhrSet(key, value){
           resolve({ok:false, status:xhr.status, msg:body.slice(0,120)});
         }
       };
-      xhr.onerror=function(){ resolve({ok:false, status:0, msg:'Erro de rede (sem conexão)'}); };
+      xhr.onerror=function(){
+        /* tenta uma vez mais após 2 segundos antes de desistir */
+        if(!_retry){
+          setTimeout(function(){
+            _xhrSet(key, value, true).then(resolve);
+          }, 2000);
+        } else {
+          resolve({ok:false, status:0, msg:'Erro de rede (sem conexão)'});
+        }
+      };
       xhr.ontimeout=function(){ resolve({ok:false, status:0, msg:'Timeout — servidor não respondeu em 12s'}); };
       xhr.send(JSON.stringify([{key:key,value:value,updated_at:new Date().toISOString()}]));
     }catch(e){ resolve({ok:false, status:0, msg:(e&&e.message)||'Exceção interna'}); }
@@ -579,10 +588,29 @@ function _ocultarBannerConexao(){
 
 window.__tentarReconectar = async function(){
   _supaFalhas = 0; _supaCircuitoAberto = false;
-  showToast('Tentando reconectar…');
-  var ok = await storageSet('_ping', '1', true);
-  if(ok){ _ocultarBannerConexao(); window.__sincronizar(false); }
-  else { showToast('❌ Banco ainda indisponível. Verifique em supabase.com/dashboard'); }
+  showToast('Testando conexão…');
+  var pingRes = await _xhrSet('_ping', '1', false);
+  if(pingRes && pingRes.ok){
+    _ocultarBannerConexao();
+    showToast('✅ Conexão restaurada! Sincronizando dados locais…');
+    /* reenvia para Supabase qualquer dado salvo localmente durante a indisponibilidade */
+    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso'];
+    var enviados = 0;
+    for(var ki=0; ki<SK_ALL.length; ki++){
+      var k = SK_ALL[ki];
+      try{
+        var local = localStorage.getItem(LS_PREFIX + k);
+        if(local){
+          var r = await _xhrSet(k, local, false);
+          if(r && r.ok) enviados++;
+        }
+      }catch(_){}
+    }
+    if(enviados > 0) showToast('✅ '+enviados+' chave(s) sincronizadas com o banco.');
+  } else {
+    _supaFalhas = 1; _supaCircuitoAberto = true; /* mantém o banner */
+    showToast('❌ Banco ainda indisponível. Verifique em app.supabase.com');
+  }
 };
 
 function showToast(msg){
