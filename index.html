@@ -1897,6 +1897,10 @@ function renderPlanejamentoTab(){
     '<th>Cidade</th><th>Polo</th><th>Responsável</th><th>Papel</th><th>Meta mensal</th><th>Dias previstos</th><th>Dias c/ lançamento</th><th>Realizado (auto)</th><th>% Meta</th><th>Status</th><th>Obs.</th>'+
   '</tr></thead><tbody>'+
     state.planejamento.map(function(row, idx){
+      var metaVal  = getMetaMes(row, mes);
+      var diasVal  = getDiasMes(row, mes);
+      var metaProp = row.metasMes && row.metasMes[mes] !== undefined;
+      var diasProp = row.diasPrevistosMap && row.diasPrevistosMap[mes] !== undefined;
       return '<tr>'+
         '<td><b>'+esc(row.cidade)+'</b></td>'+
         '<td class="polo-tag">'+esc(row.poloNome)+'</td>'+
@@ -1904,8 +1908,14 @@ function renderPlanejamentoTab(){
         '<td><select onchange="window.__planUpdate('+idx+', \'papel\', this.value)">'+
           '<option value="">—</option>'+ PAPEIS.map(function(p){return '<option value="'+p+'"'+(p===row.papel?' selected':'')+'>'+esc(p)+'</option>';}).join('') +
         '</select></td>'+
-        '<td><input type="number" min="0" value="'+row.metaMensal+'" onchange="window.__planUpdate('+idx+', \'metaMensal\', this.value, true)"></td>'+
-        '<td><input type="text" value="'+esc(row.diasPrevistos)+'" placeholder="ex: 3x/sem" onchange="window.__planUpdate('+idx+', \'diasPrevistos\', this.value)"></td>'+
+        '<td title="'+(metaProp?'Valor definido para este mês':'Herdado do mês anterior — edite para personalizar')+'">'+
+          '<input type="number" min="0" value="'+metaVal+'" style="'+(metaProp?'':'border-color:var(--amber);')+'" onchange="window.__planUpdate('+idx+', \'metaMensal\', this.value, true)">'+
+          (!metaProp?'<div style="font-size:9.5px;color:var(--amber-dk);text-align:center;">↩ herdado</div>':'')+
+        '</td>'+
+        '<td title="'+(diasProp?'Valor definido para este mês':'Herdado do mês anterior')+'">'+
+          '<input type="text" value="'+esc(diasVal)+'" placeholder="ex: 3x/sem" style="'+(diasProp?'':'border-color:var(--amber);')+'" onchange="window.__planUpdate('+idx+', \'diasPrevistos\', this.value)">'+
+          (!diasProp?'<div style="font-size:9.5px;color:var(--amber-dk);text-align:center;">↩ herdado</div>':'')+
+        '</td>'+
         (function(){
           var dias = diasComLancamento(row.cidade);
           return '<td style="text-align:center;"><b class="mono">'+dias+'</b>'+
@@ -1914,7 +1924,7 @@ function renderPlanejamentoTab(){
         '<td style="text-align:center;"><b class="mono">'+realizadoMesAtual(row.cidade)+'</b>'+
           '<div style="font-size:10.5px;color:var(--ink-soft);">'+agendadosMesAtual(row.cidade)+' agend.</div></td>'+
         (function(){
-          var re=realizadoMesAtual(row.cidade); var mt=row.metaMensal||0;
+          var re=realizadoMesAtual(row.cidade); var mt=metaVal||0;
           var pct=mt>0?Math.round(re/mt*100):0;
           var cor=pct>=100?'var(--green)':pct>=60?'var(--amber-dk)':'var(--red)';
           return '<td><span class="mono" style="font-weight:700;color:'+cor+';">'+pct+'%</span>'+
@@ -2266,16 +2276,44 @@ window.__exportarDiarios = function(){
   downloadCSV(rows, 'diarios_'+mes+'.csv');
 };
 
+/* ── helpers: meta e dias por mês ── */
+function getMetaMes(row, mes){
+  if(row.metasMes && row.metasMes[mes] !== undefined) return row.metasMes[mes];
+  /* herda do mês anterior mais recente */
+  if(row.metasMes){
+    var meses = Object.keys(row.metasMes).sort().reverse();
+    for(var i=0;i<meses.length;i++){ if(meses[i]<mes) return row.metasMes[meses[i]]; }
+  }
+  return row.metaMensal||0;
+}
+function getDiasMes(row, mes){
+  if(row.diasPrevistosMap && row.diasPrevistosMap[mes] !== undefined) return row.diasPrevistosMap[mes];
+  if(row.diasPrevistosMap){
+    var meses = Object.keys(row.diasPrevistosMap).sort().reverse();
+    for(var i=0;i<meses.length;i++){ if(meses[i]<mes) return row.diasPrevistosMap[meses[i]]; }
+  }
+  return row.diasPrevistos||'';
+}
+function setMetaMes(row, mes, val){
+  if(!row.metasMes) row.metasMes = {};
+  row.metasMes[mes] = val;
+  row.metaMensal = val; /* mantém compat */
+}
+function setDiasMes(row, mes, val){
+  if(!row.diasPrevistosMap) row.diasPrevistosMap = {};
+  row.diasPrevistosMap[mes] = val;
+  row.diasPrevistos = val; /* mantém compat */
+}
+
 window.__planUpdate = async function(idx, field, value, isNumber){
+  var mes = state.mesSelecionado;
   var row = state.planejamento[idx];
-  row[field] = isNumber ? (parseInt(value,10)||0) : value;
+  var parsed = isNumber ? (parseInt(value,10)||0) : value;
+  if(field==='metaMensal'){ setMetaMes(row, mes, parsed); }
+  else if(field==='diasPrevistos'){ setDiasMes(row, mes, parsed); }
+  else { row[field] = parsed; }
   row.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   row.atualizadoEm = nowStr();
-  if(field==='metaMensal' || field==='qtdRealizada'){
-    var pct = row.metaMensal>0 ? Math.round((row.qtdRealizada/row.metaMensal)*100) : 0;
-    var pctEl = document.getElementById('pct-'+idx);
-    if(pctEl) pctEl.textContent = pct+'%';
-  }
   await storageSet('planejamento-lista', JSON.stringify(state.planejamento), true);
   showToast('Planejamento de '+row.cidade+' atualizado.');
 };
