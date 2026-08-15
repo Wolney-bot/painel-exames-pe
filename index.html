@@ -1377,17 +1377,17 @@ function renderOverview(){
         if(e.veiculosCDE){
           ['C','D','E'].forEach(function(k){
             var cd = e.veiculosCDE[k];
-            if(cd && cd.veiculoId===v.id && e.datasExatas && e.datasExatas[k] && e.datasExatas[k]>=hoje){
+            if(cd && cd.veiculoId===v.id && e.datasExatas && e.datasExatas[k] && (Array.isArray(e.datasExatas[k])?e.datasExatas[k].some(function(d){return d>=hoje;}):e.datasExatas[k]>=hoje)){
               if(!agend.some(function(a){return a.cidade===e.cidade&&a.cat===k;}))
-                agend.push({semana:w.label, cidade:e.cidade, cat:k, data:dataParaDisplay(e.datasExatas[k]), motivo:'vinculado'});
+                agend.push({semana:w.label, cidade:e.cidade, cat:k, data:(Array.isArray(e.datasExatas[k])?e.datasExatas[k].map(dataParaDisplay).join(', '):dataParaDisplay(e.datasExatas[k])), motivo:'vinculado'});
             }
           });
         }
         /* verificação 2: cidade do veículo + categoria do veículo + data exata hoje ou futura */
         if(e.cidade===v.cidade && e.categorias && e.categorias.indexOf(cat)>-1){
-          if(e.datasExatas && e.datasExatas[cat] && e.datasExatas[cat]>=hoje){
+          if(e.datasExatas && e.datasExatas[cat] && (Array.isArray(e.datasExatas[cat])?e.datasExatas[cat].some(function(d){return d>=hoje;}):e.datasExatas[cat]>=hoje)){
             if(!agend.some(function(a){return a.cidade===e.cidade&&a.cat===cat;}))
-              agend.push({semana:w.label, cidade:e.cidade, cat:cat, data:dataParaDisplay(e.datasExatas[cat]), motivo:'categoria'});
+              agend.push({semana:w.label, cidade:e.cidade, cat:cat, data:(Array.isArray(e.datasExatas[cat])?e.datasExatas[cat].map(dataParaDisplay).join(', '):dataParaDisplay(e.datasExatas[cat])), motivo:'categoria'});
           }
         }
       });
@@ -2455,7 +2455,17 @@ function renderAgendaTab(){
     mesCount[mes] = (mesCount[mes]||0)+1;
     w._numMes = mesCount[mes]; w._mes = mes;
   });
-  html += semanasOrd.slice().reverse().map(function(w){ return renderWeekCard(w, w._numMes); }).join('');
+  html += semanasOrd.slice().reverse().map(function(w){
+    try {
+      return renderWeekCard(w, w._numMes);
+    } catch(err) {
+      console.error('renderWeekCard erro em "'+w.label+'":', err.message||err);
+      return '<div class="card" style="border:2px solid var(--red);margin-bottom:12px;padding:12px;">'
+        + '<b style="color:var(--red);">⚠️ Erro ao renderizar semana: '+esc(w.label)+'</b>'
+        + '<div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">'+esc((err&&err.message)||String(err))+'</div>'
+        + '</div>';
+    }
+  }).join('');
   document.getElementById('tabContent').innerHTML = html;
 
   /* addEventListener para checkboxes de dias A/B */
@@ -2493,7 +2503,9 @@ window.__agendaSetData = function(d){ state.agendaData = d; renderAgendaTab(); }
 /* helper — detecta sábado em uma entrada */
 function temSabadoEntrada(w, e){
   function ehSab(d){ return d && new Date(d+'T12:00:00').getDay()===6; }
-  if(e.datasExatas && ['C','D','E'].some(function(k){ return ehSab(e.datasExatas[k]); })) return true;
+  if(e.datasExatas){
+    if(['C','D','E'].some(function(k){ var val=e.datasExatas[k]; if(!val)return false; if(Array.isArray(val))return val.some(function(d){return ehSab(d);}); return ehSab(val); })) return true;
+  }
   var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
   if(!abCats.length) return false;
   if(e.todosOsDias===false) return (e.diasSelecionados||[]).some(function(d){return ehSab(d);});
@@ -2521,18 +2533,27 @@ window.__salvarEntrada = async function(wId, eId){
   var e = (w.entradas||[]).filter(function(x){return x.id===eId;})[0];
   if(!e) return;
 
-  /* CDE datas — lê checkboxes (múltiplas datas por categoria) */
-  var cdeAcum = {};
-  document.querySelectorAll('.edit-cde-dia:checked').forEach(function(cb){
-    var cat = cb.dataset.cat, dt = cb.dataset.date;
-    if(cat && dt){ if(!cdeAcum[cat]) cdeAcum[cat]=[]; if(cdeAcum[cat].indexOf(dt)===-1) cdeAcum[cat].push(dt); }
-  });
-  /* mescla com as não-marcadas (preserva cats que existiam) */
-  var catsCDE2 = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
-  catsCDE2.forEach(function(cat){
-    if(!e.datasExatas) e.datasExatas = {};
-    e.datasExatas[cat] = cdeAcum[cat] || [];
-  });
+  /* CDE datas — só atualiza se há checkboxes no DOM (edit form aberto com CDE) */
+  var cdeDomEls = document.querySelectorAll('.edit-cde-dia');
+  if(cdeDomEls.length > 0){
+    var cdeAcum = {};
+    cdeDomEls.forEach(function(cb){
+      var cat = cb.dataset.cat, dt = cb.dataset.date;
+      if(!cat || !dt) return;
+      if(!cdeAcum[cat]) cdeAcum[cat] = [];
+      if(cb.checked && cdeAcum[cat].indexOf(dt)===-1) cdeAcum[cat].push(dt);
+    });
+    var catsCDE2 = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
+    catsCDE2.forEach(function(cat){
+      if(!e.datasExatas) e.datasExatas = {};
+      /* só sobrescreve se ao menos 1 dia foi marcado para essa cat, senão mantém o existente */
+      if(cdeAcum[cat] && cdeAcum[cat].length > 0){
+        e.datasExatas[cat] = cdeAcum[cat];
+      }
+      /* se nenhum dia marcado para este cat, mantém o valor atual (não limpa) */
+    });
+  }
+
   /* A/B todos os dias */
   var todosEl = document.querySelector('.edit-todos-dias');
   if(todosEl){
@@ -2568,7 +2589,7 @@ window.__salvarSemana = async function(wId){
 
 function renderWeekCard(w, numero){
   var entradas = w.entradas || [];
-  var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
+  var draft = state.draftEntry[w.id] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
   var numLabel = numero ? 'Semana '+numero+(w._mes ? ' / '+nomeMes(w._mes) : '') : '';
   var editando = state.semanaEditando === w.id;
   var html = '<div class="week-card" style="border:2px solid var(--teal);">'+
@@ -2695,8 +2716,9 @@ function renderWeekCard(w, numero){
   } else {
     entradas.forEach(function(e){
       var eEditando = state.entradaEditando && state.entradaEditando.wId===w.id && state.entradaEditando.eId===e.id;
+      var poloCidade = CIDADE_POLO[e.cidade] || {nome:'?', id:''};
       html += '<div class="entry-row">'+
-        '<div class="entry-top"><div><b>'+esc(e.cidade)+'</b> <span class="polo-tag">'+esc(CIDADE_POLO[e.cidade].nome)+'</span>'+
+        '<div class="entry-top"><div><b>'+esc(e.cidade)+'</b> <span class="polo-tag">'+esc(poloCidade.nome)+'</span>'+
         '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div>'+
         (temSabadoEntrada(w,e) ? '<span class="sabado-badge">🟡 Sábado — Força tarefa</span>' : '')+
         (function(){
@@ -2791,7 +2813,7 @@ function renderWeekCard(w, numero){
           var bloco = '<div class="cde-veiculo-bloco">'+
             '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:12.5px;color:#1E3A8A;margin-bottom:8px;">🚗 Veículo / Motorista / Alimentação — '+esc(e.cidade)+'</div>';
           catsCDE.forEach(function(cat){
-            var dataExata = e.datasExatas && e.datasExatas[cat] ? dataParaDisplay(e.datasExatas[cat]) : '(data não definida)';
+            var dataExata = e.datasExatas && e.datasExatas[cat] ? (Array.isArray(e.datasExatas[cat])?e.datasExatas[cat].map(dataParaDisplay).join(', '):dataParaDisplay(e.datasExatas[cat])) : '(data não definida)';
             var cd = cdeData[cat] || {};
             /* veículos da categoria na cidade ou em deslocamento para ela */
             var veicsDisponiveis = state.veiculos.filter(function(v){
@@ -3551,7 +3573,7 @@ function renderCheckinTab(){
             if(e.cidade !== item.cidade) return;
             var catsCDE = e.categorias.filter(function(c){ return c==='C'||c==='D'||c==='E'; });
             catsCDE.forEach(function(cat){
-              if(e.datasExatas && e.datasExatas[cat]===hoje){
+              if(e.datasExatas && datasExatasInclui(e, cat, hoje)){
                 var cd = e.veiculosCDE && e.veiculosCDE[cat];
                 var nomeVeic = '';
                 if(cd && cd.veiculoId){
