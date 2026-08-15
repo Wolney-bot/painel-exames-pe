@@ -1212,6 +1212,14 @@ function diasComLancamento(cidade, mesOverride){
   return new Set(datas).size;
 }
 /* exames agendados para hoje nas semanas */
+/* Verifica se uma data está em datasExatas[cat] — suporta string (antigo) e array (novo) */
+function datasExatasInclui(entrada, cat, data){
+  if(!entrada.datasExatas) return false;
+  var val = entrada.datasExatas[cat];
+  if(!val) return false;
+  if(Array.isArray(val)) return val.indexOf(data) > -1;
+  return val === data; /* compatibilidade com formato antigo */
+}
 function examesHoje(data){
   /* Leniente — inclui cidades com todosOsDias=true dentro do período.
      Usado na força tarefa do sábado e no mapa de dias. */
@@ -1219,7 +1227,7 @@ function examesHoje(data){
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
-      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
+      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, 'k', data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
@@ -1248,7 +1256,7 @@ function examesDiaEstrito(data){
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
-      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) cats.push(k); }); }
+      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, 'k', data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       /* A/B: SÓ inclui se dias foram explicitamente selecionados */
@@ -1425,7 +1433,7 @@ function renderOverview(){
       var catsAmanha = [];
       if(e.datasExatas){
         ['C','D','E'].forEach(function(k){
-          if(e.datasExatas[k]===amanhaISO && e.categorias.indexOf(k)>-1) catsAmanha.push(k);
+          if(datasExatasInclui(e, k, amanhaISO) && e.categorias.indexOf(k)>-1) catsAmanha.push(k);
         });
       } else if(e.dataExata===amanhaISO){
         catsAmanha = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
@@ -2361,7 +2369,7 @@ function renderAgendaTab(){
         var catsHoje = [];
         if(e.datasExatas){
           ['C','D','E'].forEach(function(k){
-            if(e.datasExatas[k]===data && e.categorias.indexOf(k)>-1) catsHoje.push(k);
+            if(datasExatasInclui(e, 'k', data) && e.categorias.indexOf(k)>-1) catsHoje.push(k);
           });
         } else if(e.dataExata===data){
           catsHoje = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
@@ -2456,6 +2464,12 @@ function renderAgendaTab(){
       window.__draftEntryDia(this.dataset.wid, this.dataset.date, this.checked);
     });
   });
+  /* addEventListener para checkboxes de dias CDE (múltiplas datas por categoria) */
+  document.querySelectorAll('.cde-dia-input').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      window.__draftEntryCDEDia(this.dataset.wid, this.dataset.cat, this.dataset.date, this.checked);
+    });
+  });
   /* addEventListener para edição de entradas */
   document.querySelectorAll('[id^="btn-editar-e-"]').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -2507,13 +2521,17 @@ window.__salvarEntrada = async function(wId, eId){
   var e = (w.entradas||[]).filter(function(x){return x.id===eId;})[0];
   if(!e) return;
 
-  /* CDE datas */
-  document.querySelectorAll('.edit-cde-data').forEach(function(inp){
-    var cat = inp.dataset.cat;
-    if(cat){
-      if(!e.datasExatas) e.datasExatas = {};
-      e.datasExatas[cat] = inp.value || '';
-    }
+  /* CDE datas — lê checkboxes (múltiplas datas por categoria) */
+  var cdeAcum = {};
+  document.querySelectorAll('.edit-cde-dia:checked').forEach(function(cb){
+    var cat = cb.dataset.cat, dt = cb.dataset.date;
+    if(cat && dt){ if(!cdeAcum[cat]) cdeAcum[cat]=[]; if(cdeAcum[cat].indexOf(dt)===-1) cdeAcum[cat].push(dt); }
+  });
+  /* mescla com as não-marcadas (preserva cats que existiam) */
+  var catsCDE2 = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
+  catsCDE2.forEach(function(cat){
+    if(!e.datasExatas) e.datasExatas = {};
+    e.datasExatas[cat] = cdeAcum[cat] || [];
   });
   /* A/B todos os dias */
   var todosEl = document.querySelector('.edit-todos-dias');
@@ -2589,16 +2607,38 @@ function renderWeekCard(w, numero){
         return '<label><input type="checkbox" '+(checked?'checked':'')+' onchange="window.__draftEntryCat(\''+w.id+'\', \''+k+'\', this.checked)">'+esc(catLabel(k))+'</label>';
       }).join('') +
     '</div></label>'+
-    (temCDE ? '<div style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;">'+
-      '<div style="font-size:12px;font-weight:700;margin-bottom:8px;">📅 Data exata por categoria C/D/E</div>'+
-      ['C','D','E'].filter(function(k){return draft.cats && draft.cats.indexOf(k)>-1;}).map(function(k){
-        var val = (draft.datasExatas && draft.datasExatas[k]) || '';
-        return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px;">'+
-          '<span style="font-weight:700;min-width:90px;">'+esc(catLabel(k))+'</span>'+
-          '<input type="date" value="'+esc(val)+'" onchange="window.__draftEntryDataCat(\''+w.id+'\',\''+k+'\',this.value)" style="border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;">'+
-        '</label>';
-      }).join('')+
-    '</div>' : '')+
+    (temCDE ? (function(){
+      function parseDDMM2(s){if(!s)return null;var p=s.split('/');var ano=new Date().getFullYear();if(p.length===3)return new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));if(p.length===2)return new Date(ano,parseInt(p[1])-1,parseInt(p[0]));return null;}
+      var dIni2=parseDDMM2(w.inicio),dFim2=parseDDMM2(w.fim);
+      var diasSemana2=[];
+      if(dIni2&&dFim2){var cur2=new Date(dIni2);while(cur2<=dFim2){diasSemana2.push(cur2.getFullYear()+'-'+String(cur2.getMonth()+1).padStart(2,'0')+'-'+String(cur2.getDate()).padStart(2,'0'));cur2.setDate(cur2.getDate()+1);}}
+      var html2='<div style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;">';
+      html2+='<div style="font-size:12px;font-weight:700;margin-bottom:8px;">📅 Dias por categoria C/D/E (marque todos os dias que ocorrem)</div>';
+      if(!diasSemana2.length){ html2+='<div style="font-size:11.5px;color:var(--red);">⚠️ Informe início e fim da semana primeiro.</div>'; }
+      else {
+        ['C','D','E'].filter(function(k){return draft.cats&&draft.cats.indexOf(k)>-1;}).forEach(function(k){
+          var selDias=(draft.datasExatas&&Array.isArray(draft.datasExatas[k]))?draft.datasExatas[k]:(draft.datasExatas&&draft.datasExatas[k]?[draft.datasExatas[k]]:[]);
+          html2+='<div style="margin-bottom:8px;">';
+          html2+='<div style="font-weight:700;font-size:12px;margin-bottom:4px;">'+esc(catLabel(k))+':</div>';
+          html2+='<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+          diasSemana2.forEach(function(d){
+            var ck=selDias.indexOf(d)>-1;
+            var diaSem=new Date(d+'T12:00:00').getDay();
+            var ehSab=diaSem===6;
+            var nom=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][diaSem];
+            var pt=d.split('-');
+            var lbl=nom+' '+pt[2]+'/'+pt[1];
+            var bg=ck?(ehSab?'#FFF3CD':'var(--amber-soft)'):'#f5f5f5';
+            var brd=ck?(ehSab?'#FFD700':'var(--amber)'):'var(--line)';
+            html2+='<label style="display:flex;align-items:center;gap:4px;background:'+bg+';border:1px solid '+brd+';border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;">'+
+              '<input type="checkbox" '+(ck?'checked':'')+' data-wid="'+w.id+'" data-cat="'+k+'" data-date="'+d+'" class="cde-dia-input"> '+esc(lbl)+(ehSab?' 🟡':'')+'</label>';
+          });
+          html2+='</div></div>';
+        });
+      }
+      html2+='</div>';
+      return html2;
+    })() : '')+
     (function(){
       /* A/B: opção de todos os dias ou dias específicos */
       var temAB = draft.cats && draft.cats.some(function(c){return c==='A'||c==='B';});
@@ -2690,10 +2730,21 @@ function renderWeekCard(w, numero){
           bloco+='<div style="font-size:12px;font-weight:700;color:var(--teal-dk);margin-bottom:8px;">✏️ Editar agendamento: <b>'+esc(e.cidade)+'</b></div>';
           if(catsCDE.length){
             bloco+='<div style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;margin-bottom:8px;">';
-            bloco+='<div style="font-size:12px;font-weight:700;margin-bottom:6px;">📅 Data exata por categoria C/D/E</div>';
+            bloco+='<div style="font-size:12px;font-weight:700;margin-bottom:6px;">📅 Dias por categoria C/D/E (marque todos os dias que ocorrem)</div>';
             catsCDE.forEach(function(cat){
-              var val=(e.datasExatas&&e.datasExatas[cat])||'';
-              bloco+='<label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:5px;"><span style="font-weight:700;min-width:90px;">'+esc(catLabel(cat))+'</span><input type="date" value="'+esc(val)+'" data-cat="'+cat+'" class="edit-cde-data" style="border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;"></label>';
+              var selD=Array.isArray(e.datasExatas&&e.datasExatas[cat])?e.datasExatas[cat]:(e.datasExatas&&e.datasExatas[cat]?[e.datasExatas[cat]]:[]);
+              bloco+='<div style="margin-bottom:6px;"><div style="font-weight:700;font-size:12px;margin-bottom:3px;">'+esc(catLabel(cat))+':</div><div style="display:flex;flex-wrap:wrap;gap:5px;">';
+              diasSemana.forEach(function(d){
+                var ck=selD.indexOf(d)>-1;
+                var diaSem=new Date(d+'T12:00:00').getDay();
+                var ehSab=diaSem===6;
+                var nom=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][diaSem];
+                var pt=d.split('-');
+                var bg=ck?(ehSab?'#FFF3CD':'var(--amber-soft)'):'#f5f5f5';
+                var brd=ck?(ehSab?'#FFD700':'var(--amber)'):'var(--line)';
+                bloco+='<label style="display:flex;align-items:center;gap:4px;background:'+bg+';border:1px solid '+brd+';border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;"><input type="checkbox" '+(ck?'checked':'')+' data-cat="'+cat+'" data-date="'+d+'" class="edit-cde-dia"> '+esc(nom)+' '+pt[2]+'/'+pt[1]+(ehSab?' 🟡':'')+'</label>';
+              });
+              bloco+='</div></div>';
             });
             bloco+='</div>';
           }
@@ -2852,6 +2903,16 @@ window.__draftEntryData = function(wId, val){
   state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   state.draftEntry[wId].dataExata = val;
 };
+window.__draftEntryCDEDia = function(wId, cat, date, checked){
+  state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
+  var dx = state.draftEntry[wId].datasExatas || {};
+  var arr = Array.isArray(dx[cat]) ? dx[cat].slice() : (dx[cat] ? [dx[cat]] : []);
+  if(checked){ if(arr.indexOf(date)===-1) arr.push(date); }
+  else { arr = arr.filter(function(d){return d!==date;}); }
+  dx[cat] = arr;
+  state.draftEntry[wId].datasExatas = dx;
+};
+
 window.__draftEntryDataCat = function(wId, cat, val){
   state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}};
   if(!state.draftEntry[wId].datasExatas) state.draftEntry[wId].datasExatas = {};
@@ -2869,8 +2930,13 @@ window.__addEntrada = async function(wId){
   }
   var catsCDE = d.cats.filter(function(c){return c==='C'||c==='D'||c==='E';});
   var datasExatas = d.datasExatas || {};
-  var semData = catsCDE.filter(function(c){return !datasExatas[c];});
-  if(semData.length){ showToast('Informe a data exata para: '+semData.map(function(c){return catLabel(c);}).join(', ')); return; }
+  var semData = catsCDE.filter(function(c){
+    var val = datasExatas[c];
+    if(!val) return true;
+    if(Array.isArray(val)) return val.length === 0;
+    return false;
+  });
+  if(semData.length){ showToast('Selecione ao menos um dia para: '+semData.map(function(c){return catLabel(c);}).join(', ')); return; }
   var w = state.semanas.filter(function(x){return x.id===wId;})[0];
   w.entradas = w.entradas || [];
   var temAB = d.cats.some(function(c){return c==='A'||c==='B';});
