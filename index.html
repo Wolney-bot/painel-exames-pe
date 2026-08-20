@@ -404,6 +404,7 @@ var state = {
   semanaEditando: null,
   entradaEditando: null,
   chamadoEditando: null,
+  checkinDataSelecionada: null,
   metaConfig: {},
   demandas: [],
   filtroPrioDemanda: 'Todas'
@@ -1227,7 +1228,7 @@ function examesHoje(data){
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
-      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, 'k', data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
+      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
@@ -1256,7 +1257,7 @@ function examesDiaEstrito(data){
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
-      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, 'k', data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
+      if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
       else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       /* A/B: SÓ inclui se dias foram explicitamente selecionados */
@@ -1776,6 +1777,9 @@ function renderChamadosList(){
   document.querySelectorAll('[id^="del-ch-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__excluirChamado(this.dataset.cid); });
   });
+  /* input de data para navegar no check-in */
+  var inp = document.getElementById('checkin-data-sel');
+  if(inp) inp.addEventListener('change', function(){ if(this.value) _checkinIrPara(this.value); });
 }
 
 window.__setFiltro = function(key, val){
@@ -2369,7 +2373,7 @@ function renderAgendaTab(){
         var catsHoje = [];
         if(e.datasExatas){
           ['C','D','E'].forEach(function(k){
-            if(datasExatasInclui(e, 'k', data) && e.categorias.indexOf(k)>-1) catsHoje.push(k);
+            if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) catsHoje.push(k);
           });
         } else if(e.dataExata===data){
           catsHoje = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
@@ -3011,53 +3015,72 @@ window.__entradaDetalhes = async function(wId, eId, val){
    VEÍCULOS
 =================================================================== */
 function renderVeiculosTab(){
-  /* ── Resumo da frota por categoria ─────────────────────────────── */
-  var totalVeic = state.veiculos.length;
-  var dispVeic  = state.veiculos.filter(function(v){return v.status==='Disponível';}).length;
-  var indispVeic= totalVeic - dispVeic;
+  /* Frota ativa vs inativa */
+  var ativos   = state.veiculos.filter(function(v){ return v.ativo !== false; });
+  var inativos = state.veiculos.filter(function(v){ return v.ativo === false; });
 
-  /* agrupa por categoria */
+  var totalVeic = ativos.length;
+  var dispVeic  = ativos.filter(function(v){ return v.status==='Disponível'; }).length;
+  var indispVeic = totalVeic - dispVeic;
+
   var porCat = {};
   CAT_KEYS.forEach(function(k){ porCat[k]={total:0,disp:0,indisp:0}; });
-  state.veiculos.forEach(function(v){
+  ativos.forEach(function(v){
     if(!porCat[v.categoria]) return;
     porCat[v.categoria].total++;
     if(v.status==='Disponível') porCat[v.categoria].disp++;
     else porCat[v.categoria].indisp++;
   });
 
-  var frotaHtml = '<div class="card" style="margin-bottom:14px;">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
-      '<div class="section-title" style="margin:0;">🚐 Resumo da frota</div>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
-        '<span class="pill green">✅ '+dispVeic+' disponíveis</span>'+
-        (indispVeic?'<span class="pill red">🔴 '+indispVeic+' indisponíveis</span>':'')+
-        '<span class="pill gray">Total: '+totalVeic+'</span>'+
-      '</div>'+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">';
+  var frotaHtml = '<div class="card" style="margin-bottom:14px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'
+      + '<div><div class="section-title" style="margin:0;">🚐 Frota ativa</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);">Contagem real — veículos ativos em operação</div></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        + '<span class="pill green">✅ '+dispVeic+' disponíveis</span>'
+        + (indispVeic?'<span class="pill red">🔴 '+indispVeic+' indisponíveis</span>':'')
+        + '<span class="pill teal" style="font-weight:700;">Total ativo: '+totalVeic+'</span>'
+        + (inativos.length?'<span class="pill gray">+'+inativos.length+' inativos</span>':'')
+      + '</div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">';
 
   CAT_KEYS.forEach(function(k){
     var c = porCat[k];
-    if(!c.total) return; /* oculta categorias sem veículo */
+    if(!c.total) return;
     var pct = c.total>0 ? Math.round(c.disp/c.total*100) : 0;
     var barCor = pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
-    frotaHtml += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
-        '<span class="cat-tag" style="font-size:12.5px;">'+esc(catLabel(k))+'</span>'+
-        '<span style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:18px;color:var(--teal-dk);">'+c.total+'</span>'+
-      '</div>'+
-      '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:5px;">'+
-        '<span style="color:#2E6B49;font-weight:600;">'+c.disp+' disp.</span>'+
-        (c.indisp?' · <span style="color:var(--red);font-weight:600;">'+c.indisp+' indisp.</span>':'')+
-      '</div>'+
-      '<div style="background:var(--line);border-radius:4px;height:5px;overflow:hidden;">'+
-        '<div style="background:'+barCor+';height:100%;width:'+pct+'%;border-radius:4px;transition:.3s;"></div>'+
-      '</div>'+
-    '</div>';
+    frotaHtml += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+        + '<span class="cat-tag" style="font-size:12.5px;">'+esc(catLabel(k))+'</span>'
+        + '<span style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:18px;color:var(--teal-dk);">'+c.total+'</span>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:5px;">'
+        + '<span style="color:#2E6B49;font-weight:600;">'+c.disp+' disp.</span>'
+        + (c.indisp?' · <span style="color:var(--red);font-weight:600;">'+c.indisp+' indisp.</span>':'')
+      + '</div>'
+      + '<div style="background:var(--line);border-radius:4px;height:5px;overflow:hidden;">'
+        + '<div style="background:'+barCor+';height:100%;width:'+pct+'%;border-radius:4px;transition:.3s;"></div>'
+      + '</div>'
+    + '</div>';
   });
 
-  frotaHtml += '</div></div>';
+  frotaHtml += '</div>';
+
+  if(inativos.length){
+    frotaHtml += '<details style="margin-top:10px;">'
+      + '<summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-soft);">📦 '+inativos.length+' veículo(s) inativo(s) (sublocados devolvidos/substituídos)</summary>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">'
+      + inativos.map(function(v){
+          return '<span style="background:#f0f0f0;border:1px solid var(--line);border-radius:7px;padding:3px 10px;font-size:12px;color:var(--ink-soft);">'
+            + esc(v.nome||'Veículo')+' · '+esc(catLabel(v.categoria))+' · '+esc(v.cidade)
+            + ' <button style="font-size:10px;color:var(--teal-dk);background:none;border:none;cursor:pointer;font-weight:700;text-decoration:underline;" id="reativar-'+v.id+'" data-vid="'+v.id+'">↩ Reativar</button>'
+          + '</span>';
+        }).join('')
+      + '</div></details>';
+  }
+
+  frotaHtml += '</div>';
 
   var html = frotaHtml +
     '<div class="card" style="margin-bottom:16px;">'+
@@ -3178,7 +3201,8 @@ function renderVeiculosTab(){
     if(isTransito){
       row += '<button class="btn btn-primary" style="font-size:11.5px;padding:5px 10px;" onclick="window.__marcarChegou(\''+v.id+'\',\''+v.cidadeDestino+'\')" >✅ Chegou</button>';
     } else {
-      row += '<button class="icon-btn" onclick="window.__excluirVeiculo(\''+v.id+'\')" >remover</button>';
+      row += '<button class="icon-btn" style="color:var(--amber-dk);border-color:var(--amber);" id="desativar-'+v.id+'" data-vid="'+v.id+'">📦 Desativar</button>';
+      row += '<button class="icon-btn" id="del-v-'+v.id+'" data-vid="'+v.id+'" >remover</button>';
     }
     row += '</div>';
     row += '</div>';
@@ -3234,6 +3258,16 @@ function renderVeiculosTab(){
   document.querySelectorAll('.proxr-input').forEach(function(inp){
     inp.addEventListener('change', function(){ window.__setManutencao(this.dataset.vid, this.value); });
   });
+  /* desativar / reativar / remover */
+  document.querySelectorAll('[id^="desativar-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__desativarVeiculo(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="reativar-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__reativarVeiculo(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="del-v-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__excluirVeiculo(this.dataset.vid); });
+  });
 }
 
 window.__addVeiculo = async function(){
@@ -3241,7 +3275,7 @@ window.__addVeiculo = async function(){
   var categoria = document.getElementById('v-cat').value;
   var nome = document.getElementById('v-nome').value.trim();
   if(!cidade){ showToast('Selecione a cidade.'); return; }
-  state.veiculos.push({id:'V'+Date.now().toString(36).toUpperCase(), cidade:cidade, categoria:categoria, nome:nome, status:'Disponível', motivo:'', atualizadoPor:state.perfil.nome+' ('+state.perfil.papel+')', atualizadoEm:nowStr()});
+  state.veiculos.push({id:'V'+Date.now().toString(36).toUpperCase(), cidade:cidade, categoria:categoria, nome:nome, status:'Disponível', ativo:true, motivo:'', atualizadoPor:state.perfil.nome+' ('+state.perfil.papel+')', atualizadoEm:nowStr()});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Veículo adicionado.');
   renderVeiculosTab();
@@ -3287,6 +3321,30 @@ window.__motivoVeiculo = async function(id, val){
   showToast('Motivo registrado.');
   renderVeiculosTab();
 };
+window.__desativarVeiculo = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.ativo = false;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  addHistorico(v, 'deslocamento', 'Veículo desativado — saiu da frota ativa (sublocado devolvido/substituído)', {});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('📦 '+esc(v.nome||'Veículo')+' movido para inativos. Contagem da frota ativa atualizada.');
+  renderVeiculosTab();
+};
+
+window.__reativarVeiculo = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.ativo = true;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  addHistorico(v, 'deslocamento', 'Veículo reativado — retornou à frota ativa', {});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ '+esc(v.nome||'Veículo')+' reativado na frota ativa.');
+  renderVeiculosTab();
+};
+
 window.__excluirVeiculo = async function(id){
   if(!confirm('Remover este veículo?')) return;
   state.veiculos = state.veiculos.filter(function(x){return x.id!==id;});
@@ -3528,10 +3586,12 @@ function renderVeiculoDetail(v){
    CHECK-IN DIÁRIO
 =================================================================== */
 function renderCheckinTab(){
-  var hoje = hojeLocal();
-  var hojeDisplay = dataParaDisplay(hoje);
-  var exHoje = examesDiaEstrito(hoje); /* apenas cidades com dias explicitamente marcados na agenda */
-  var confHoje = state.checkins.filter(function(c){ return c.dataISO===hoje && c.tipo==='conf'; });
+  var hoje     = hojeLocal();
+  var dataSel  = state.checkinDataSelecionada || hoje;
+  var eHoje    = dataSel === hoje;
+  var dataDisp = dataParaDisplay(dataSel);
+  var exHoje   = examesDiaEstrito(dataSel);
+  var confHoje = state.checkins.filter(function(c){ return c.dataISO===dataSel && c.tipo==='conf'; });
 
   function getConf(cidade){ return confHoje.filter(function(c){ return c.cidade===cidade; })[0]; }
 
@@ -3540,15 +3600,32 @@ function renderCheckinTab(){
   var nCanc = exHoje.filter(function(x){ var c=getConf(x.cidade); return c&&c.status==='cancelado'; }).length;
   var nPend = exHoje.length - nConf - nProb - nCanc;
 
+  /* navegação de data */
+  var proximoD = (function(){
+    var d = new Date(dataSel+'T12:00:00'); d.setDate(d.getDate()+1);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  })();
+  var podeProximo = dataSel < hoje; /* não avança além de hoje */
+
   var html = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">'
-    + '<div><div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:16px;">📋 Confirmação operacional do dia</div>'
-    + '<div style="font-size:12.5px;color:var(--ink-soft);">' + hojeDisplay + ' &middot; ' + exHoje.length + ' cidade(s) com exame</div></div>'
-    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-    + (nConf ? '<span class="pill green">✅ ' + nConf + ' confirmada(s)</span>' : '')
-    + (nProb ? '<span class="pill amber">⚠️ ' + nProb + ' com ocorrência</span>' : '')
-    + (nCanc ? '<span class="pill red">❌ ' + nCanc + ' cancelada(s)</span>' : '')
-    + (nPend ? '<span class="pill gray">⏳ ' + nPend + ' pendente(s)</span>' : '')
-    + '</div></div>';
+    + '<div><div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:16px;">📋 Confirmação operacional'
+    + (eHoje ? ' — Hoje' : ' — <span style="color:var(--amber-dk);">'+dataDisp+'</span>') + '</div>'
+    + '<div style="font-size:12.5px;color:var(--ink-soft);">'+dataDisp+' &middot; '+exHoje.length+' cidade(s) com exame</div></div>'
+    + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+    + (nConf ? '<span class="pill green">✅ '+nConf+' confirmada(s)</span>' : '')
+    + (nProb ? '<span class="pill amber">⚠️ '+nProb+' com ocorrência</span>' : '')
+    + (nCanc ? '<span class="pill red">❌ '+nCanc+' cancelada(s)</span>' : '')
+    + (nPend ? '<span class="pill gray">⏳ '+nPend+' pendente(s)</span>' : '')
+    + '</div></div>'
+
+    /* barra de navegação de data */
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;background:var(--teal-soft);border:1px solid var(--teal);border-radius:10px;padding:8px 12px;flex-wrap:wrap;">'
+    + '<button class="btn btn-ghost" style="padding:4px 12px;" onclick="window.__checkinDiaAnterior()">← Anterior</button>'
+    + '<input type="date" id="checkin-data-sel" value="'+dataSel+'" max="'+hoje+'" '
+    + 'style="border:1px solid var(--teal);border-radius:7px;padding:4px 8px;font-size:13px;font-weight:600;color:var(--teal-dk);">'
+    + (podeProximo ? '<button class="btn btn-ghost" style="padding:4px 12px;" onclick="window.__checkinProximoDia()">Próximo →</button>' : '<button class="btn btn-ghost" style="padding:4px 12px;opacity:.4;" disabled>Próximo →</button>')
+    + (!eHoje ? '<button class="btn btn-primary" style="padding:4px 14px;" onclick="window.__checkinHoje()">📅 Ir para Hoje</button>' : '<span style="font-size:12px;color:var(--teal-dk);font-weight:600;">📅 Hoje</span>')
+    + '</div>';
 
   if(!exHoje.length){
     html += '<div class="empty card"><b>Nenhuma cidade com exame agendado para hoje.</b>'
@@ -3667,25 +3744,51 @@ function renderCheckinTab(){
   });
 }
 
+/* ── Navegação de data no check-in ──────────────────────────────────── */
+function _checkinIrPara(data){
+  var hoje = hojeLocal();
+  if(data > hoje) data = hoje; /* não vai além de hoje */
+  state.checkinDataSelecionada = data;
+  renderCheckinTab();
+  /* registra addEventListener no input de data */
+  var inp = document.getElementById('checkin-data-sel');
+  if(inp) inp.addEventListener('change', function(){ if(this.value) _checkinIrPara(this.value); });
+}
+window.__checkinDiaAnterior = function(){
+  var d = new Date((state.checkinDataSelecionada || hojeLocal())+'T12:00:00');
+  d.setDate(d.getDate()-1);
+  _checkinIrPara(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+};
+window.__checkinProximoDia = function(){
+  var d = new Date((state.checkinDataSelecionada || hojeLocal())+'T12:00:00');
+  d.setDate(d.getDate()+1);
+  _checkinIrPara(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+};
+window.__checkinHoje = function(){
+  state.checkinDataSelecionada = null;
+  renderCheckinTab();
+};
+
 window.__confByIdx = async function(cidx, statusCode){
   var statusMap = ['confirmado','ocorrencia','cancelado'];
   var status = statusMap[statusCode] || 'confirmado';
-  var hoje = hojeLocal();
-  var lista = examesDiaEstrito(hoje);
+  var dataSel = state.checkinDataSelecionada || hojeLocal();
+  var lista = examesDiaEstrito(dataSel);
   if(cidx < lista.length) await window.__confCidade(lista[cidx].cidade, status);
 };
 
 window.__confObsByIdx = async function(el){
   var cidx = parseInt(el.dataset.cidx,10)||0;
-  var hoje = hojeLocal();
-  var lista = examesDiaEstrito(hoje);
+  var dataSel = state.checkinDataSelecionada || hojeLocal();
+  var lista = examesDiaEstrito(dataSel);
   if(cidx < lista.length) await window.__confObs(lista[cidx].cidade, el.value);
 };
 
 window.__confCidade = async function(cidade, status){
   var hoje = hojeLocal();
+  var dataSel = state.checkinDataSelecionada || hoje;
   var existing = state.checkins.filter(function(c){
-    return c.dataISO===hoje && c.cidade===cidade && c.tipo==='conf';
+    return c.dataISO===dataSel && c.cidade===cidade && c.tipo==='conf';
   })[0];
 
   if(existing){
@@ -3707,7 +3810,7 @@ window.__confCidade = async function(cidade, status){
   } else {
     state.checkins.unshift({
       id:'CI'+Date.now().toString(36).toUpperCase(),
-      tipo:'conf', cidade:cidade, dataISO:hoje, status:status,
+      tipo:'conf', cidade:cidade, dataISO:dataSel, status:status,
       obs:'', responsavel:state.perfil.nome+' ('+state.perfil.papel+')',
       criadoEm:nowStr(), historico:[]
     });
@@ -3737,9 +3840,9 @@ window.__confCidade = async function(cidade, status){
 };
 
 window.__confObs = async function(cidade, obs){
-  var hoje = hojeLocal();
+  var dataSel = state.checkinDataSelecionada || hojeLocal();
   var conf = state.checkins.filter(function(c){
-    return c.dataISO===hoje && c.cidade===cidade && c.tipo==='conf';
+    return c.dataISO===dataSel && c.cidade===cidade && c.tipo==='conf';
   })[0];
   if(!conf) return;
   conf.obs = obs;
