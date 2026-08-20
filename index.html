@@ -661,6 +661,7 @@ async function init(){
   state.chamados  = ch ? JSON.parse(ch) : [];
   state.catLabels = cl ? JSON.parse(cl) : Object.assign({}, DEFAULT_CAT_LABELS);
   state.semanas   = sm ? JSON.parse(sm) : [];
+  _migrarEntradas();
   state.veiculos  = vc ? JSON.parse(vc) : [];
   state.diarios   = di ? JSON.parse(di) : [];
   state.usuarios  = us ? JSON.parse(us) : [];
@@ -921,7 +922,7 @@ window.__sincronizar = async function(silent){
   if(ch) state.chamados = JSON.parse(ch);
   if(pl) state.planejamento = JSON.parse(pl);
   if(cl) state.catLabels = JSON.parse(cl);
-  if(sm) state.semanas = JSON.parse(sm);
+  if(sm){ state.semanas = JSON.parse(sm); _migrarEntradas(); }
   if(vc) state.veiculos = JSON.parse(vc);
   if(di) state.diarios = JSON.parse(di);
   var ci2 = await storageGet('checkins-lista', true);
@@ -1221,6 +1222,30 @@ function datasExatasInclui(entrada, cat, data){
   if(Array.isArray(val)) return val.indexOf(data) > -1;
   return val === data; /* compatibilidade com formato antigo */
 }
+
+/* ── Migração automática: dataExata (string) → datasExatas (array) ─────
+   Entradas antigas com datasExatas=undefined e dataExata preenchido são
+   migradas para o novo formato, evitando que categorias CDE apareçam em
+   datas erradas pelo caminho legado do else-if. */
+function _migrarEntradas(){
+  var migrou = false;
+  state.semanas.forEach(function(w){
+    (w.entradas||[]).forEach(function(e){
+      if(e.datasExatas === undefined || e.datasExatas === null){
+        e.datasExatas = {};
+        if(e.dataExata){
+          /* distribui a data única para todas as cats CDE desta entrada */
+          (e.categorias||[]).filter(function(c){return c==='C'||c==='D'||c==='E';}).forEach(function(c){
+            e.datasExatas[c] = [e.dataExata];
+          });
+          migrou = true;
+        }
+      }
+    });
+  });
+  return migrou;
+}
+
 function examesHoje(data){
   /* Leniente — inclui cidades com todosOsDias=true dentro do período.
      Usado na força tarefa do sábado e no mapa de dias. */
@@ -1228,8 +1253,8 @@ function examesHoje(data){
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
+      /* CDE: só inclui se a data está explicitamente em datasExatas (migração garante que dataExata antigo já foi convertido) */
       if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
-      else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       if(abCats.length && w.inicio && w.fim){
         var wIni = dateToISO(w.inicio)||w.inicio, wFim = dateToISO(w.fim)||w.fim;
@@ -1257,8 +1282,8 @@ function examesDiaEstrito(data){
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
       var cats = [];
+      /* CDE: só inclui se a data está explicitamente em datasExatas (migração garante que dataExata antigo já foi convertido) */
       if(e.datasExatas){ ['C','D','E'].forEach(function(k){ if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) cats.push(k); }); }
-      else if(e.dataExata===data){ cats = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';}); }
       var abCats = e.categorias.filter(function(c){return c==='A'||c==='B';});
       /* A/B: SÓ inclui se dias foram explicitamente selecionados */
       if(abCats.length && e.todosOsDias === false){
@@ -1436,8 +1461,6 @@ function renderOverview(){
         ['C','D','E'].forEach(function(k){
           if(datasExatasInclui(e, k, amanhaISO) && e.categorias.indexOf(k)>-1) catsAmanha.push(k);
         });
-      } else if(e.dataExata===amanhaISO){
-        catsAmanha = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
       }
       if(catsAmanha.length){
         examesAmanha.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:catsAmanha, status:e.status});
@@ -2375,8 +2398,6 @@ function renderAgendaTab(){
           ['C','D','E'].forEach(function(k){
             if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) catsHoje.push(k);
           });
-        } else if(e.dataExata===data){
-          catsHoje = e.categorias.filter(function(c){return c==='C'||c==='D'||c==='E';});
         }
         /* A e B: incluir se a data está dentro da semana */
         var abHoje = e.categorias.filter(function(c){return c==='A'||c==='B';});
