@@ -1089,6 +1089,7 @@ var TABS = [
   {id:'chamados',     label:'Chamados'},
   {id:'planejamento', label:'Planejamento', planOnly: true},
   {id:'veiculos',     label:'Veículos'},
+  {id:'manutencao',   label:'🔧 Manutenção'},
   {id:'relatorio',    label:'📊 Relatório'},
   {id:'admin',        label:'👥 Usuários', adminOnly: true}
 ];
@@ -1120,6 +1121,7 @@ function setTab(id){
   else if(id==='chamados')     renderChamadosTab();
   else if(id==='planejamento') renderPlanejamentoTab();
   else if(id==='veiculos')     renderVeiculosTab();
+  else if(id==='manutencao')   renderManutencaoTab();
   else if(id==='relatorio')    renderRelatorioTab();
   else if(id==='admin')        renderAdminTab();
 }
@@ -1342,6 +1344,9 @@ function renderOverview(){
   var manutVencida = state.veiculos.filter(function(v){
     return v.proximaRevisaoISO && v.proximaRevisaoISO < hoje;
   });
+  var manutSemData = state.veiculos.filter(function(v){
+    return v.ativo !== false && !v.proximaRevisaoISO;
+  });
 
   var porPolo = POLOS.map(function(p){
     var n = state.chamados.filter(function(c){return c.poloId===p.id && isOpenStatus(c.status);}).length;
@@ -1358,10 +1363,11 @@ function renderOverview(){
   var html = renderAlertBanner();
 
   /* alertas de manutenção */
-  if(manutVencida.length || manutVencendo.length){
+  if(manutVencida.length || manutVencendo.length || manutSemData.length){
     html += '<div style="margin-bottom:14px;">';
-    if(manutVencida.length) html += '<div class="alert-banner" style="background:var(--red-soft);border-color:#E8B6AC;color:var(--red);">🔧 <div><b>'+manutVencida.length+' veículo(s) com revisão vencida.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencida.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade);}).join(' · ') +'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
-    if(manutVencendo.length) html += '<div class="alert-banner" style="background:var(--amber-soft);border-color:#E8C98A;color:var(--amber-dk);margin-top:6px;">⚠️ <div><b>'+manutVencendo.length+' veículo(s) com revisão nos próximos 7 dias.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencendo.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade)+' ('+esc(v.proximaRevisaoISO)+')';}).join(' · ')+'</div></div><button class="x" onclick="window.__setTab(\'veiculos\')">ver frota</button></div>';
+    if(manutVencida.length) html += '<div class="alert-banner" style="background:var(--red-soft);border-color:#E8B6AC;color:var(--red);">🔧 <div><b>'+manutVencida.length+' veículo(s) com revisão vencida.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencida.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade);}).join(' · ') +'</div></div><button class="x" onclick="window.__setTab(\'manutencao\')">ver manutenção</button></div>';
+    if(manutVencendo.length) html += '<div class="alert-banner" style="background:var(--amber-soft);border-color:#E8C98A;color:var(--amber-dk);margin-top:6px;">⚠️ <div><b>'+manutVencendo.length+' veículo(s) com revisão nos próximos 7 dias.</b><div style="font-weight:400;margin-top:2px;">'+ manutVencendo.map(function(v){return esc(v.nome||'Veículo')+' em '+esc(v.cidade)+' ('+esc(v.proximaRevisaoISO)+')';}).join(' · ')+'</div></div><button class="x" onclick="window.__setTab(\'manutencao\')">ver manutenção</button></div>';
+    if(manutSemData.length) html += '<div class="alert-banner" style="background:#F0F0F0;border-color:var(--line);color:var(--ink-soft);margin-top:6px;">🗓️ <div><b>'+manutSemData.length+' veículo(s) sem data de revisão cadastrada.</b><div style="font-weight:400;margin-top:2px;">Sem essa data, o alerta de vencimento nunca dispara — esse é o maior ponto cego da frota hoje.</div></div><button class="x" onclick="window.__setTab(\'manutencao\')">cadastrar datas</button></div>';
     html += '</div>';
   }
 
@@ -3899,6 +3905,198 @@ function manutBadge(v){
   if(dias <= 7) return '<span class="manut-badge manut-prox">⚠️ Vence em '+dias+'d</span>';
   return '<span class="manut-badge manut-ok">✅ Em dia ('+dias+'d)</span>';
 }
+function manutUrgenciaOrdem(v){
+  var d = diasAteManutencao(v);
+  if(d===null) return 1;
+  if(d<0) return 0;
+  if(d<=7) return 2;
+  if(d<=30) return 3;
+  return 4;
+}
+function normVeicKey(s){ return (s||'').toString().toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function chamadosMecanicosPorVeiculo(){
+  /* correspondência aproximada: casa o título do chamado com o nome/placa do veículo */
+  var map = {};
+  var limiteTs = Date.now() - 180*24*3600*1000;
+  state.chamados.forEach(function(c){
+    if(c.tipoProblema !== 'Problema mecânico') return;
+    if(c.criadoTs && c.criadoTs < limiteTs) return;
+    var key = normVeicKey(c.titulo);
+    if(!key) return;
+    map[key] = (map[key]||0) + 1;
+  });
+  return map;
+}
+function semanaLabel(offset){
+  var ini = new Date(hojeLocal()+'T00:00:00'); ini.setDate(ini.getDate()+offset*7);
+  var fim = new Date(ini); fim.setDate(fim.getDate()+6);
+  function fmt(d){ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'); }
+  return fmt(ini)+'–'+fmt(fim);
+}
+function veiculoNaSemana(v, offset){
+  if(!v.proximaRevisaoISO) return false;
+  var ini = new Date(hojeLocal()+'T00:00:00'); ini.setDate(ini.getDate()+offset*7);
+  var fim = new Date(ini); fim.setDate(fim.getDate()+6);
+  var iniISO = ini.toISOString().slice(0,10), fimISO = fim.toISOString().slice(0,10);
+  return v.proximaRevisaoISO >= iniISO && v.proximaRevisaoISO <= fimISO;
+}
+function manutKpiCard(icone, valor, label, cor, filtroKey){
+  var corMap = {red:'var(--red)',amber:'var(--amber-dk)',teal:'var(--teal-dk)',gray:'var(--ink-soft)',green:'#2E6B49'};
+  return '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;" onclick="window.__filtrarManut(\''+filtroKey+'\')">'+
+    '<div style="font-size:11px;color:var(--ink-soft);">'+icone+' '+label+'</div>'+
+    '<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:22px;color:'+(corMap[cor]||'var(--ink)')+';">'+valor+'</div>'+
+  '</div>';
+}
+window.__filtrarManut = function(key){
+  if(!state.filtrosManut) state.filtrosManut = {polo:'', cidade:'', urgencia:'', q:''};
+  state.filtrosManut.urgencia = (state.filtrosManut.urgencia===key) ? '' : key;
+  renderManutencaoTab();
+};
+
+function renderManutencaoTab(){
+  if(!state.filtrosManut) state.filtrosManut = {polo:'', cidade:'', urgencia:'', q:''};
+  var f = state.filtrosManut;
+  var hoje = hojeLocal();
+  var ativos = state.veiculos.filter(function(v){ return v.ativo !== false; });
+  var chamadosPorVeic = chamadosMecanicosPorVeiculo();
+
+  var vencida = ativos.filter(function(v){ var d=diasAteManutencao(v); return d!==null && d<0; });
+  var em7     = ativos.filter(function(v){ var d=diasAteManutencao(v); return d!==null && d>=0 && d<=7; });
+  var em30    = ativos.filter(function(v){ var d=diasAteManutencao(v); return d!==null && d>7 && d<=30; });
+  var semData = ativos.filter(function(v){ return !v.proximaRevisaoISO; });
+  var emDia   = ativos.filter(function(v){ var d=diasAteManutencao(v); return d!==null && d>30; });
+  var pctSemData = ativos.length ? Math.round(semData.length/ativos.length*100) : 0;
+
+  var html = '<div class="card" style="margin-bottom:14px;">'+
+    '<div class="section-title" style="margin-bottom:2px;">🔧 Planejamento de manutenção preventiva</div>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:12px;">Antecipe paradas antes que virem chamado — clique num número para filtrar a fila abaixo.</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">'+
+      manutKpiCard('🔴', vencida.length, 'Vencidas', 'red', 'vencida')+
+      manutKpiCard('⚠️', em7.length, 'Em até 7 dias', 'amber', 'em7')+
+      manutKpiCard('🟡', em30.length, 'Em até 30 dias', 'teal', 'em30')+
+      manutKpiCard('🗓️', semData.length, 'Sem data cadastrada', 'gray', 'semdata')+
+      manutKpiCard('✅', emDia.length, 'Em dia (+30d)', 'green', 'emdia')+
+    '</div>'+
+    (pctSemData>=30 ? '<div style="margin-top:10px;font-size:12px;color:var(--ink-soft);background:#F8F8F8;border-radius:8px;padding:8px 10px;">📌 <b>'+pctSemData+'% da frota</b> não tem data de revisão cadastrada. Comece por aí: sem data, o alerta de vencimento nunca dispara.</div>' : '')+
+  '</div>';
+
+  /* próximas 4 semanas por polo — evita concentrar revisões e derrubar a operação de um polo inteiro */
+  html += '<div class="card" style="margin-bottom:14px;">'+
+    '<div class="section-title">📅 Próximas 4 semanas — revisões previstas</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;">';
+  for(var w=0; w<4; w++){
+    var doSemana = ativos.filter(function(v){ return veiculoNaSemana(v,w); });
+    var porPoloSemana = {};
+    POLOS.forEach(function(p){ porPoloSemana[p.id] = 0; });
+    doSemana.forEach(function(v){ var p=CIDADE_POLO[v.cidade]; if(p) porPoloSemana[p.id]++; });
+    html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;">'+
+      '<div style="font-size:11.5px;color:var(--ink-soft);font-weight:600;">Semana '+(w+1)+' ('+semanaLabel(w)+')</div>'+
+      '<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:20px;color:var(--teal-dk);margin:2px 0 6px;">'+doSemana.length+'</div>'+
+      POLOS.map(function(p){
+        var n = porPoloSemana[p.id];
+        if(!n) return '';
+        return '<div style="font-size:11px;color:'+(n>=3?'var(--red)':'var(--ink-soft)')+';font-weight:'+(n>=3?'700':'400')+';">'+esc(p.nome)+': '+n+(n>=3?' ⚠ concentrado':'')+'</div>';
+      }).join('')+
+    '</div>';
+  }
+  html += '</div></div>';
+
+  /* filtros */
+  html += '<div class="card" style="margin-bottom:14px;">'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">'+
+      '<select class="small-select" id="mf-polo"><option value="">Todos os polos</option>'+POLOS.map(function(p){return '<option value="'+p.id+'"'+(p.id===f.polo?' selected':'')+'>'+esc(p.nome)+'</option>';}).join('')+'</select>'+
+      '<select class="small-select" id="mf-cidade"><option value="">Todas as cidades</option>'+TODAS_CIDADES.filter(function(c){return !f.polo || (CIDADE_POLO[c]&&CIDADE_POLO[c].id===f.polo);}).map(function(c){return '<option value="'+esc(c)+'"'+(c===f.cidade?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'+
+      '<select class="small-select" id="mf-urg"><option value="">Toda urgência</option>'+
+        '<option value="vencida"'+(f.urgencia==='vencida'?' selected':'')+'>🔴 Vencidas</option>'+
+        '<option value="em7"'+(f.urgencia==='em7'?' selected':'')+'>⚠️ Em até 7 dias</option>'+
+        '<option value="em30"'+(f.urgencia==='em30'?' selected':'')+'>🟡 Em até 30 dias</option>'+
+        '<option value="semdata"'+(f.urgencia==='semdata'?' selected':'')+'>🗓️ Sem data</option>'+
+        '<option value="emdia"'+(f.urgencia==='emdia'?' selected':'')+'>✅ Em dia</option>'+
+      '</select>'+
+      '<input type="text" class="small-select" id="mf-q" placeholder="Buscar veículo…" value="'+esc(f.q)+'" style="flex:1;min-width:140px;">'+
+    '</div></div>';
+
+  /* fila priorizada */
+  var lista = ativos.filter(function(v){
+    if(f.polo && (!CIDADE_POLO[v.cidade] || CIDADE_POLO[v.cidade].id!==f.polo)) return false;
+    if(f.cidade && v.cidade!==f.cidade) return false;
+    if(f.q && normVeicKey(v.nome).indexOf(normVeicKey(f.q))===-1) return false;
+    if(f.urgencia){
+      var d = diasAteManutencao(v);
+      if(f.urgencia==='vencida' && !(d!==null && d<0)) return false;
+      if(f.urgencia==='em7' && !(d!==null && d>=0 && d<=7)) return false;
+      if(f.urgencia==='em30' && !(d!==null && d>7 && d<=30)) return false;
+      if(f.urgencia==='semdata' && v.proximaRevisaoISO) return false;
+      if(f.urgencia==='emdia' && !(d!==null && d>30)) return false;
+    }
+    return true;
+  }).sort(function(a,b){ return manutUrgenciaOrdem(a) - manutUrgenciaOrdem(b); });
+
+  html += '<div class="card"><div class="section-title" style="margin-bottom:8px;">Fila de manutenção ('+lista.length+')</div>';
+  if(!lista.length){ html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum veículo encontrado com esse filtro.</div>'; }
+  lista.forEach(function(v){
+    var nMec = chamadosPorVeic[normVeicKey(v.nome)] || 0;
+    html += '<div class="vrow" style="flex-wrap:wrap;">'+
+      '<div class="vinfo" style="min-width:220px;">'+
+        '<div class="vname">'+esc(v.nome||'Veículo')+' — '+esc(catLabel(v.categoria))+'</div>'+
+        '<div class="vsub">'+esc(v.cidade)+(CIDADE_POLO[v.cidade]?' · '+esc(CIDADE_POLO[v.cidade].nome):'')+'</div>'+
+        '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">'+
+          manutBadge(v)+
+          (nMec ? '<span class="pill red" style="font-size:10.5px;">⚠ '+nMec+' chamado(s) mecânico(s) recente(s)</span>' : '')+
+        '</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">'+
+          '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Última revisão:<input type="date" value="'+esc(v.ultimaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;" id="ultr-'+v.id+'" data-vid="'+v.id+'" class="ultr-input"></label>'+
+          '<label style="font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">Próx. revisão:<input type="date" value="'+esc(v.proximaRevisaoISO||'')+'" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;color:var(--teal-dk);font-weight:700;" id="proxr-'+v.id+'" data-vid="'+v.id+'" class="proxr-input"></label>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:6px;min-width:180px;">'+
+        '<input type="text" placeholder="Responsável…" value="'+esc(v.manutResponsavel||'')+'" id="mresp-'+v.id+'" data-vid="'+v.id+'" class="manut-resp-input" style="border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:11.5px;">'+
+        '<select class="small-select manut-status-select" data-vid="'+v.id+'" id="mstat-'+v.id+'">'+
+          ['','Agendado','Concluído'].map(function(s){return '<option value="'+s+'"'+(s===(v.manutTarefaStatus||'')?' selected':'')+'>'+(s||'Pendente')+'</option>';}).join('')+
+        '</select>'+
+      '</div>'+
+    '</div>';
+  });
+  html += '</div>';
+
+  document.getElementById('tabContent').innerHTML = html;
+
+  var elPolo = document.getElementById('mf-polo'); if(elPolo) elPolo.addEventListener('change', function(){ state.filtrosManut.polo=this.value; state.filtrosManut.cidade=''; renderManutencaoTab(); });
+  var elCidade = document.getElementById('mf-cidade'); if(elCidade) elCidade.addEventListener('change', function(){ state.filtrosManut.cidade=this.value; renderManutencaoTab(); });
+  var elUrg = document.getElementById('mf-urg'); if(elUrg) elUrg.addEventListener('change', function(){ state.filtrosManut.urgencia=this.value; renderManutencaoTab(); });
+  var elQ = document.getElementById('mf-q'); if(elQ) elQ.addEventListener('change', function(){ state.filtrosManut.q=this.value; renderManutencaoTab(); });
+
+  document.querySelectorAll('.ultr-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__setUltimaRevisao(this.dataset.vid, this.value); });
+  });
+  document.querySelectorAll('.proxr-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__setManutencao(this.dataset.vid, this.value); });
+  });
+  document.querySelectorAll('.manut-resp-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__setManutResponsavel(this.dataset.vid, this.value); });
+  });
+  document.querySelectorAll('.manut-status-select').forEach(function(sel){
+    sel.addEventListener('change', function(){ window.__setManutTarefaStatus(this.dataset.vid, this.value); });
+  });
+}
+window.__setManutResponsavel = async function(id, nome){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.manutResponsavel = nome;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Responsável atualizado.');
+};
+window.__setManutTarefaStatus = async function(id, status){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  v.manutTarefaStatus = status;
+  addHistorico(v,'revisao','Status da manutenção → '+(status||'Pendente'),{cidade:v.cidade});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Status atualizado.');
+  renderManutencaoTab();
+};
 
 /* ===================================================================
    RELATÓRIO TRIMESTRAL + META REAL CALCULADA
