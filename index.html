@@ -3502,13 +3502,19 @@ function renderVeiculosTab(){
     html += '<div class="section-title" style="margin-top:6px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
     p.cidades.forEach(function(c){
       var proprios   = porCidade[c].proprios.slice().sort(function(a,b){
-        var catOrder = {A:0,B:1,C:2,D:3,E:4};
-        var ca = catOrder[a.categoria]??9, cb = catOrder[b.categoria]??9;
+        /* X fica junto dos A (ambos são categoria de moto) */
+        var catOrder = {A:0, X:1, B:2, C:3, D:4, E:5};
+        var ca = catOrder[a.categoria] !== undefined ? catOrder[a.categoria] : 9;
+        var cb = catOrder[b.categoria] !== undefined ? catOrder[b.categoria] : 9;
         if(ca !== cb) return ca - cb;
-        var na = parseFloat((a.nome||'').replace(/[^0-9.]/g,'')) || 0;
-        var nb = parseFloat((b.nome||'').replace(/[^0-9.]/g,'')) || 0;
+        /* extrai o ÚLTIMO número do nome (número de ordem), evitando concatenar modelo+ordem */
+        function lastNum(s){
+          var m = (s||'').match(/\d+/g);
+          return m && m.length ? parseInt(m[m.length-1], 10) : 0;
+        }
+        var na = lastNum(a.nome), nb = lastNum(b.nome);
         if(na !== nb) return na - nb;
-        return (a.nome||'').localeCompare(b.nome||'');
+        return (a.nome||'').localeCompare(b.nome||'', 'pt-BR', {numeric:true});
       });
       var emTransito = porCidade[c].emTransito;
       var total      = proprios.length + emTransito.length;
