@@ -2775,6 +2775,15 @@ window.__salvarEntrada = async function(wId, eId){
   var e = (w.entradas||[]).filter(function(x){return x.id===eId;})[0];
   if(!e) return;
 
+  /* ── Categorias editadas ───────────────────────────────────────── */
+  var catEls = document.querySelectorAll('.edit-cat-cb');
+  if(catEls.length > 0){
+    var newCats = [];
+    catEls.forEach(function(cb){ if(cb.checked) newCats.push(cb.dataset.cat); });
+    if(newCats.length === 0){ showToast('Selecione ao menos uma categoria.'); return; }
+    e.categorias = newCats;
+  }
+
   /* CDE datas — só atualiza se há checkboxes no DOM (edit form aberto com CDE) */
   var cdeDomEls = document.querySelectorAll('.edit-cde-dia');
   if(cdeDomEls.length > 0){
@@ -2997,6 +3006,23 @@ function renderWeekCard(w, numero){
           if(dIniW&&dFimW){var cur=new Date(dIniW);while(cur<=dFimW){diasSemana.push((function(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })(cur));cur.setDate(cur.getDate()+1);}}
           var bloco='<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:10px;padding:12px;margin-bottom:6px;">';
           bloco+='<div style="font-size:12px;font-weight:700;color:var(--teal-dk);margin-bottom:8px;">✏️ Editar agendamento: <b>'+esc(e.cidade)+'</b></div>';
+
+          /* ── Edição de categorias ────────────────────────────────── */
+          bloco+='<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;">';
+          bloco+='<div style="font-size:12px;font-weight:700;margin-bottom:6px;">📋 Categorias</div>';
+          bloco+='<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+          CAT_KEYS.forEach(function(k){
+            var checked = e.categorias.indexOf(k) > -1;
+            var bg  = checked ? 'var(--teal)' : '#f5f5f5';
+            var col = checked ? '#fff' : 'var(--ink-soft)';
+            bloco+='<label style="display:flex;align-items:center;gap:5px;background:'+bg+';color:'+col+';border:1px solid '+(checked?'var(--teal)':'var(--line)')+';border-radius:7px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;">'
+              +'<input type="checkbox" '+(checked?'checked':'')+' data-cat="'+k+'" class="edit-cat-cb" style="accent-color:var(--teal);">'+esc(catLabel(k))+'</label>';
+          });
+          bloco+='</div>';
+          bloco+='<div style="font-size:11px;color:var(--ink-soft);margin-top:5px;">Marque as categorias corretas — os campos de dias abaixo serão atualizados ao salvar.</div>';
+          bloco+='</div>';
+
+          /* recalcula catsCDE baseado nos checkboxes marcados (dinâmico via state da entrada) */
           if(catsCDE.length){
             bloco+='<div style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:8px;padding:8px 10px;margin-bottom:8px;">';
             bloco+='<div style="font-size:12px;font-weight:700;margin-bottom:6px;">📅 Dias por categoria C/D/E (marque todos os dias que ocorrem)</div>';
