@@ -404,6 +404,7 @@ var state = {
   semanaEditando: null,
   entradaEditando: null,
   chamadoEditando: null,
+  veiculoEditando: null,
   checkinDataSelecionada: null,
   filtrosManut: null,
   metaConfig: {},
@@ -3490,9 +3491,26 @@ function renderVeiculosTab(){
       row += '<button class="btn btn-primary" style="font-size:11.5px;padding:5px 10px;" onclick="window.__marcarChegou(\''+v.id+'\',\''+v.cidadeDestino+'\')" >✅ Chegou</button>';
     } else {
       row += '<button class="icon-btn" style="color:var(--amber-dk);border-color:var(--amber);" id="desativar-'+v.id+'" data-vid="'+v.id+'">📦 Desativar</button>';
+      row += '<button class="icon-btn" style="color:var(--teal-dk);border-color:var(--teal);" id="edit-v-'+v.id+'" data-vid="'+v.id+'">✏️ Editar</button>';
       row += '<button class="icon-btn" id="del-v-'+v.id+'" data-vid="'+v.id+'" >remover</button>';
     }
     row += '</div>';
+    /* formulário inline de edição */
+    if(state.veiculoEditando === v.id){
+      row += '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:9px;padding:12px;margin-top:8px;">';
+      row += '<div style="font-weight:700;font-size:13px;color:var(--teal-dk);margin-bottom:10px;">✏️ Editar veículo: <b>'+esc(v.nome)+'</b></div>';
+      row += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+      row += '<label style="font-size:12px;font-weight:600;">Identificação / Placa<input id="vedit-nome-'+v.id+'" type="text" value="'+esc(v.nome||'')+'" placeholder="ex: 04-PDD5517" style="display:block;width:100%;border:1px solid var(--teal);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:3px;"></label>';
+      row += '<label style="font-size:12px;font-weight:600;">Cidade<select id="vedit-cidade-'+v.id+'" style="display:block;width:100%;border:1px solid var(--teal);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:3px;">'+TODAS_CIDADES.map(function(cc){return '<option value="'+esc(cc)+'"'+(cc===v.cidade?' selected':'')+'>'+esc(cc)+'</option>';}).join('')+'</select></label>';
+      row += '</div>';
+      row += '<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:600;margin-bottom:5px;">Categoria</div><div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      CAT_KEYS.forEach(function(k){
+        var ck=v.categoria===k;
+        row+='<label style="display:flex;align-items:center;gap:5px;background:'+(ck?'var(--teal)':'#f5f5f5')+';color:'+(ck?'#fff':'var(--ink-soft)')+';border:1px solid '+(ck?'var(--teal)':'var(--line)')+';border-radius:7px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;"><input type="radio" name="vedit-cat-'+v.id+'" value="'+k+'"'+(ck?' checked':'')+' style="accent-color:var(--teal);">'+esc(catLabel(k))+'</label>';
+      });
+      row += '</div></div>';
+      row += '<div style="display:flex;gap:8px;"><button class="btn btn-primary" style="font-size:12px;" id="btn-salvar-v-'+v.id+'" data-vid="'+v.id+'">✅ Salvar</button><button class="btn btn-ghost" style="font-size:12px;" id="btn-cancelar-v-'+v.id+'" data-vid="'+v.id+'">Cancelar</button></div></div>';
+    }
     row += '</div>';
     row += renderVeiculoDetail(v);
     return row;
@@ -3507,12 +3525,12 @@ function renderVeiculosTab(){
         var ca = catOrder[a.categoria] !== undefined ? catOrder[a.categoria] : 9;
         var cb = catOrder[b.categoria] !== undefined ? catOrder[b.categoria] : 9;
         if(ca !== cb) return ca - cb;
-        /* extrai o ÚLTIMO número do nome (número de ordem), evitando concatenar modelo+ordem */
-        function lastNum(s){
-          var m = (s||'').match(/\d+/g);
-          return m && m.length ? parseInt(m[m.length-1], 10) : 0;
+        /* usa o PRIMEIRO número do nome (número de ordem: "04-PDD5517" → 4) */
+        function firstNum(s){
+          var m=(s||'').match(/\d+/g);
+          return m&&m.length?parseInt(m[0],10):0;
         }
-        var na = lastNum(a.nome), nb = lastNum(b.nome);
+        var na = firstNum(a.nome), nb = firstNum(b.nome);
         if(na !== nb) return na - nb;
         return (a.nome||'').localeCompare(b.nome||'', 'pt-BR', {numeric:true});
       });
@@ -3552,7 +3570,7 @@ function renderVeiculosTab(){
   document.querySelectorAll('.proxr-input').forEach(function(inp){
     inp.addEventListener('change', function(){ window.__setManutencao(this.dataset.vid, this.value); });
   });
-  /* desativar / reativar / remover */
+  /* desativar / reativar / remover / EDITAR veículos */
   document.querySelectorAll('[id^="desativar-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__desativarVeiculo(this.dataset.vid); });
   });
@@ -3561,6 +3579,19 @@ function renderVeiculosTab(){
   });
   document.querySelectorAll('[id^="del-v-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__excluirVeiculo(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="edit-v-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var vid = this.dataset.vid;
+      state.veiculoEditando = state.veiculoEditando === vid ? null : vid;
+      renderVeiculosTab();
+    });
+  });
+  document.querySelectorAll('[id^="btn-salvar-v-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarVeiculo(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="btn-cancelar-v-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ state.veiculoEditando = null; renderVeiculosTab(); });
   });
 }
 
@@ -3615,6 +3646,30 @@ window.__motivoVeiculo = async function(id, val){
   showToast('Motivo registrado.');
   renderVeiculosTab();
 };
+window.__salvarVeiculo = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  var nomeEl    = document.getElementById('vedit-nome-'+id);
+  var cidadeEl  = document.getElementById('vedit-cidade-'+id);
+  var catEl     = document.querySelector('input[name="vedit-cat-'+id+'"]:checked');
+  var nome   = nomeEl   ? nomeEl.value.trim()   : v.nome;
+  var cidade = cidadeEl ? cidadeEl.value          : v.cidade;
+  var cat    = catEl    ? catEl.value             : v.categoria;
+  if(!nome){ showToast('A identificação não pode estar vazia.'); return; }
+  var antigaCat = v.categoria;
+  v.nome      = nome;
+  v.cidade    = cidade;
+  v.categoria = cat;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  if(antigaCat !== cat)
+    addHistorico(v,'manutencao','Categoria alterada: '+antigaCat+' → '+cat,{cidade:cidade});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  state.veiculoEditando = null;
+  showToast('✅ Veículo atualizado.');
+  renderVeiculosTab();
+};
+
 window.__desativarVeiculo = async function(id){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v) return;
