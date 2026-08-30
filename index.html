@@ -2624,26 +2624,17 @@ function renderAgendaTab(){
   if(state.agendaView==='dia'){
     /* --- VISÃO DIÁRIA --- */
     var data = state.agendaData;
-    var examesDia = [];
-    state.semanas.forEach(function(w){
-      (w.entradas||[]).forEach(function(e){
-        /* verifica se alguma categoria CDE tem data neste dia */
-        var catsHoje = [];
-        if(e.datasExatas){
-          ['C','D','E'].forEach(function(k){
-            if(datasExatasInclui(e, k, data) && e.categorias.indexOf(k)>-1) catsHoje.push(k);
-          });
-        }
-        /* A e B: incluir se a data está dentro da semana */
-        var abHoje = e.categorias.filter(function(c){return c==='A'||c==='B';});
-        if(abHoje.length && w.inicio && w.fim){
-          var di = data.split('-').reverse().join('/');
-          if(data >= w.inicio.split('/').reverse().join('-') && data <= w.fim.split('/').reverse().join('-')) catsHoje = catsHoje.concat(abHoje);
-        }
-        if(catsHoje.length){
-          examesDia.push({cidade:e.cidade, polo:CIDADE_POLO[e.cidade], cats:catsHoje, status:e.status, semana:w.label, entrada:e});
-        }
+    /* usa examesDiaEstrito que já trata corretamente: CDE/X com datasExatas,
+       A/B com diasSelecionados explícitos, formato de data DD/MM e DD/MM/YYYY */
+    var examesDia = examesDiaEstrito(data).map(function(ex){
+      /* enriquecer com semana de origem */
+      var semanaLabel = '';
+      state.semanas.forEach(function(w){
+        (w.entradas||[]).forEach(function(e){
+          if(e.cidade===ex.cidade) semanaLabel = w.label;
+        });
       });
+      return Object.assign({}, ex, {semana: semanaLabel, entrada: null});
     });
 
     if(!examesDia.length){
