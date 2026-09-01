@@ -407,6 +407,8 @@ var state = {
   veiculoEditando: null,
   checkinDataSelecionada: null,
   filtrosManut: null,
+  diarioEditando: null,
+  filtroDiarioCidade: '',
   metaConfig: {},
   demandas: [],
   filtroPrioDemanda: 'Todas'
@@ -2293,8 +2295,22 @@ function renderPlanejamentoTab(){
 
   /* --- tabela de lançamentos do mês --- */
   if(diariosMes.length){
-    var ordenados = diariosMes.slice().sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
+    var filtroDiarioCidade = state.filtroDiarioCidade||'';
+    var ordenados = diariosMes.slice()
+      .filter(function(d){ return !filtroDiarioCidade || d.cidade===filtroDiarioCidade; })
+      .sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
     html += '<div class="section-title" style="font-size:13px;margin-top:18px;">Lançamentos de '+nomeMes(mes)+'</div>';
+    /* filtro por cidade */
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+
+      '<label style="font-size:12.5px;font-weight:600;">Filtrar por cidade:</label>'+
+      '<select id="di-filtro-cidade" style="border:1px solid var(--teal);border-radius:8px;padding:4px 10px;font-size:12.5px;">'+
+        '<option value="">(Todas as cidades)</option>'+
+        TODAS_CIDADES.filter(function(c){ return diariosMes.some(function(d){return d.cidade===c;}); }).map(function(c){
+          return '<option value="'+esc(c)+'"'+(filtroDiarioCidade===c?' selected':'')+'>'+esc(c)+'</option>';
+        }).join('')+
+      '</select>'+
+      (filtroDiarioCidade?'<button class="btn btn-ghost" style="font-size:11.5px;padding:3px 10px;" id="di-filtro-limpar">✕ Limpar filtro</button>':'')+
+    '</div>';
     html += '<div class="diario-table-wrap"><table><thead><tr>'+
       '<th>Data</th><th>Cidade</th><th>Polo</th><th>Categoria</th><th>Agendados</th><th>Realizados</th><th>Registrado por</th><th></th>'+
     '</tr></thead><tbody>'+
@@ -2308,8 +2324,25 @@ function renderPlanejamentoTab(){
         '<td class="mono">'+d.agendados+'</td>'+
         '<td class="mono">'+d.realizados+' <span style="font-size:11px;color:var(--ink-soft);">('+taxa+'%)</span></td>'+
         '<td style="font-size:11.5px;color:var(--ink-soft);">'+esc(d.registradoPor)+'</td>'+
-        '<td><button class="icon-btn" onclick="window.__excluirDiario(\''+d.id+'\')">excluir</button></td>'+
-      '</tr>';
+        '<td style="white-space:nowrap;">'+
+          '<button class="icon-btn" style="color:var(--teal-dk);border-color:var(--teal);" id="btn-edit-di-'+d.id+'" data-did="'+d.id+'">✏️</button> '+
+          '<button class="icon-btn" onclick="window.__excluirDiario(\''+d.id+'\')")>excluir</button>'+
+        '</td>'+
+      '</tr>'+
+      (state.diarioEditando===d.id ?
+        '<tr><td colspan="8" style="padding:4px 0;">'+
+          '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:9px;padding:10px 14px;">'+
+            '<div style="font-size:12px;font-weight:700;color:var(--teal-dk);margin-bottom:8px;">✏️ Editar lançamento — '+esc(d.cidade)+'</div>'+
+            '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">'+
+              '<label style="font-size:12px;font-weight:600;">Data<input type="date" id="di-edit-data-'+d.id+'" value="'+esc(d.dataISO)+'" style="display:block;border:1px solid var(--teal);border-radius:7px;padding:4px 8px;font-size:12px;margin-top:3px;"></label>'+
+              '<label style="font-size:12px;font-weight:600;">Categoria<select id="di-edit-cat-'+d.id+'" style="display:block;border:1px solid var(--teal);border-radius:7px;padding:4px 8px;font-size:12px;margin-top:3px;">'+CAT_KEYS.map(function(k){return '<option value="'+k+'"'+(k===d.categoria?' selected':'')+'>'+esc(catLabel(k))+'</option>';}).join('')+'</select></label>'+
+              '<label style="font-size:12px;font-weight:600;">Agendados<input type="number" id="di-edit-agend-'+d.id+'" value="'+d.agendados+'" min="0" style="display:block;width:70px;border:1px solid var(--teal);border-radius:7px;padding:4px 8px;font-size:12px;margin-top:3px;"></label>'+
+              '<label style="font-size:12px;font-weight:600;">Realizados<input type="number" id="di-edit-real-'+d.id+'" value="'+d.realizados+'" min="0" style="display:block;width:70px;border:1px solid var(--teal);border-radius:7px;padding:4px 8px;font-size:12px;margin-top:3px;"></label>'+
+              '<button class="btn btn-primary" style="font-size:12px;" id="btn-salvar-di-'+d.id+'" data-did="'+d.id+'">✅ Salvar</button>'+
+              '<button class="btn btn-ghost" style="font-size:12px;" id="btn-cancel-di-'+d.id+'" data-did="'+d.id+'">Cancelar</button>'+
+            '</div>'+
+          '</div>'+
+        '</td></tr>' : '');
     }).join('') +
     '</tbody></table></div>';
   }
@@ -2453,6 +2486,23 @@ function renderPlanejamentoTab(){
   /* input type=month — navegação de mês confiável */
   var mInput = document.getElementById('plan-mes-input');
   if(mInput) mInput.addEventListener('change', function(){ if(this.value){ state.mesSelecionado = this.value; renderPlanejamentoTab(); } });
+
+  /* filtro por cidade nos lançamentos */
+  var dfCidade = document.getElementById('di-filtro-cidade');
+  if(dfCidade) dfCidade.addEventListener('change', function(){ state.filtroDiarioCidade = this.value; renderPlanejamentoTab(); });
+  var dfLimpar = document.getElementById('di-filtro-limpar');
+  if(dfLimpar) dfLimpar.addEventListener('click', function(){ state.filtroDiarioCidade = ''; renderPlanejamentoTab(); });
+
+  /* editar lançamento */
+  document.querySelectorAll('[id^="btn-edit-di-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__editarDiario(this.dataset.did); });
+  });
+  document.querySelectorAll('[id^="btn-salvar-di-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarDiario(this.dataset.did); });
+  });
+  document.querySelectorAll('[id^="btn-cancel-di-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ state.diarioEditando=null; renderPlanejamentoTab(); });
+  });
 }
 
 window.__mesAnterior = function(){ state.mesSelecionado = mesAnterior(state.mesSelecionado); renderPlanejamentoTab(); };
@@ -2483,6 +2533,73 @@ window.__addDiario = async function(){
   showToast('Lançamento registrado — '+esc(cidade)+' / '+esc(catLabel(cat))+' em '+dataParaDisplay(dataISO));
   state.mesSelecionado = dataParaMes(dataISO);
   renderPlanejamentoTab();
+};
+
+/* ── Lançamento diário — editar ───────────────────────────────────── */
+window.__editarDiario = function(id){
+  state.diarioEditando = state.diarioEditando===id ? null : id;
+  renderPlanejamentoTab();
+};
+window.__salvarDiario = async function(id){
+  var d = state.diarios.filter(function(x){return x.id===id;})[0];
+  if(!d) return;
+  var dataEl  = document.getElementById('di-edit-data-'+id);
+  var catEl   = document.getElementById('di-edit-cat-'+id);
+  var agendEl = document.getElementById('di-edit-agend-'+id);
+  var realEl  = document.getElementById('di-edit-real-'+id);
+  if(!dataEl||!catEl||!agendEl||!realEl) return;
+  d.dataISO    = dataEl.value;
+  d.categoria  = catEl.value;
+  d.agendados  = parseInt(agendEl.value,10)||0;
+  d.realizados = parseInt(realEl.value,10)||0;
+  d.editadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  await storageSet('diarios-lista', JSON.stringify(state.diarios), true);
+  state.diarioEditando = null;
+  showToast('✅ Lançamento atualizado.');
+  renderPlanejamentoTab();
+};
+
+/* ── Veículo — motivo OUTRO (observação) ─────────────────────────── */
+window.__salvarMotivoOutro = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  var inp = document.getElementById('outro-obs-'+id);
+  if(!inp) return;
+  v.motivoOutroDescricao = inp.value.trim();
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  addHistorico(v,'manutencao','Motivo real (Outro): '+v.motivoOutroDescricao,{cidade:v.cidade});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ Observação salva.');
+  renderVeiculosTab();
+};
+
+/* ── Veículo — foto na Locavel ────────────────────────────────────── */
+window.__uploadFotoLocavel = function(id){
+  var inp = document.getElementById('loc-foto-input-'+id);
+  if(!inp || !inp.files || !inp.files[0]) return;
+  var file = inp.files[0];
+  var reader = new FileReader();
+  reader.onload = async function(ev){
+    var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+    if(!v) return;
+    v.locavelFoto = ev.target.result; /* base64 */
+    v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+    v.atualizadoEm  = nowStr();
+    addHistorico(v,'manutencao','Foto registrada na Locavel',{cidade:v.cidade});
+    await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+    showToast('📷 Foto salva.');
+    renderVeiculosTab();
+  };
+  reader.readAsDataURL(file);
+};
+window.__removerFotoLocavel = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  delete v.locavelFoto;
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Foto removida.');
+  renderVeiculosTab();
 };
 
 window.__excluirDiario = async function(id){
@@ -3475,6 +3592,26 @@ function renderVeiculosTab(){
               '</select>'+
               (v.motivoDeslocamento ? '<span style="font-size:11.5px;color:var(--red);font-weight:600;">⚠ '+esc(v.motivoDeslocamento)+'</span>' : '')+
             '</div>'+
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
+              '<span style="font-size:12px;color:var(--ink-soft);font-weight:600;">🧑‍✈️ Motorista:</span>'+
+              '<input type="text" placeholder="Nome do motorista…" value="'+esc(v.motoristaDeslocamento||'')+'" id="mot-desl-'+v.id+'" style="flex:1;min-width:130px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12.5px;">'+
+              '<button class="btn" style="font-size:11.5px;padding:4px 10px;" id="btn-salvar-mot-desl-'+v.id+'" data-vid="'+v.id+'">💾 Salvar</button>'+
+              (v.motoristaDeslocamento ? '<span style="font-size:11.5px;color:var(--teal-dk);font-weight:600;">'+esc(v.motoristaDeslocamento)+'</span>' : '')+
+            '</div>'+
+          '</div>' : '')+
+        /* Bloco OUTRO — caixa de observação + sugestão chamado */
+        (v.motivo==='Outro' ?
+          '<div style="background:#F3F4F6;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:4px;">'+
+            '<div style="font-weight:700;color:var(--ink);margin-bottom:6px;">📝 Descreva o motivo real</div>'+
+            '<textarea id="outro-obs-'+v.id+'" rows="2" placeholder="Ex.: motorista faltou, clima adverso, problema no pátio…" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12.5px;resize:vertical;">'+esc(v.motivoOutroDescricao||'')+'</textarea>'+
+            '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">'+
+              '<button class="btn" style="font-size:11.5px;padding:4px 12px;" id="btn-outro-obs-'+v.id+'" data-vid="'+v.id+'">💾 Salvar observação</button>'+
+              (((v.motivoOutroDescricao||'').toLowerCase().indexOf('equipamento')>-1) ?
+                '<div style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:7px;padding:4px 10px;font-size:11.5px;color:var(--amber-dk);">'+
+                  '⚠️ Falta de equipamento detectada. '+
+                  '<a href="#" onclick="window.__setTab(\'chamados\');return false;" style="color:var(--teal-dk);font-weight:700;text-decoration:underline;">Abrir chamado →</a>'+
+                '</div>' : '')+
+            '</div>'+
           '</div>' : '')+
         /* Bloco Locavel */
         (v.motivo===LOCAVEL_NOME ?
@@ -3493,7 +3630,19 @@ function renderVeiculosTab(){
               '<textarea id="loc-obs-'+v.id+'" placeholder="Descreva o problema do veículo…" rows="2" '+
               'style="display:block;width:100%;border:1px solid #FFD700;border-radius:7px;padding:5px 8px;font-size:12px;background:#fff;resize:vertical;margin-top:3px;">'+esc(v.locavelObs||'')+'</textarea>'+
             '</label>'+
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">'+
             '<button class="btn" style="font-size:12px;padding:4px 12px;background:var(--amber-soft);color:#856404;border:1px solid #FFD700;" id="btn-loc-obs-'+v.id+'" data-vid="'+v.id+'">💾 Salvar observação e motorista</button>'+
+            /* Foto da avaria */
+            '<label style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;color:#3355aa;">'+
+              '📷 Carregar foto'+
+              '<input type="file" accept="image/*" id="loc-foto-input-'+v.id+'" data-vid="'+v.id+'" style="display:none;" class="loc-foto-input">'+
+            '</label>'+
+            '</div>'+
+            (v.locavelFoto ?
+              '<div style="margin-top:8px;">'+
+                '<img src="'+v.locavelFoto+'" alt="Foto da avaria" style="max-width:220px;max-height:160px;border-radius:8px;border:1px solid var(--line);">'+
+                '<br><button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;margin-top:4px;" id="btn-rm-foto-'+v.id+'" data-vid="'+v.id+'">🗑 Remover foto</button>'+
+              '</div>' : '')+
             '<hr style="border:none;border-top:1px dashed #FFD700;margin:8px 0;">'+
             /* Destino quando sair */
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">'+
@@ -3601,6 +3750,17 @@ function renderVeiculosTab(){
   document.querySelectorAll('[id^="btn-loc-obs-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__salvarLocavelObs(this.dataset.vid); });
   });
+  /* Motivo OUTRO — salvar observação */
+  document.querySelectorAll('[id^="btn-outro-obs-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarMotivoOutro(this.dataset.vid); });
+  });
+  /* Foto na Locavel */
+  document.querySelectorAll('.loc-foto-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__uploadFotoLocavel(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="btn-rm-foto-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__removerFotoLocavel(this.dataset.vid); });
+  });
 
   /* addEventListener for revision inputs — avoids onclick string escaping */
   document.querySelectorAll('.ultr-input').forEach(function(inp){
@@ -3610,6 +3770,9 @@ function renderVeiculosTab(){
     inp.addEventListener('change', function(){ window.__setManutencao(this.dataset.vid, this.value); });
   });
   /* desativar / reativar / remover / EDITAR veículos */
+  document.querySelectorAll('[id^="btn-salvar-mot-desl-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarMotoristaDeslocamento(this.dataset.vid); });
+  });
   document.querySelectorAll('[id^="desativar-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__desativarVeiculo(this.dataset.vid); });
   });
@@ -3807,6 +3970,21 @@ window.__setDestino = async function(id, cidade){
   if(cidade && cidade!==antes) addHistorico(v, 'deslocamento', 'Deslocamento definido → '+cidade+(v.motivoDeslocamento?' ('+v.motivoDeslocamento+')':''), {cidadeOrigem:v.cidade, cidadeDestino:cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Destino: '+esc(cidade)+'.');
+  renderVeiculosTab();
+};
+
+window.__salvarMotoristaDeslocamento = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  var inp = document.getElementById('mot-desl-'+id);
+  if(!inp) return;
+  var nome = inp.value.trim();
+  v.motoristaDeslocamento = nome;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  if(nome) addHistorico(v,'deslocamento','Motorista do deslocamento: '+nome,{cidade:v.cidade, cidadeDestino:v.cidadeDestino||''});
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('✅ Motorista salvo: '+esc(nome||'(removido)'));
   renderVeiculosTab();
 };
 
