@@ -355,6 +355,7 @@ var DEFAULT_CAT_LABELS = {A:'Categoria A',B:'Categoria B',C:'Categoria C',D:'Cat
 var PAPEIS = ['Coordenador','Gerente','Supervisor','Líder de Operação','Suporte'];
 var PRIORIDADES = ['Baixa','Média','Alta','Crítica'];
 var STATUS_CHAMADO = ['Aberto','Em andamento','Resolvido','Cancelado'];
+var TIPOS_VEICULO = ['Próprio', 'Locado / Alugado', 'Apoio (gestor/suporte)'];
 var TIPOS_PROBLEMA = ['Problema mecânico','Infraestrutura do pátio de exame','Equipamento eletrônico embarcado','Falha de sistema/software','Outro'];
 var STATUS_PLAN = ['Planejado','Em execução','Concluído','Atrasado'];
 var MOTIVOS_INTERRUPCAO = ['Falha operacional','Veículo quebrado','Cancelamento pelo Detran','Outro'];
@@ -395,6 +396,8 @@ var state = {
   checkins: [],
   mesSelecionado: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
   relMes: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
+  relFiltCat: '',
+  relFiltCidade: '',
   formOpen: false,
   alertasFechados: false,
   planAcesso: [],
@@ -1168,6 +1171,131 @@ window.__setManutTarefaStatus = async function(id, status){
 
 
 
+function renderGestaoTab(){
+  var hoje = hojeLocal();
+  var mes  = state.relMes || mesRelAtual();
+
+  /* ── Escala de fim de semana ─────────────────────────────────────── */
+  /* Coleta todos os sábados e domingos do mês com exames explícitos */
+  var fimSemMes = [];
+  state.semanas.forEach(function(w){
+    (w.entradas||[]).forEach(function(e){
+      var dias = (e.diasSelecionados||[]).concat(
+        Object.values(e.datasExatas||{}).reduce(function(a,v){
+          return a.concat(Array.isArray(v)?v:(v?[v]:[]));
+        },[])
+      );
+      dias.forEach(function(d){
+        if(!d||!d.startsWith(mes)) return;
+        var dow = new Date(d+'T12:00:00').getDay();
+        if(dow!==6&&dow!==0) return;
+        if(!fimSemMes.find(function(x){return x.data===d;} )){
+          fimSemMes.push({data:d, tipo:dow===6?'Sábado':'Domingo', cidades:[]});
+        }
+        fimSemMes.find(function(x){return x.data===d;}).cidades.push(e.cidade);
+      });
+    });
+  });
+  fimSemMes.sort(function(a,b){return a.data.localeCompare(b.data);});
+
+  /* ── Indicadores de gestão ──────────────────────────────────────── */
+  var veicsAtivos   = state.veiculos.filter(function(v){return v.ativo!==false && v.tipo!=='Apoio (gestor/suporte)';});
+  var veicsApoio    = state.veiculos.filter(function(v){return v.ativo!==false && v.tipo==='Apoio (gestor/suporte)';});
+  var veicsLocados  = veicsAtivos.filter(function(v){return v.tipo==='Locado / Alugado';});
+  var veicsIndisp   = veicsAtivos.filter(function(v){return v.status==='Indisponível';});
+  var chamadosAbertos = state.chamados.filter(function(c){return c.status==='Aberto'||c.status==='Em andamento';});
+  var chamadosMec   = chamadosAbertos.filter(function(c){return c.tipoProblema==='Problema mecânico';});
+  var diariosM      = state.diarios.filter(function(d){return d.mes===mes;});
+  var totalAgend    = diariosM.reduce(function(s,d){return s+d.agendados;},0);
+  var totalReal     = diariosM.reduce(function(s,d){return s+d.realizados;},0);
+  var taxaProd      = totalAgend>0?Math.round(totalReal/totalAgend*100):0;
+
+  /* usuários ativos */
+  var nUsuarios = state.usuarios ? state.usuarios.length : 0;
+
+  var html = '<div class="section-title">📋 Gestão — '+nomeMes(mes)+'</div>';
+
+  /* KPIs */
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:18px;">';
+  [
+    {i:'🚐',l:'Frota operacional',v:veicsAtivos.length,       col:'var(--teal-dk)'},
+    {i:'🔑',l:'Locados',           v:veicsLocados.length,      col:'#3355aa'},
+    {i:'🚗',l:'Apoio',             v:veicsApoio.length,        col:'#3355aa'},
+    {i:'🔴',l:'Indisponíveis',     v:veicsIndisp.length,       col:'var(--red)'},
+    {i:'🔧',l:'Chamados abertos',  v:chamadosAbertos.length,   col:'var(--amber-dk)'},
+    {i:'⚙️',l:'Chamados mecânicos',v:chamadosMec.length,       col:'var(--red)'},
+    {i:'📊',l:'Taxa produção',     v:taxaProd+'%',              col:taxaProd>=90?'var(--green)':taxaProd>=60?'var(--amber)':'var(--red)'},
+    {i:'👥',l:'Usuários do sistema',v:nUsuarios,               col:'var(--teal-dk)'},
+  ].forEach(function(k){
+    html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;">'
+      + '<div style="font-size:14px;margin-bottom:4px;">'+k.i+'</div>'
+      + '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:4px;">'+k.l+'</div>'
+      + '<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:20px;color:'+k.col+';">'+k.v+'</div>'
+      + '</div>';
+  });
+  html += '</div>';
+
+  /* Escala de fim de semana */
+  html += '<div class="rel-bloco" style="margin-bottom:14px;"><div class="rel-head">📅 Fins de semana com exames — '+nomeMes(mes)+'</div><div class="rel-body">';
+  if(!fimSemMes.length){
+    html += '<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:12px;">Nenhum fim de semana agendado para '+nomeMes(mes)+'.</div>';
+  } else {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">';
+    fimSemMes.forEach(function(fs){
+      var isSab = fs.tipo==='Sábado';
+      var cor   = isSab?'#856404':'#5c3d8f';
+      var bg    = isSab?'#FFF3CD':'#f3e8ff';
+      var brd   = isSab?'#FFD700':'#c4a0e8';
+      html += '<div style="background:'+bg+';border:1px solid '+brd+';border-radius:10px;padding:10px 12px;">'
+        + '<div style="font-weight:700;color:'+cor+';margin-bottom:5px;">'+(isSab?'🟡':'🟠')+' '+fs.tipo+' '+esc(dataParaDisplay(fs.data))+'</div>'
+        + '<div style="font-size:12px;color:var(--ink-soft);">'+[...new Set(fs.cidades)].map(esc).join(', ')+'</div>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  /* Chamados por tipo */
+  html += '<div class="rel-bloco" style="margin-bottom:14px;"><div class="rel-head">🎫 Chamados abertos por tipo</div><div class="rel-body">';
+  if(!chamadosAbertos.length){
+    html += '<div style="color:var(--green);font-weight:600;text-align:center;padding:10px;">✅ Nenhum chamado aberto.</div>';
+  } else {
+    var porTipoCh = {};
+    chamadosAbertos.forEach(function(c){
+      porTipoCh[c.tipoProblema] = (porTipoCh[c.tipoProblema]||0)+1;
+    });
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    Object.entries(porTipoCh).sort(function(a,b){return b[1]-a[1];}).forEach(function(e){
+      html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:9px;padding:8px 14px;text-align:center;">'
+        + '<div style="font-size:20px;font-weight:700;color:var(--red);">'+e[1]+'</div>'
+        + '<div style="font-size:11.5px;color:var(--ink-soft);">'+esc(e[0])+'</div>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  /* Frota locada — alerta custo */
+  if(veicsLocados.length){
+    html += '<div class="rel-bloco"><div class="rel-head">🔑 Veículos locados — visão gestão</div><div class="rel-body">';
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">'
+      + '<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:7px 10px;text-align:left;">Veículo</th><th style="padding:7px 10px;">Cat.</th><th style="padding:7px 10px;">Cidade</th><th style="padding:7px 10px;">Status</th></tr></thead><tbody>';
+    veicsLocados.forEach(function(v, idx){
+      var bg = idx%2===0?'#fafafa':'#fff';
+      html += '<tr style="background:'+bg+';">'
+        + '<td style="padding:7px 10px;font-weight:600;">'+esc(v.nome||'Veículo')+'</td>'
+        + '<td style="padding:7px 10px;text-align:center;"><span class="cat-tag">'+esc(catLabel(v.categoria))+'</span></td>'
+        + '<td style="padding:7px 10px;">'+esc(v.cidade)+'</td>'
+        + '<td style="padding:7px 10px;"><span class="pill '+(v.status==='Disponível'?'green':'red')+'">'+esc(v.status)+'</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '</div></div>';
+  }
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
 function renderAdminTab(){
   if(!state.sessao || !state.sessao.isAdmin){ document.getElementById('tabContent').innerHTML='<div class="empty card">Acesso restrito ao administrador.</div>'; return; }
   var pendentes  = state.usuarios.filter(function(u){ return u.status==='pendente'; });
@@ -1304,6 +1432,7 @@ var TABS = [
   {id:'veiculos',     label:'Veículos'},
   {id:'relatorio',    label:'📊 Relatório'},
   {id:'manutencao',   label:'🔧 Manutenção'},
+  {id:'gestao',       label:'📋 Gestão', adminOnly: true},
   {id:'admin',        label:'👥 Usuários', adminOnly: true}
 ];
 function podePlanejar(){
@@ -1336,6 +1465,7 @@ function setTab(id){
   else if(id==='veiculos')     renderVeiculosTab();
   else if(id==='relatorio')    renderRelatorioTab();
   else if(id==='manutencao')   renderManutencaoTab();
+  else if(id==='gestao')       renderGestaoTab();
   else if(id==='admin')        renderAdminTab();
 }
 
@@ -3459,32 +3589,40 @@ window.__entradaDetalhes = async function(wId, eId, val){
    VEÍCULOS
 =================================================================== */
 function renderVeiculosTab(){
-  /* Frota ativa vs inativa */
-  var ativos   = state.veiculos.filter(function(v){ return v.ativo !== false; });
-  var inativos = state.veiculos.filter(function(v){ return v.ativo === false; });
+  /* Frota: ativa vs inativa; operacional vs apoio */
+  var ativosAll = state.veiculos.filter(function(v){ return v.ativo !== false; });
+  var inativos  = state.veiculos.filter(function(v){ return v.ativo === false; });
+  var ativos    = ativosAll.filter(function(v){ return v.tipo !== 'Apoio (gestor/suporte)'; });
+  var apoio     = ativosAll.filter(function(v){ return v.tipo === 'Apoio (gestor/suporte)'; });
 
   var totalVeic = ativos.length;
   var dispVeic  = ativos.filter(function(v){ return v.status==='Disponível'; }).length;
   var indispVeic = totalVeic - dispVeic;
+  var proprios  = ativos.filter(function(v){ return !v.tipo||v.tipo==='Próprio'; }).length;
+  var locados   = ativos.filter(function(v){ return v.tipo==='Locado / Alugado'; }).length;
 
   var porCat = {};
-  CAT_KEYS.forEach(function(k){ porCat[k]={total:0,disp:0,indisp:0}; });
+  CAT_KEYS.forEach(function(k){ porCat[k]={total:0,disp:0,indisp:0,loc:0}; });
   ativos.forEach(function(v){
     if(!porCat[v.categoria]) return;
     porCat[v.categoria].total++;
     if(v.status==='Disponível') porCat[v.categoria].disp++;
     else porCat[v.categoria].indisp++;
+    if(v.tipo==='Locado / Alugado') porCat[v.categoria].loc++;
   });
 
   var frotaHtml = '<div class="card" style="margin-bottom:14px;">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'
-      + '<div><div class="section-title" style="margin:0;">🚐 Frota ativa</div>'
-      + '<div style="font-size:11.5px;color:var(--ink-soft);">Contagem real — veículos ativos em operação</div></div>'
+      + '<div><div class="section-title" style="margin:0;">🚐 Frota operacional ativa</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);">Próprios + Locados em operação. Apoio listado separado.</div></div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
         + '<span class="pill green">✅ '+dispVeic+' disponíveis</span>'
-        + (indispVeic?'<span class="pill red">🔴 '+indispVeic+' indisponíveis</span>':'')
-        + '<span class="pill teal" style="font-weight:700;">Total ativo: '+totalVeic+'</span>'
-        + (inativos.length?'<span class="pill gray">+'+inativos.length+' inativos</span>':'')
+        + (indispVeic?'<span class="pill red">🔴 '+indispVeic+' indisp.</span>':'')
+        + '<span class="pill teal" style="font-weight:700;">Total: '+totalVeic+'</span>'
+        + (proprios?'<span class="pill gray">🏠 '+proprios+' próprios</span>':'')
+        + (locados?'<span class="pill gray">🔑 '+locados+' locados</span>':'')
+        + (apoio.length?'<span class="pill" style="background:#f0f4ff;color:#3355aa;border:1px solid #9ab0e0;">🚗 '+apoio.length+' apoio</span>':'')
+        + (inativos.length?'<span class="pill gray">📦 '+inativos.length+' inativos</span>':'')
       + '</div>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">';
@@ -3502,26 +3640,34 @@ function renderVeiculosTab(){
       + '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:5px;">'
         + '<span style="color:#2E6B49;font-weight:600;">'+c.disp+' disp.</span>'
         + (c.indisp?' · <span style="color:var(--red);font-weight:600;">'+c.indisp+' indisp.</span>':'')
+        + (c.loc?' · 🔑'+c.loc:'')
       + '</div>'
       + '<div style="background:var(--line);border-radius:4px;height:5px;overflow:hidden;">'
         + '<div style="background:'+barCor+';height:100%;width:'+pct+'%;border-radius:4px;transition:.3s;"></div>'
       + '</div>'
     + '</div>';
   });
-
   frotaHtml += '</div>';
 
+  if(apoio.length){
+    frotaHtml += '<div style="margin-top:10px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:9px;padding:10px 12px;">'
+      + '<div style="font-size:12px;font-weight:700;color:#3355aa;margin-bottom:6px;">🚗 Veículos de apoio ('+apoio.length+')</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+      + apoio.map(function(v){
+          return '<span style="background:#fff;border:1px solid #9ab0e0;border-radius:7px;padding:3px 10px;font-size:12px;color:#3355aa;">'
+            + esc(v.nome||'Veículo')+' · '+esc(v.cidade)+' <span style="font-size:10.5px;opacity:.6;">('+esc(v.status)+')</span></span>';
+        }).join('')+'</div></div>';
+  }
+
   if(inativos.length){
-    frotaHtml += '<details style="margin-top:10px;">'
-      + '<summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-soft);">📦 '+inativos.length+' veículo(s) inativo(s) (sublocados devolvidos/substituídos)</summary>'
+    frotaHtml += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-soft);">📦 '+inativos.length+' veículo(s) inativo(s)</summary>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">'
       + inativos.map(function(v){
           return '<span style="background:#f0f0f0;border:1px solid var(--line);border-radius:7px;padding:3px 10px;font-size:12px;color:var(--ink-soft);">'
             + esc(v.nome||'Veículo')+' · '+esc(catLabel(v.categoria))+' · '+esc(v.cidade)
             + ' <button style="font-size:10px;color:var(--teal-dk);background:none;border:none;cursor:pointer;font-weight:700;text-decoration:underline;" id="reativar-'+v.id+'" data-vid="'+v.id+'">↩ Reativar</button>'
           + '</span>';
-        }).join('')
-      + '</div></details>';
+        }).join('')+'</div></details>';
   }
 
   frotaHtml += '</div>';
@@ -3533,6 +3679,7 @@ function renderVeiculosTab(){
       '<label>Cidade<select id="v-cidade"><option value="">Selecione</option>'+ TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('') +'</select></label>'+
       '<label>Categoria atendida<select id="v-cat">'+ CAT_KEYS.map(function(k){return '<option value="'+k+'">'+esc(catLabel(k))+'</option>';}).join('') +'</select></label>'+
       '<label>Identificação<input id="v-nome" type="text" placeholder="Placa / nº da unidade"></label>'+
+      '<label>Tipo<select id="v-tipo">'+ TIPOS_VEICULO.map(function(t){return '<option value="'+esc(t)+'">'+esc(t)+'</option>';}).join('') +'</select></label>'+
       '<button class="btn btn-primary" onclick="window.__addVeiculo()">+ Adicionar</button>'+
     '</div>'+
   '</div>';
@@ -3691,6 +3838,12 @@ function renderVeiculosTab(){
       row += '<label style="font-size:12px;font-weight:600;">Identificação / Placa<input id="vedit-nome-'+v.id+'" type="text" value="'+esc(v.nome||'')+'" placeholder="ex: 04-PDD5517" style="display:block;width:100%;border:1px solid var(--teal);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:3px;"></label>';
       row += '<label style="font-size:12px;font-weight:600;">Cidade<select id="vedit-cidade-'+v.id+'" style="display:block;width:100%;border:1px solid var(--teal);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:3px;">'+TODAS_CIDADES.map(function(cc){return '<option value="'+esc(cc)+'"'+(cc===v.cidade?' selected':'')+'>'+esc(cc)+'</option>';}).join('')+'</select></label>';
       row += '</div>';
+      row += '<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:600;margin-bottom:5px;">Tipo de veículo</div><div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      TIPOS_VEICULO.forEach(function(t){
+        var ck=v.tipo===t||(t==='Próprio'&&!v.tipo);
+        row+='<label style="display:flex;align-items:center;gap:5px;background:'+(ck?'#3355aa':'#f5f5f5')+';color:'+(ck?'#fff':'var(--ink-soft)')+';border:1px solid '+(ck?'#3355aa':'var(--line)')+';border-radius:7px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;"><input type="radio" name="vedit-tipo-'+v.id+'" value="'+esc(t)+'"'+(ck?' checked':'')+' style="accent-color:#3355aa;">'+esc(t)+'</label>';
+      });
+      row += '</div></div>';
       row += '<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:600;margin-bottom:5px;">Categoria</div><div style="display:flex;flex-wrap:wrap;gap:6px;">';
       CAT_KEYS.forEach(function(k){
         var ck=v.categoria===k;
@@ -3801,8 +3954,9 @@ window.__addVeiculo = async function(){
   var cidade = document.getElementById('v-cidade').value;
   var categoria = document.getElementById('v-cat').value;
   var nome = document.getElementById('v-nome').value.trim();
+  var tipo = (document.getElementById('v-tipo')||{}).value || 'Próprio';
   if(!cidade){ showToast('Selecione a cidade.'); return; }
-  state.veiculos.push({id:'V'+Date.now().toString(36).toUpperCase(), cidade:cidade, categoria:categoria, nome:nome, status:'Disponível', ativo:true, motivo:'', atualizadoPor:state.perfil.nome+' ('+state.perfil.papel+')', atualizadoEm:nowStr()});
+  state.veiculos.push({id:'V'+Date.now().toString(36).toUpperCase(), cidade:cidade, categoria:categoria, nome:nome, tipo:tipo, status:'Disponível', ativo:true, motivo:'', atualizadoPor:state.perfil.nome+' ('+state.perfil.papel+')', atualizadoEm:nowStr()});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Veículo adicionado.');
   renderVeiculosTab();
@@ -3854,14 +4008,17 @@ window.__salvarVeiculo = async function(id){
   var nomeEl    = document.getElementById('vedit-nome-'+id);
   var cidadeEl  = document.getElementById('vedit-cidade-'+id);
   var catEl     = document.querySelector('input[name="vedit-cat-'+id+'"]:checked');
+  var tipoEl    = document.querySelector('input[name="vedit-tipo-'+id+'"]:checked');
   var nome   = nomeEl   ? nomeEl.value.trim()   : v.nome;
   var cidade = cidadeEl ? cidadeEl.value          : v.cidade;
   var cat    = catEl    ? catEl.value             : v.categoria;
+  var tipo   = tipoEl   ? tipoEl.value            : (v.tipo||'Próprio');
   if(!nome){ showToast('A identificação não pode estar vazia.'); return; }
   var antigaCat = v.categoria;
   v.nome      = nome;
   v.cidade    = cidade;
   v.categoria = cat;
+  v.tipo      = tipo;
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm  = nowStr();
   if(antigaCat !== cat)
@@ -4524,6 +4681,156 @@ function renderRelatorioTab(){
   '</div>';
 
   /* ============================================================
+     BLOCO 0 — PRODUÇÃO MENSAL (agendados / realizados / falta)
+  ============================================================ */
+  /* filtros */
+  var relFiltCat    = state.relFiltCat    || '';
+  var relFiltCidade = state.relFiltCidade || '';
+
+  var diariosBase = diariosT.filter(function(d){
+    if(relFiltCat    && d.categoria !== relFiltCat) return false;
+    if(relFiltCidade && d.cidade    !== relFiltCidade) return false;
+    return true;
+  });
+
+  var prodAgend = diariosBase.reduce(function(s,d){return s+d.agendados;},0);
+  var prodReal  = diariosBase.reduce(function(s,d){return s+d.realizados;},0);
+  var prodFalta = Math.max(0, prodAgend - prodReal);
+  var prodTaxa  = prodAgend > 0 ? Math.round(prodReal/prodAgend*100) : 0;
+  var barCol    = prodTaxa>=90?'var(--green)':prodTaxa>=60?'var(--amber)':'var(--red)';
+
+  html += '<div class="rel-bloco" style="margin-bottom:14px;">';
+  html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+  html += '<span>📈 Produção mensal — '+nomeMes(mes)+'</span>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+  html += '<select id="rel-filt-cat" style="border:1px solid var(--teal);border-radius:7px;padding:3px 8px;font-size:12px;">'+
+    '<option value="">Todas cats.</option>'+
+    CAT_KEYS.map(function(k){return '<option value="'+k+'"'+(relFiltCat===k?' selected':'')+'>'+esc(catLabel(k))+'</option>';}).join('')+
+  '</select>';
+  html += '<select id="rel-filt-cidade" style="border:1px solid var(--teal);border-radius:7px;padding:3px 8px;font-size:12px;">'+
+    '<option value="">Todas cidades</option>'+
+    TODAS_CIDADES.filter(function(c){return diariosT.some(function(d){return d.cidade===c;});}).map(function(c){
+      return '<option value="'+esc(c)+'"'+(relFiltCidade===c?' selected':'')+'>'+esc(c)+'</option>';
+    }).join('')+
+  '</select>';
+  if(relFiltCat||relFiltCidade) html += '<button class="btn btn-ghost" style="font-size:11.5px;padding:2px 8px;" id="rel-filt-limpar">✕ Limpar</button>';
+  html += '</div></div>';
+
+  html += '<div class="rel-body">';
+  /* KPIs */
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+  [
+    {l:'📋 Agendados',  v:prodAgend, col:'var(--teal-dk)'},
+    {l:'✅ Realizados', v:prodReal,  col:'#2E6B49'},
+    {l:'❌ Não realiz.',v:prodFalta, col:'var(--red)'},
+    {l:'📊 Taxa',       v:prodTaxa+'%', col:barCol},
+  ].forEach(function(k){
+    html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;">'+
+      '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:4px;">'+k.l+'</div>'+
+      '<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:22px;color:'+k.col+';">'+k.v+'</div>'+
+    '</div>';
+  });
+  html += '</div>';
+  /* barra */
+  html += '<div style="background:var(--line);border-radius:4px;height:8px;margin-bottom:12px;"><div style="background:'+barCol+';height:100%;width:'+prodTaxa+'%;border-radius:4px;transition:.4s;"></div></div>';
+
+  /* tabela por cidade */
+  var cidadesRel = TODAS_CIDADES.filter(function(c){ return (!relFiltCidade||c===relFiltCidade) && diariosBase.some(function(d){return d.cidade===c;}); });
+  if(cidadesRel.length){
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:500px;">';
+    html += '<thead><tr style="background:var(--teal);color:#fff;">';
+    html += '<th style="padding:7px 10px;text-align:left;">Cidade</th><th style="padding:7px 10px;text-align:left;">Polo</th>';
+    if(!relFiltCat) CAT_KEYS.forEach(function(k){ html += '<th style="padding:7px 10px;text-align:center;">'+esc(catLabel(k))+'</th>'; });
+    html += '<th style="padding:7px 10px;text-align:center;">Agend.</th><th style="padding:7px 10px;text-align:center;">Realiz.</th><th style="padding:7px 10px;text-align:center;">Falta</th><th style="padding:7px 10px;text-align:center;">Taxa</th>';
+    html += '</tr></thead><tbody>';
+    cidadesRel.forEach(function(c, idx){
+      var dd = diariosBase.filter(function(d){return d.cidade===c;});
+      var ag = dd.reduce(function(s,d){return s+d.agendados;},0);
+      var re = dd.reduce(function(s,d){return s+d.realizados;},0);
+      var fa = Math.max(0,ag-re);
+      var tx = ag>0?Math.round(re/ag*100):0;
+      var tc = tx>=90?'var(--green)':tx>=60?'var(--amber)':'var(--red)';
+      html += '<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">';
+      html += '<td style="padding:7px 10px;font-weight:600;">'+esc(c)+'</td>';
+      html += '<td style="padding:7px 10px;font-size:11.5px;color:var(--ink-soft);">'+(CIDADE_POLO[c]?esc(CIDADE_POLO[c].nome):'')+'</td>';
+      if(!relFiltCat) CAT_KEYS.forEach(function(k){
+        var ddk=dd.filter(function(d){return d.categoria===k;});
+        var agk=ddk.reduce(function(s,d){return s+d.agendados;},0);
+        var rek=ddk.reduce(function(s,d){return s+d.realizados;},0);
+        html += '<td style="padding:7px 10px;text-align:center;font-size:11.5px;">'+(agk?rek+'/'+agk:'—')+'</td>';
+      });
+      html += '<td style="padding:7px 10px;text-align:center;">'+ag+'</td>';
+      html += '<td style="padding:7px 10px;text-align:center;font-weight:600;color:#2E6B49;">'+re+'</td>';
+      html += '<td style="padding:7px 10px;text-align:center;color:var(--red);font-weight:600;">'+fa+'</td>';
+      html += '<td style="padding:7px 10px;text-align:center;font-weight:700;color:'+tc+';">'+tx+'%</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div style="text-align:center;color:var(--ink-soft);padding:16px;font-size:13px;">Nenhum lançamento encontrado para os filtros selecionados.</div>';
+  }
+  html += '</div></div>';
+
+  /* ============================================================
+     BLOCO 0B — DIAS DE CLASSIFICAÇÃO POR CIDADE (mês inteiro)
+  ============================================================ */
+  html += '<div class="rel-bloco" style="margin-bottom:14px;">';
+  html += '<div class="rel-head">📅 Dias de classificação por cidade — '+nomeMes(mes)+'</div>';
+  html += '<div class="rel-body">';
+  html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">CDE e X conforme agendamento semanal cadastrado para '+nomeMes(mes)+'.</div>';
+
+  var mesAno = mes.split('-'); var anoN=parseInt(mesAno[0]), mesN=parseInt(mesAno[1]);
+  var diasClassif = {}; /* cidade → {cat → [dias ISOs]} */
+  TODAS_CIDADES.forEach(function(c){ diasClassif[c]={}; });
+  state.semanas.forEach(function(w){
+    (w.entradas||[]).forEach(function(e){
+      if(!diasClassif[e.cidade]) return;
+      ['C','D','E','X'].forEach(function(k){
+        if((e.categorias||[]).indexOf(k)===-1) return;
+        var val = e.datasExatas && e.datasExatas[k];
+        if(!val) return;
+        var arr = Array.isArray(val) ? val : [val];
+        arr.forEach(function(d){
+          if(!d || !d.startsWith(mes)) return; /* só do mês selecionado */
+          if(!diasClassif[e.cidade][k]) diasClassif[e.cidade][k]=[];
+          if(diasClassif[e.cidade][k].indexOf(d)===-1) diasClassif[e.cidade][k].push(d);
+        });
+      });
+    });
+  });
+
+  var cidadesClassif = TODAS_CIDADES.filter(function(c){
+    return Object.keys(diasClassif[c]).some(function(k){ return diasClassif[c][k].length>0; });
+  });
+
+  if(cidadesClassif.length){
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">';
+    html += '<thead><tr style="background:var(--teal);color:#fff;">';
+    html += '<th style="padding:7px 10px;text-align:left;">Cidade</th>';
+    ['C','D','E','X'].forEach(function(k){ html += '<th style="padding:7px 10px;text-align:left;">'+esc(catLabel(k))+'</th>'; });
+    html += '<th style="padding:7px 10px;text-align:center;">Total dias</th></tr></thead><tbody>';
+    cidadesClassif.forEach(function(c, idx){
+      var totalDias = new Set();
+      html += '<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">';
+      html += '<td style="padding:7px 10px;font-weight:600;">'+esc(c)+'</td>';
+      ['C','D','E','X'].forEach(function(k){
+        var dias = (diasClassif[c][k]||[]).slice().sort();
+        dias.forEach(function(d){ totalDias.add(d); });
+        if(!dias.length){ html += '<td style="padding:7px 10px;color:var(--ink-soft);">—</td>'; return; }
+        html += '<td style="padding:7px 10px;">'+dias.map(function(d){
+          return '<span style="display:inline-block;background:var(--teal-soft);border:1px solid var(--teal);border-radius:5px;padding:1px 6px;margin:1px;font-size:11px;font-weight:600;color:var(--teal-dk);">'+esc(dataParaDisplay(d))+'</span>';
+        }).join('')+'</td>';
+      });
+      html += '<td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--teal-dk);">'+totalDias.size+'</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div style="text-align:center;color:var(--ink-soft);padding:16px;font-size:13px;">Nenhum dia de classificação agendado para '+nomeMes(mes)+'.</div>';
+  }
+  html += '</div></div>';
+
+  /* ============================================================
      BLOCO 1 — META REAL CALCULADA
   ============================================================ */
   html += '<div class="rel-bloco"><div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;">'+
@@ -4716,6 +5023,12 @@ function renderRelatorioTab(){
   /* nav buttons via addEventListener — evita problemas de escaping em onclick */
   var inputMes = document.getElementById('input-rel-mes');
   if(inputMes) inputMes.addEventListener('change', function(){ if(this.value){ state.relMes = this.value; renderRelatorioTab(); } });
+  var rfCat = document.getElementById('rel-filt-cat');
+  if(rfCat) rfCat.addEventListener('change', function(){ state.relFiltCat = this.value; renderRelatorioTab(); });
+  var rfCid = document.getElementById('rel-filt-cidade');
+  if(rfCid) rfCid.addEventListener('change', function(){ state.relFiltCidade = this.value; renderRelatorioTab(); });
+  var rfLim = document.getElementById('rel-filt-limpar');
+  if(rfLim) rfLim.addEventListener('click', function(){ state.relFiltCat=''; state.relFiltCidade=''; renderRelatorioTab(); });
 }
 
 window.__mcfg = async function(el){
