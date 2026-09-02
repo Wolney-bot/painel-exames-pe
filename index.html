@@ -411,6 +411,9 @@ var state = {
   checkinDataSelecionada: null,
   filtrosManut: null,
   diarioEditando: null,
+  filtroTipoVeic: '',
+  polosRecolhidos: {},
+  gestaoEscala: {},
   filtroDiarioCidade: '',
   metaConfig: {},
   demandas: [],
@@ -1201,6 +1204,7 @@ function renderGestaoTab(){
   /* ── Indicadores de gestão ──────────────────────────────────────── */
   var veicsAtivos   = state.veiculos.filter(function(v){return v.ativo!==false && v.tipo!=='Apoio (gestor/suporte)';});
   var veicsApoio    = state.veiculos.filter(function(v){return v.ativo!==false && v.tipo==='Apoio (gestor/suporte)';});
+  var veicsProprios = veicsAtivos.filter(function(v){return !v.tipo||v.tipo==='Próprio';});
   var veicsLocados  = veicsAtivos.filter(function(v){return v.tipo==='Locado / Alugado';});
   var veicsIndisp   = veicsAtivos.filter(function(v){return v.status==='Indisponível';});
   var chamadosAbertos = state.chamados.filter(function(c){return c.status==='Aberto'||c.status==='Em andamento';});
@@ -1218,14 +1222,15 @@ function renderGestaoTab(){
   /* KPIs */
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:18px;">';
   [
-    {i:'🚐',l:'Frota operacional',v:veicsAtivos.length,       col:'var(--teal-dk)'},
-    {i:'🔑',l:'Locados',           v:veicsLocados.length,      col:'#3355aa'},
-    {i:'🚗',l:'Apoio',             v:veicsApoio.length,        col:'#3355aa'},
-    {i:'🔴',l:'Indisponíveis',     v:veicsIndisp.length,       col:'var(--red)'},
-    {i:'🔧',l:'Chamados abertos',  v:chamadosAbertos.length,   col:'var(--amber-dk)'},
-    {i:'⚙️',l:'Chamados mecânicos',v:chamadosMec.length,       col:'var(--red)'},
-    {i:'📊',l:'Taxa produção',     v:taxaProd+'%',              col:taxaProd>=90?'var(--green)':taxaProd>=60?'var(--amber)':'var(--red)'},
-    {i:'👥',l:'Usuários do sistema',v:nUsuarios,               col:'var(--teal-dk)'},
+    {i:'🚐',l:'Frota operacional', v:veicsAtivos.length,    col:'var(--teal-dk)'},
+    {i:'🏠',l:'Próprios',         v:veicsProprios.length,  col:'var(--teal-dk)'},
+    {i:'🔑',l:'Locados',          v:veicsLocados.length,   col:'#3355aa'},
+    {i:'🚗',l:'Apoio',            v:veicsApoio.length,     col:'#3355aa'},
+    {i:'🔴',l:'Indisponíveis',    v:veicsIndisp.length,    col:'var(--red)'},
+    {i:'🔧',l:'Chamados abertos', v:chamadosAbertos.length,col:'var(--amber-dk)'},
+    {i:'⚙️',l:'Mecânicos',        v:chamadosMec.length,    col:'var(--red)'},
+    {i:'📊',l:'Taxa produção',    v:taxaProd+'%',          col:taxaProd>=90?'var(--green)':taxaProd>=60?'var(--amber)':'var(--red)'},
+    {i:'👥',l:'Usuários',         v:nUsuarios,             col:'var(--teal-dk)'},
   ].forEach(function(k){
     html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;">'
       + '<div style="font-size:14px;margin-bottom:4px;">'+k.i+'</div>'
@@ -1255,6 +1260,118 @@ function renderGestaoTab(){
   }
   html += '</div></div>';
 
+  /* ── Escala de funcionários — fins de semana (hora extra) ─────── */
+  html += '<div class="rel-bloco" style="margin-bottom:14px;">';
+  html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+  html += '<span>👷 Escala de hora extra — Fins de semana '+nomeMes(mes)+'</span>';
+  html += '</div>';
+  html += '<div class="rel-body">';
+
+  if(!fimSemMes.length){
+    html += '<div style="color:var(--ink-soft);font-size:13px;padding:8px;">Nenhum fim de semana com exames agendado para '+nomeMes(mes)+'.</div>';
+  } else {
+    var escala = state.gestaoEscala && state.gestaoEscala[mes] ? state.gestaoEscala[mes] : {};
+    var TURNOS = ['Manhã e tarde','Apenas manhã','Apenas tarde'];
+    fimSemMes.forEach(function(fs){
+      var isSab = fs.tipo==='Sábado';
+      var cor = isSab?'#856404':'#5c3d8f';
+      var bg  = isSab?'#FFF3CD':'#f3e8ff';
+      var brd = isSab?'#FFD700':'#c4a0e8';
+      var key = fs.data;
+      var turno     = escala[key+'_turno'] || 'Manhã e tarde';
+      var cidades   = [...new Set(fs.cidades)];
+      /* total de funcionários no dia (soma de todas as cidades) */
+      var totalDia  = cidades.reduce(function(s,c){ return s+((escala[key+'_c_'+c]||[]).length); }, 0);
+
+      html += '<div style="background:'+bg+';border:1px solid '+brd+';border-radius:10px;padding:10px 14px;margin-bottom:8px;">';
+      /* cabeçalho do dia */
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
+      html += '<span style="font-weight:700;color:'+cor+';font-size:13px;">'+(isSab?'🟡':'🟠')+' '+fs.tipo+' '+esc(dataParaDisplay(fs.data))+'</span>';
+      html += '<span style="margin-left:auto;font-size:11.5px;font-weight:700;color:'+cor+';">'+totalDia+' funcionário(s)</span>';
+      html += '</div>';
+      /* turno */
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">';
+      html += '<span style="font-size:12px;font-weight:600;color:'+cor+';">⏰ Turno:</span>';
+      TURNOS.forEach(function(t){
+        var ativo = turno===t;
+        html += '<button id="turno-'+esc(key)+'-'+esc(t)+'" data-key="'+esc(key)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mes)+'"'
+          + ' style="font-size:12px;padding:4px 10px;border-radius:7px;cursor:pointer;font-weight:600;'
+          + 'background:'+(ativo?cor:'#fff')+';color:'+(ativo?'#fff':cor)+';border:1.5px solid '+brd+';">'
+          + (t==='Manhã e tarde'?'🌅🌇 ':t==='Apenas manhã'?'🌅 ':'🌇 ')+esc(t)+'</button>';
+      });
+      html += '</div>';
+
+      /* ── Cidades com exame neste dia ────────────────────────────── */
+      cidades.forEach(function(cidade){
+        var ckeyC = key+'_c_'+cidade;
+        var funcsC = escala[ckeyC] ? escala[ckeyC].slice() : [];
+        html += '<div style="background:#fff;border:1px solid '+brd+';border-radius:8px;padding:8px 10px;margin-bottom:6px;">';
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">';
+        html += '<span style="font-size:12px;font-weight:700;color:'+cor+';">📍 '+esc(cidade)+'</span>';
+        html += '<span style="font-size:11px;color:var(--ink-soft);">'+funcsC.length+' funcionário(s)</span>';
+        html += '</div>';
+        /* lista */
+        if(funcsC.length){
+          html += '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">';
+          funcsC.forEach(function(nome, idx){
+            html += '<span style="background:'+bg+';border:1px solid '+brd+';border-radius:6px;padding:3px 8px;font-size:12px;display:flex;align-items:center;gap:5px;">'
+              + esc(nome)
+              + '<button style="background:none;border:none;cursor:pointer;color:#999;font-size:12px;line-height:1;padding:0;" '
+              + 'id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mes)+'">✕</button>'
+              + '</span>';
+          });
+          html += '</div>';
+        }
+        /* input */
+        html += '<div style="display:flex;gap:6px;align-items:center;">';
+        html += '<input type="text" id="escala-input-'+esc(ckeyC)+'" placeholder="Nome do funcionário…" '
+          + 'style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
+        html += '<button class="btn" style="font-size:11.5px;padding:3px 10px;background:'+cor+';color:#fff;border:none;" '
+          + 'id="add-escala-'+esc(ckeyC)+'" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mes)+'">+ Add</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    /* Resumo total de horas extras */
+    var totalFunc = 0;
+    fimSemMes.forEach(function(fs){
+      [...new Set(fs.cidades)].forEach(function(c){ totalFunc += (escala[fs.data+'_c_'+c]||[]).length; });
+    });
+    if(totalFunc > 0){
+      html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:9px;padding:10px 14px;margin-top:4px;">';
+      html += '<div style="font-weight:700;font-size:13px;margin-bottom:6px;">📋 Resumo de horas extras — '+nomeMes(mes)+'</div>';
+      /* agrupa por funcionário */
+      var porFuncionario = {};
+      fimSemMes.forEach(function(fs){
+        [...new Set(fs.cidades)].forEach(function(c){
+          (escala[fs.data+'_c_'+c]||[]).forEach(function(nome){
+            if(!porFuncionario[nome]) porFuncionario[nome]=[];
+            porFuncionario[nome].push({data:fs.data, tipo:fs.tipo, cidade:c, display:dataParaDisplay(fs.data)});
+          });
+        });
+      });
+      html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
+      html += '<thead><tr style="background:var(--teal);color:#fff;">'
+        + '<th style="padding:6px 10px;text-align:left;">Funcionário</th>'
+        + '<th style="padding:6px 10px;text-align:center;">Dias</th>'
+        + '<th style="padding:6px 10px;text-align:left;">Cidades · Datas</th>'
+        + '</tr></thead><tbody>';
+      Object.entries(porFuncionario).sort(function(a,b){return a[0].localeCompare(b[0],'pt-BR');}).forEach(function(e, idx){
+        var nome=e[0], dias=e[1];
+        html += '<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
+          + '<td style="padding:6px 10px;font-weight:600;">'+esc(nome)+'</td>'
+          + '<td style="padding:6px 10px;text-align:center;font-weight:700;color:var(--teal-dk);">'+dias.length+'</td>'
+          + '<td style="padding:6px 10px;font-size:11.5px;color:var(--ink-soft);">'+dias.map(function(d){return (d.tipo==='Sábado'?'🟡':'🟠')+' '+esc(d.display)+' ('+esc(d.cidade)+')';}).join(' · ')+'</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table></div>';
+      html += '</div>';
+    }
+  }
+  html += '</div></div>';
+
   /* Chamados por tipo */
   html += '<div class="rel-bloco" style="margin-bottom:14px;"><div class="rel-head">🎫 Chamados abertos por tipo</div><div class="rel-body">';
   if(!chamadosAbertos.length){
@@ -1275,25 +1392,90 @@ function renderGestaoTab(){
   }
   html += '</div></div>';
 
-  /* Frota locada — alerta custo */
-  if(veicsLocados.length){
-    html += '<div class="rel-bloco"><div class="rel-head">🔑 Veículos locados — visão gestão</div><div class="rel-body">';
-    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">'
-      + '<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:7px 10px;text-align:left;">Veículo</th><th style="padding:7px 10px;">Cat.</th><th style="padding:7px 10px;">Cidade</th><th style="padding:7px 10px;">Status</th></tr></thead><tbody>';
-    veicsLocados.forEach(function(v, idx){
-      var bg = idx%2===0?'#fafafa':'#fff';
-      html += '<tr style="background:'+bg+';">'
+  /* Frota operacional — tabela simples com polo, ordem numérica e categoria */
+  html += '<div class="rel-bloco"><div class="rel-head">🚐 Frota operacional — por polo e ordem</div><div class="rel-body">';
+  function firstNumG(s){ var m=(s||'').match(/\d+/g); return m&&m.length?parseInt(m[0],10):0; }
+  var catOrderG = {A:0,X:1,B:2,C:3,D:4,E:5};
+
+  /* Monta lista completa ordenada por polo → cidade → categoria → nº ordem */
+  var ativosAll = state.veiculos.filter(function(v){ return v.ativo !== false; });
+  var todaFrota = [];
+  POLOS.forEach(function(p){
+    p.cidades.forEach(function(c){
+      ativosAll.filter(function(v){ return v.cidade===c; })
+        .sort(function(a,b){
+          var aA=a.tipo==='Apoio (gestor/suporte)'?1:0, bA=b.tipo==='Apoio (gestor/suporte)'?1:0;
+          if(aA!==bA) return aA-bA;
+          var ca=catOrderG[a.categoria]!==undefined?catOrderG[a.categoria]:9;
+          var cb=catOrderG[b.categoria]!==undefined?catOrderG[b.categoria]:9;
+          if(ca!==cb) return ca-cb;
+          return firstNumG(a.nome)-firstNumG(b.nome);
+        })
+        .forEach(function(v){ todaFrota.push({v:v, polo:p}); });
+    });
+  });
+
+  if(!todaFrota.length){
+    html += '<div style="color:var(--ink-soft);text-align:center;padding:16px;">Nenhum veículo ativo cadastrado.</div>';
+  } else {
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:550px;">';
+    html += '<thead><tr style="background:var(--teal);color:#fff;">'
+      + '<th style="padding:7px 10px;text-align:left;">Polo</th>'
+      + '<th style="padding:7px 10px;text-align:left;">Veículo</th>'
+      + '<th style="padding:7px 10px;text-align:center;">Cat.</th>'
+      + '<th style="padding:7px 10px;text-align:left;">Cidade</th>'
+      + '<th style="padding:7px 10px;text-align:center;">Tipo</th>'
+      + '<th style="padding:7px 10px;text-align:center;">Status</th>'
+      + '</tr></thead><tbody>';
+
+    var prevPolo = '';
+    todaFrota.forEach(function(item, idx){
+      var v = item.v, p = item.polo;
+      var tipoIcon = v.tipo==='Locado / Alugado'?'🔑':v.tipo==='Apoio (gestor/suporte)'?'🚗':'🏠';
+      var isApoio  = v.tipo==='Apoio (gestor/suporte)';
+      var rowBg    = isApoio?'#f0f4ff':(idx%2===0?'#fafafa':'#fff');
+      var poloCell = p.nome !== prevPolo
+        ? '<td style="padding:7px 10px;font-weight:700;font-size:11.5px;color:var(--teal-dk);border-top:2px solid var(--teal);">'+esc(p.nome)+'</td>'
+        : '<td style="padding:7px 10px;"></td>';
+      if(p.nome !== prevPolo) prevPolo = p.nome;
+      html += '<tr style="background:'+rowBg+';">'
+        + poloCell
         + '<td style="padding:7px 10px;font-weight:600;">'+esc(v.nome||'Veículo')+'</td>'
         + '<td style="padding:7px 10px;text-align:center;"><span class="cat-tag">'+esc(catLabel(v.categoria))+'</span></td>'
         + '<td style="padding:7px 10px;">'+esc(v.cidade)+'</td>'
-        + '<td style="padding:7px 10px;"><span class="pill '+(v.status==='Disponível'?'green':'red')+'">'+esc(v.status)+'</span></td>'
+        + '<td style="padding:7px 10px;text-align:center;font-size:16px;" title="'+esc(v.tipo||'Próprio')+'">'+tipoIcon+'</td>'
+        + '<td style="padding:7px 10px;text-align:center;"><span class="pill '+(v.status==='Disponível'?'green':'red')+'">'+esc(v.status)+'</span></td>'
         + '</tr>';
     });
     html += '</tbody></table></div>';
-    html += '</div></div>';
+    html += '<div style="display:flex;gap:10px;margin-top:8px;font-size:11.5px;color:var(--ink-soft);">'
+      + '<span>🏠 Próprio</span><span>🔑 Locado</span><span>🚗 Apoio</span>'
+      + '</div>';
   }
+  html += '</div></div>';
 
   document.getElementById('tabContent').innerHTML = html;
+
+  /* Turno por dia */
+  document.querySelectorAll('[id^="turno-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__setTurnoFds(this.dataset.key, this.dataset.turno, this.dataset.mes); });
+  });
+  /* Escala fins de semana */
+  document.querySelectorAll('[id^="add-escala-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__addEscalaFds(this.dataset.key, this.dataset.mes); });
+  });
+  document.querySelectorAll('[id^="rm-escala-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__rmEscalaFds(this.dataset.key, parseInt(this.dataset.idx,10), this.dataset.mes); });
+  });
+  /* Enter no input de nome */
+  document.querySelectorAll('[id^="escala-input-"]').forEach(function(inp){
+    inp.addEventListener('keydown', function(e){
+      if(e.key==='Enter'){
+        var key = this.id.replace('escala-input-','');
+        window.__addEscalaFds(key, state.relMes || mesRelAtual());
+      }
+    });
+  });
 }
 
 function renderAdminTab(){
@@ -1802,17 +1984,27 @@ function renderOverview(){
   var examesDomingo = ehDomHoje ? examesDiaEstrito(hoje).filter(function(x){ return !examesSabado.some(function(s){return s.cidade===x.cidade;}); })
                                 : (proximoDom ? examesDiaEstrito(proximoDom) : []);
   if(examesSabado.length || examesDomingo.length){
+    /* busca turno salvo para o dia */
+    function getTurnoFds(data){
+      var mes = data ? data.slice(0,7) : '';
+      var escala = state.gestaoEscala && state.gestaoEscala[mes] ? state.gestaoEscala[mes] : {};
+      return escala[data+'_turno'] || '';
+    }
     html += '<div class="alert-banner" style="background:#FFF3CD;border:1px solid #FFD700;color:#856404;margin-bottom:14px;">';
     html += '🟡 <div>';
     if(examesSabado.length){
       var labelSab = ehSabHoje ? 'HOJE (sábado)' : 'Sábado '+dataParaDisplay(proximoSab);
-      html += '<b>Força tarefa — '+labelSab+': '+examesSabado.length+' cidade(s)</b>';
+      var turnoSab = getTurnoFds(ehSabHoje?hoje:proximoSab);
+      var turnoSabLabel = turnoSab==='Apenas manhã'?'🌅 Apenas manhã':turnoSab==='Apenas tarde'?'🌇 Apenas tarde':turnoSab==='Manhã e tarde'?'🌅🌇 Manhã e tarde':'';
+      html += '<b>Força tarefa — '+labelSab+': '+examesSabado.length+' cidade(s)'+(turnoSabLabel?' · <span style="background:#fff8dc;border:1px solid #FFD700;border-radius:5px;padding:1px 6px;font-size:11.5px;">'+turnoSabLabel+'</span>':'')+'</b>';
       html += '<div style="font-weight:400;margin-top:2px;">'+examesSabado.map(function(ex){ return '<b>'+esc(ex.cidade)+'</b> ('+ex.cats.map(function(k){return esc(catLabel(k));}).join('+')+')'; }).join(' · ')+'</div>';
     }
     if(examesDomingo.length){
       var labelDom = ehDomHoje ? 'HOJE (domingo)' : 'Domingo '+dataParaDisplay(proximoDom);
+      var turnoDom = getTurnoFds(ehDomHoje?hoje:proximoDom);
+      var turnoDomLabel = turnoDom==='Apenas manhã'?'🌅 Apenas manhã':turnoDom==='Apenas tarde'?'🌇 Apenas tarde':turnoDom==='Manhã e tarde'?'🌅🌇 Manhã e tarde':'';
       if(examesSabado.length) html += '<div style="margin-top:5px;border-top:1px dashed #FFD700;padding-top:5px;">';
-      html += '🟠 <b>Força tarefa — '+labelDom+': '+examesDomingo.length+' cidade(s)</b>';
+      html += '🟠 <b>Força tarefa — '+labelDom+': '+examesDomingo.length+' cidade(s)'+(turnoDomLabel?' · <span style="background:#f5e6ff;border:1px solid #c4a0e8;border-radius:5px;padding:1px 6px;font-size:11.5px;">'+turnoDomLabel+'</span>':'')+'</b>';
       html += '<div style="font-weight:400;margin-top:2px;">'+examesDomingo.map(function(ex){ return '<b>'+esc(ex.cidade)+'</b> ('+ex.cats.map(function(k){return esc(catLabel(k));}).join('+')+')'; }).join(' · ')+'</div>';
       if(examesSabado.length) html += '</div>';
     }
@@ -2730,6 +2922,35 @@ window.__removerFotoLocavel = async function(id){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Foto removida.');
   renderVeiculosTab();
+};
+
+/* ── Gestão: escala fins de semana ─────────────────────────────── */
+window.__setTurnoFds = async function(key, turno, mes){
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
+  state.gestaoEscala[mes][key+'_turno'] = turno;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  renderGestaoTab();
+};
+window.__addEscalaFds = async function(key, mes){
+  var inp = document.getElementById('escala-input-'+key);
+  if(!inp) return;
+  var nome = inp.value.trim();
+  if(!nome){ showToast('Digite o nome do funcionário.'); return; }
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
+  if(!state.gestaoEscala[mes][key]) state.gestaoEscala[mes][key] = [];
+  if(state.gestaoEscala[mes][key].indexOf(nome) > -1){ showToast('Funcionário já adicionado.'); return; }
+  state.gestaoEscala[mes][key].push(nome);
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  renderGestaoTab();
+};
+
+window.__rmEscalaFds = async function(key, idx, mes){
+  if(!state.gestaoEscala||!state.gestaoEscala[mes]||!state.gestaoEscala[mes][key]) return;
+  state.gestaoEscala[mes][key].splice(idx, 1);
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  renderGestaoTab();
 };
 
 window.__excluirDiario = async function(id){
@@ -3685,6 +3906,7 @@ function renderVeiculosTab(){
   '</div>';
 
   /* monta listagem por cidade — inclui veículos em trânsito para o destino */
+  var filtroTipo = state.filtroTipoVeic || '';
   var porCidade = {};
   TODAS_CIDADES.forEach(function(c){ porCidade[c] = {proprios:[], emTransito:[]}; });
   /* só agrupa veículos ATIVOS nos cards de cidade */
@@ -3694,6 +3916,23 @@ function renderVeiculosTab(){
       if(porCidade[v.cidadeDestino]) porCidade[v.cidadeDestino].emTransito.push(v);
     }
   });
+
+  /* ── Barra de filtro por tipo ─────────────────────────────────────── */
+  var tipos_info = [
+    {v:'',               i:'🚐', l:'Todos'},
+    {v:'Próprio',        i:'🏠', l:'Próprios'},
+    {v:'Locado / Alugado',i:'🔑',l:'Locados'},
+    {v:'Apoio (gestor/suporte)',i:'🚗',l:'Apoio'},
+  ];
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">';
+  html += '<span style="font-size:12px;font-weight:600;color:var(--ink-soft);">Filtrar por tipo:</span>';
+  tipos_info.forEach(function(t){
+    var ativo = filtroTipo === t.v;
+    html += '<button id="vtipo-btn-'+encodeURIComponent(t.v)+'" data-tipo="'+esc(t.v)+'"'
+      + ' style="display:flex;align-items:center;gap:5px;background:'+(ativo?'var(--teal)':'#f5f5f5')+';color:'+(ativo?'#fff':'var(--ink-soft)')+';border:1px solid '+(ativo?'var(--teal)':'var(--line)')+';border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;">'
+      + t.i+' '+esc(t.l)+'</button>';
+  });
+  html += '</div>';
 
   function renderVRow(v, isTransito){
     var verde = v.status==='Disponível';
@@ -3858,43 +4097,76 @@ function renderVeiculosTab(){
   }
 
   POLOS.forEach(function(p){
-    html += '<div class="section-title" style="margin-top:6px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
+    var recolhido = state.polosRecolhidos && state.polosRecolhidos[p.id];
+    /* conta veículos do polo aplicando filtro de tipo */
+    var totalPolo = 0, dispPolo = 0;
     p.cidades.forEach(function(c){
-      var proprios   = porCidade[c].proprios.slice().sort(function(a,b){
-        /* X fica junto dos A (ambos são categoria de moto) */
-        var catOrder = {A:0, X:1, B:2, C:3, D:4, E:5};
-        var ca = catOrder[a.categoria] !== undefined ? catOrder[a.categoria] : 9;
-        var cb = catOrder[b.categoria] !== undefined ? catOrder[b.categoria] : 9;
-        if(ca !== cb) return ca - cb;
-        /* usa o PRIMEIRO número do nome (número de ordem: "04-PDD5517" → 4) */
-        function firstNum(s){
-          var m=(s||'').match(/\d+/g);
-          return m&&m.length?parseInt(m[0],10):0;
-        }
-        var na = firstNum(a.nome), nb = firstNum(b.nome);
-        if(na !== nb) return na - nb;
-        return (a.nome||'').localeCompare(b.nome||'', 'pt-BR', {numeric:true});
+      porCidade[c].proprios.forEach(function(v){
+        if(!filtroTipo || v.tipo===filtroTipo || (!v.tipo && filtroTipo==='Próprio')) { totalPolo++; if(v.status==='Disponível') dispPolo++; }
       });
-      var emTransito = porCidade[c].emTransito;
-      var total      = proprios.length + emTransito.length;
-      var disponiveis= proprios.filter(function(v){return v.status==='Disponível';}).length;
-      html += '<div class="vehicle-card">'+
-        '<div class="vehicle-head">'+
-          '<span>'+esc(c)+'</span>'+
-          '<span class="mono" style="font-weight:500;font-size:11.5px;">'+disponiveis+'/'+total+' disponível(eis)'+(emTransito.length?' · '+emTransito.length+' em trânsito':'')+' </span>'+
-        '</div><div class="vehicle-body">';
-      if(!proprios.length && !emTransito.length){
-        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum veículo cadastrado ou em trânsito para esta cidade.</div>';
-      } else {
-        proprios.forEach(function(v){ html += renderVRow(v, false); });
-        emTransito.forEach(function(v){ html += renderVRow(v, true); });
-      }
-      html += '</div></div>';
     });
+    html += '<div style="margin-top:6px;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;" id="polo-toggle-'+p.id+'" data-polo="'+p.id+'">';
+    html += '<span style="font-size:14px;font-weight:700;color:var(--teal-dk);">'+(recolhido?'▶':'▼')+'</span>';
+    html += '<div class="section-title" style="margin:0;flex:1;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
+    html += '<span style="font-size:12px;color:var(--ink-soft);">'+dispPolo+'/'+totalPolo+' disponível(eis)</span>';
+    if(recolhido) html += '<span style="font-size:11.5px;color:var(--amber-dk);font-weight:600;">recolhido</span>';
+    html += '</div>';
+    if(!recolhido){
+      html += '<div id="polo-body-'+p.id+'">';
+      p.cidades.forEach(function(c){
+        var proprios = porCidade[c].proprios.slice()
+          .filter(function(v){ return !filtroTipo || v.tipo===filtroTipo || (!v.tipo&&filtroTipo==='Próprio'); })
+          .sort(function(a,b){
+            var catOrder = {A:0, X:1, B:2, C:3, D:4, E:5};
+            var ca = catOrder[a.categoria]!==undefined?catOrder[a.categoria]:9;
+            var cb = catOrder[b.categoria]!==undefined?catOrder[b.categoria]:9;
+            if(ca !== cb) return ca - cb;
+            function firstNum(s){ var m=(s||'').match(/\d+/g); return m&&m.length?parseInt(m[0],10):0; }
+            var na=firstNum(a.nome), nb=firstNum(b.nome);
+            if(na !== nb) return na - nb;
+            return (a.nome||'').localeCompare(b.nome||'','pt-BR',{numeric:true});
+          });
+        var emTransito = porCidade[c].emTransito;
+        if(!proprios.length && !emTransito.length) return; /* oculta cidades sem veículo quando filtro ativo */
+        var total = proprios.length + emTransito.length;
+        var disponiveis = proprios.filter(function(v){return v.status==='Disponível';}).length;
+        html += '<div class="vehicle-card">'
+          + '<div class="vehicle-head">'
+            + '<span>'+esc(c)+'</span>'
+            + '<span class="mono" style="font-weight:500;font-size:11.5px;">'+disponiveis+'/'+total+' disponível(eis)'+(emTransito.length?' · '+emTransito.length+' em trânsito':'')+'</span>'
+          + '</div><div class="vehicle-body">';
+        if(!proprios.length && !emTransito.length){
+          html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum veículo cadastrado para este filtro.</div>';
+        } else {
+          proprios.forEach(function(v){ html += renderVRow(v, false); });
+          emTransito.forEach(function(v){ html += renderVRow(v, true); });
+        }
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
   });
 
   document.getElementById('tabContent').innerHTML = html;
 
+  /* Filtro por tipo de veículo */
+  document.querySelectorAll('[id^="vtipo-btn-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state.filtroTipoVeic = this.dataset.tipo;
+      renderVeiculosTab();
+    });
+  });
+  /* Toggle recolher/expandir polo */
+  document.querySelectorAll('[id^="polo-toggle-"]').forEach(function(el){
+    el.addEventListener('click', function(){
+      var pid = this.dataset.polo;
+      if(!state.polosRecolhidos) state.polosRecolhidos = {};
+      state.polosRecolhidos[pid] = !state.polosRecolhidos[pid];
+      renderVeiculosTab();
+    });
+  });
   /* addEventListener for Locavel sair button */
   document.querySelectorAll('[id^="btn-sair-locavel-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__sairLocavel(this.dataset.vid); });
