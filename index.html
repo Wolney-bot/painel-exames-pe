@@ -822,8 +822,13 @@ function renderShellForUser(){
 
 function renderConfigBanner(){
   var el = document.getElementById('configBanner');
+  if(!el) return;
   if(supabaseConfigured()){
-    el.innerHTML = '';
+    el.innerHTML = '<div style="margin:10px 20px 0;background:#EBF7F0;border:1px solid #6FCF97;border-radius:10px;padding:7px 14px;display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:#276749;">'
+      + '🟢 Banco de dados Supabase conectado'
+      + '<span style="font-weight:400;color:#3a8a5a;font-size:11.5px;margin-left:4px;">· '+esc(SUPA_URL.replace('https://','').split('.')[0])+'</span>'
+      + '<button class="lnk-btn" style="margin-left:auto;font-size:11px;color:#276749;" onclick="window.__sincronizar()">🔄 sincronizar</button>'
+      + '</div>';
     return;
   }
   el.innerHTML = '<div style="margin:14px 20px 0;background:var(--red-soft);border:1px solid #E8B6AC;border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--red);">'+
@@ -3872,12 +3877,34 @@ function renderVeiculosTab(){
 
   if(apoio.length){
     frotaHtml += '<div style="margin-top:10px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:9px;padding:10px 12px;">'
-      + '<div style="font-size:12px;font-weight:700;color:#3355aa;margin-bottom:6px;">🚗 Veículos de apoio ('+apoio.length+')</div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+      + '<div style="font-size:12px;font-weight:700;color:#3355aa;margin-bottom:8px;">🚗 Veículos de apoio ('+apoio.length+')</div>'
       + apoio.map(function(v){
-          return '<span style="background:#fff;border:1px solid #9ab0e0;border-radius:7px;padding:3px 10px;font-size:12px;color:#3355aa;">'
-            + esc(v.nome||'Veículo')+' · '+esc(v.cidade)+' <span style="font-size:10.5px;opacity:.6;">('+esc(v.status)+')</span></span>';
-        }).join('')+'</div></div>';
+          var disp = v.status==='Disponível';
+          return '<div style="background:#fff;border:1px solid #9ab0e0;border-radius:8px;padding:8px 10px;margin-bottom:6px;">'
+            + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+              + '<span style="font-weight:700;font-size:12.5px;color:#3355aa;">🚗 '+esc(v.nome||'Veículo')+'</span>'
+              + '<span style="font-size:11.5px;color:var(--ink-soft);">'+esc(v.cidade)+'</span>'
+              + '<span class="pill '+(disp?'green':'red')+'" style="font-size:11px;">'+esc(v.status)+'</span>'
+              + '<button style="margin-left:auto;font-size:11.5px;padding:3px 10px;border-radius:7px;cursor:pointer;font-weight:600;background:'+(disp?'var(--amber-soft)':'#EBF7F0')+';color:'+(disp?'var(--amber-dk)':'#276749')+';border:1px solid '+(disp?'var(--amber)':'#6FCF97')+';" id="apoio-toggle-'+v.id+'" data-vid="'+v.id+'">'
+                + (disp?'📦 Desativar':'✅ Reativar')
+              + '</button>'
+            + '</div>'
+            + (v.inativoEm ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">📅 Inativado em: <b>'+esc(v.inativoEm)+'</b>'+(v.inativoPor?' por '+esc(v.inativoPor):'')+'</div>' : '')
+            + (v.motivoApoioObs ? '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">📝 '+esc(v.motivoApoioObs)+'</div>' : '')
+            + (state.veiculoEditando===v.id+'_apoio' ? (
+              '<div style="margin-top:6px;border-top:1px solid #9ab0e0;padding-top:8px;">'
+              + '<label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Observação (opcional):<textarea id="apoio-obs-'+v.id+'" rows="2" style="width:100%;border:1px solid #9ab0e0;border-radius:7px;padding:5px 8px;font-size:12.5px;resize:vertical;">'+esc(v.motivoApoioObs||'')+'</textarea></label>'
+              + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+                + '<label style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;color:#3355aa;">📷 Foto<input type="file" accept="image/*" id="apoio-foto-'+v.id+'" data-vid="'+v.id+'" class="apoio-foto-input" style="display:none;"></label>'
+                + '<button class="btn" style="font-size:11.5px;padding:4px 12px;background:#3355aa;color:#fff;border:none;" id="apoio-confirmar-'+v.id+'" data-vid="'+v.id+'">✅ Confirmar</button>'
+                + '<button class="btn btn-ghost" style="font-size:11.5px;" id="apoio-cancelar-'+v.id+'" data-vid="'+v.id+'">Cancelar</button>'
+              + '</div>'
+              + (v.apoioFoto ? '<div style="margin-top:6px;"><img src="'+v.apoioFoto+'" style="max-width:200px;max-height:140px;border-radius:8px;border:1px solid #9ab0e0;"><button style="font-size:10px;color:var(--red);background:none;border:none;cursor:pointer;margin-left:6px;" id="apoio-rm-foto-'+v.id+'" data-vid="'+v.id+'">🗑 Remover foto</button></div>' : '')
+              + '</div>'
+            ) : (v.apoioFoto ? '<img src="'+v.apoioFoto+'" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid #9ab0e0;margin-top:4px;">' : ''))
+            + '</div>';
+        }).join('')
+      + '</div>';
   }
 
   if(inativos.length){
@@ -4151,6 +4178,26 @@ function renderVeiculosTab(){
 
   document.getElementById('tabContent').innerHTML = html;
 
+  /* Apoio vehicle controls */
+  document.querySelectorAll('[id^="apoio-toggle-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var vid = this.dataset.vid;
+      state.veiculoEditando = state.veiculoEditando===vid+'_apoio' ? null : vid+'_apoio';
+      renderVeiculosTab();
+    });
+  });
+  document.querySelectorAll('[id^="apoio-confirmar-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__toggleApoio(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="apoio-cancelar-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ state.veiculoEditando=null; renderVeiculosTab(); });
+  });
+  document.querySelectorAll('.apoio-foto-input').forEach(function(inp){
+    inp.addEventListener('change', function(){ window.__uploadFotoApoio(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="apoio-rm-foto-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__rmFotoApoio(this.dataset.vid); });
+  });
   /* Filtro por tipo de veículo */
   document.querySelectorAll('[id^="vtipo-btn-"]').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -4298,6 +4345,59 @@ window.__salvarVeiculo = async function(id){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   state.veiculoEditando = null;
   showToast('✅ Veículo atualizado.');
+  renderVeiculosTab();
+};
+
+window.__toggleApoio = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  var obsEl  = document.getElementById('apoio-obs-'+id);
+  var obs    = obsEl ? obsEl.value.trim() : '';
+  var tornando = v.status === 'Disponível'; /* true = desativando, false = reativando */
+  if(tornando){
+    v.status       = 'Indisponível';
+    v.motivo       = 'Veículo de apoio desativado';
+    v.inativoEm    = nowStr();
+    v.inativoPor   = state.perfil.nome+' ('+state.perfil.papel+')';
+    v.motivoApoioObs = obs;
+    addHistorico(v,'manutencao','Apoio desativado'+(obs?' — '+obs:''),{cidade:v.cidade});
+  } else {
+    v.status       = 'Disponível';
+    v.motivo       = '';
+    v.inativoEm    = null;
+    v.inativoPor   = null;
+    v.motivoApoioObs = '';
+    addHistorico(v,'manutencao','Apoio reativado',{cidade:v.cidade});
+  }
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  state.veiculoEditando = null;
+  showToast(tornando ? '📦 Veículo de apoio desativado.' : '✅ Veículo de apoio reativado.');
+  renderVeiculosTab();
+};
+
+window.__uploadFotoApoio = function(id){
+  var inp = document.getElementById('apoio-foto-'+id);
+  if(!inp||!inp.files||!inp.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = async function(ev){
+    var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+    if(!v) return;
+    v.apoioFoto = ev.target.result;
+    await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+    showToast('📷 Foto do veículo de apoio salva.');
+    renderVeiculosTab();
+  };
+  reader.readAsDataURL(inp.files[0]);
+};
+
+window.__rmFotoApoio = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  if(!v) return;
+  delete v.apoioFoto;
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Foto removida.');
   renderVeiculosTab();
 };
 
