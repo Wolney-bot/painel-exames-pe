@@ -234,34 +234,6 @@
   .rel-bloco{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;}
   .rel-head{background:var(--teal);color:#fff;padding:10px 14px;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
   .rel-body{padding:10px 14px;}
-
-  /* ---- Gestão 3 pilares ---- */
-  .g3-subnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line);}
-  .g3-subnav button{border:1px solid var(--line);background:#fff;border-radius:30px;padding:7px 14px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
-  .g3-subnav button.active{background:var(--teal);color:#fff;border-color:var(--teal);}
-  .g3-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-bottom:6px;}
-  .g3-card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--green);border-radius:11px;padding:10px 12px;}
-  .g3-card.nivel-amarelo{border-left-color:var(--amber);} .g3-card.nivel-vermelho{border-left-color:var(--red);}
-  .g3-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;}
-  .g3-pilares{display:flex;gap:10px;font-size:13px;margin-bottom:6px;}
-  .g3-motivos{list-style:none;margin:0;padding:0;font-size:12px;color:var(--ink);}
-  .g3-motivos li{display:flex;justify-content:space-between;gap:6px;align-items:flex-start;padding:3px 0;border-top:1px dashed var(--line);}
-  .g3-mini{border:1px solid var(--line);background:#fff;border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600;color:var(--teal-dk);cursor:pointer;white-space:nowrap;}
-  .g3-mini:hover{background:var(--teal-soft);}
-  .g3-toggle{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
-  .g3-table table{width:100%;border-collapse:collapse;font-size:13px;}
-  .g3-table th{background:#f3f6f4;text-align:left;padding:8px 10px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);}
-  .g3-table td{padding:7px 10px;border-top:1px solid var(--line);vertical-align:top;}
-  .g3-bar{height:8px;background:var(--gray-soft);border-radius:6px;overflow:hidden;width:120px;display:inline-block;vertical-align:middle;margin-right:6px;}
-  .g3-bar div{height:100%;border-radius:6px;}
-  .g3-head-sel{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:4px 8px;font-size:12px;}
-  .g3-head-sel option{color:var(--ink);}
-  .g3-kit-in{width:64px;border:1px solid var(--line);border-radius:7px;padding:5px 6px;font-size:13px;text-align:center;}
-  .g3-pauta-h{font-family:Space Grotesk,sans-serif;font-weight:700;font-size:13px;margin:16px 0 6px;color:var(--teal-dk);}
-  .g3-decisoes{list-style:none;margin:0;padding:0;}
-  .g3-decisoes li{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);font-size:13px;}
-  .g3-decisoes li small{color:var(--ink-soft);}
-  .g3-decisoes li span{flex:1;}
   .rel-linha{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px;}
   .rel-linha:last-child{border-bottom:none;}
   .rel-val{font-family:IBM Plex Mono,monospace;font-weight:700;}
@@ -442,15 +414,17 @@ var state = {
   filtroTipoVeic: '',
   polosRecolhidos: {},
   gestaoEscala: {},
+  gestaoSubView: 'pilares',
+  pessoasSubView: 'catalogo',
+  filtroGestaoAlerta: false,
+  colaboradores: [],
+  ausencias: [],
+  ocorrencias: [],
+  habilidades: [],
   filtroDiarioCidade: '',
   metaConfig: {},
   demandas: [],
-  filtroPrioDemanda: 'Todas',
-  /* Gestão 3 pilares */
-  colaboradores: [], ausencias: [], ocorrencias: [], habilidadesConfig: null,
-  equipamentos: [], kitConfig: null, conferencias: [],
-  gargalos: [], acoes: [], reunioes: [],
-  g3: {sub:'visao', soAlerta:true, editColab:null, editEquip:null, fCidadeEquip:'', fStatusEquip:'', confCidade:'', fAcao:'abertas', reuniaoAberta:null, fColabCidade:'', busy:false, _motivos:{}, preAcao:null}
+  filtroPrioDemanda: 'Todas'
 };
 window.state = state;
 
@@ -638,8 +612,7 @@ window.__tentarReconectar = async function(){
     _ocultarBannerConexao();
     showToast('✅ Conexão restaurada! Sincronizando dados locais…');
     /* reenvia para Supabase qualquer dado salvo localmente durante a indisponibilidade */
-    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','gestao-escala',
-      'colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-config','equipamentos-lista','kit-padrao-config','conferencias-lista','gargalos-lista','acoes-lista','reunioes-lista'];
+    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista'];
     var enviados = 0;
     for(var ki=0; ki<SK_ALL.length; ki++){
       var k = SK_ALL[ki];
@@ -716,10 +689,29 @@ async function init(){
   var dm = await storageGet('demandas-lista', true);
   state.demandas = dm ? JSON.parse(dm) : [];
 
+  /* ── Pessoas: colaboradores, ausências, ocorrências, habilidades ── */
+  var [cbr, aus, ocr, hab] = await Promise.all([
+    storageGet('colaboradores-lista', true),
+    storageGet('ausencias-lista', true),
+    storageGet('ocorrencias-lista', true),
+    storageGet('habilidades-lista', true),
+  ]);
+  state.colaboradores = cbr ? JSON.parse(cbr) : [];
+  state.ausencias     = aus ? JSON.parse(aus) : [];
+  state.ocorrencias   = ocr ? JSON.parse(ocr) : [];
+  state.habilidades   = hab ? JSON.parse(hab) : [
+    {id:'hab_exA',  nome:'Aplicar exame cat. A',        slug:'exame_A',         critica:true},
+    {id:'hab_exB',  nome:'Aplicar exame cat. B',        slug:'exame_B',         critica:true},
+    {id:'hab_exCD', nome:'Aplicar exame cat. C/D/E',    slug:'exame_CD',        critica:false},
+    {id:'hab_det',  nome:'Operar sistema do Detran',    slug:'sistema_detran',  critica:true},
+    {id:'hab_ci',   nome:'Check-in no painel',          slug:'checkin_painel',  critica:true},
+    {id:'hab_moto', nome:'Manutenção básica da moto',   slug:'manut_basica',    critica:false},
+    {id:'hab_ch',   nome:'Abrir chamado',               slug:'abrir_chamado',   critica:false},
+    {id:'hab_cnh',  nome:'Habilitado cat. D',           slug:'cnh_D',           critica:false},
+  ];
+
   var pa = await storageGet('plan-acesso', true);
   state.planAcesso = pa ? JSON.parse(pa) : [];
-
-  await g3Load();
 
   if(pl){
     state.planejamento = JSON.parse(pl);
@@ -982,7 +974,6 @@ window.__sincronizar = async function(silent){
   if(mc2) state.metaConfig = JSON.parse(mc2);
   var dm2 = await storageGet('demandas-lista', true);
   if(dm2) state.demandas = JSON.parse(dm2);
-  await g3Load();
   if(us){ state.usuarios = JSON.parse(us);
     // atualiza sessão se o usuário foi aprovado/revogado
     if(state.sessao){
@@ -992,8 +983,7 @@ window.__sincronizar = async function(silent){
     }
   }
   if(!silent) showToast('Dados atualizados.');
-  /* na aba Gestão, o auto-sync silencioso só re-renderiza a Visão (as outras sub-abas têm formulários em preenchimento) */
-  if(state.sessao && !(silent && state.activeTab==='gestao' && state.g3 && state.g3.sub!=='visao')) setTab(state.activeTab);
+  if(state.sessao) setTab(state.activeTab);
 };
 
 /* ===================================================================
@@ -1217,309 +1207,695 @@ window.__setManutTarefaStatus = async function(id, status){
 
 
 
-function renderGestaoFrotaLegacy(){
+function renderGestaoTab(){
   var hoje = hojeLocal();
   var mes  = state.relMes || mesRelAtual();
+  var sete = (function(){ var d=new Date(hoje+'T12:00:00'); d.setDate(d.getDate()-7); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
 
-  /* ── Escala de fim de semana ─────────────────────────────────────── */
-  /* Coleta todos os sábados e domingos do mês com exames explícitos */
-  var fimSemMes = [];
+  /* ── dados base ──────────────────────────────────────────────── */
+  var ativosAll     = state.veiculos.filter(function(v){ return v.ativo!==false; });
+  var veicsAtivos   = ativosAll.filter(function(v){ return v.tipo!=='Apoio (gestor/suporte)'; });
+  var veicsProprios = veicsAtivos.filter(function(v){ return !v.tipo||v.tipo==='Próprio'; });
+  var veicsLocados  = veicsAtivos.filter(function(v){ return v.tipo==='Locado / Alugado'; });
+  var veicsApoio    = ativosAll.filter(function(v){ return v.tipo==='Apoio (gestor/suporte)'; });
+  var veicsIndisp   = veicsAtivos.filter(function(v){ return v.status==='Indisponível'; });
+  var chamAbertos   = state.chamados.filter(function(c){return c.status==='Aberto'||c.status==='Em andamento';});
+  var chamAtrasados = chamadosAtrasados();
+  var diariosM      = state.diarios.filter(function(d){return d.mes===mes;});
+  var totalAgend    = diariosM.reduce(function(s,d){return s+d.agendados;},0);
+  var totalReal     = diariosM.reduce(function(s,d){return s+d.realizados;},0);
+  var taxaProd      = totalAgend>0?Math.round(totalReal/totalAgend*100):0;
+  var nUsuarios     = state.usuarios ? state.usuarios.length : 0;
+
+  /* ── gargalos (demandas) ─────────────────────────────────────── */
+  var gargalosAbertos   = (state.demandas||[]).filter(function(d){return d.status==='Pendente'||d.status==='Em andamento';});
+  var gargalosVencidos  = gargalosAbertos.filter(function(d){return d.prazo && d.prazo < hoje;});
+  var gargalosDesc7     = (state.demandas||[]).filter(function(d){return d.criadoEm && d.criadoEm.slice(0,10) >= sete;});
+
+  /* ── CDE por cidade na semana corrente ──────────────────────── */
+  var cdeSem = {};
+  state.semanas.forEach(function(w){
+    var wIni=dateToISO(w.inicio)||w.inicio, wFim=dateToISO(w.fim)||w.fim;
+    if(hoje<wIni||hoje>wFim) return;
+    (w.entradas||[]).forEach(function(e){
+      var cc=(e.categorias||[]).filter(function(c){return c==='C'||c==='D'||c==='E'||c==='X';});
+      if(!cc.length) return;
+      if(!cdeSem[e.cidade]) cdeSem[e.cidade]=[];
+      cc.forEach(function(cat){if(cdeSem[e.cidade].indexOf(cat)===-1) cdeSem[e.cidade].push(cat);});
+    });
+  });
+
+  /* ── Avaliação 3 pilares por cidade ─────────────────────────── */
+  /* Habilidades críticas sem cobertura por cidade */
+  function habCriticasSemCobertura(cidade){
+    var habsCriticas = (state.habilidades||[]).filter(function(h){return h.critica;});
+    return habsCriticas.filter(function(h){
+      /* precisa de alguém na cidade (titular OU backup) com essa habilidade */
+      return !(state.colaboradores||[]).some(function(col){
+        if(col.status!=='Ativo') return false;
+        /* ausente agora? */
+        var hoje2=hojeLocal();
+        var ausente=(state.ausencias||[]).some(function(a){return a.colaboradorId===col.id&&a.inicio<=hoje2&&a.fim>=hoje2;});
+        if(ausente) return false;
+        var temHab=(col.habilidades||[]).indexOf(h.id)>-1;
+        var naCidade=col.cidade===cidade||(col.cidadesBackup||[]).indexOf(cidade)>-1;
+        return temHab && naCidade;
+      });
+    });
+  }
+  function avaliarPilares(cidade){
+    var catsCDE = cdeSem[cidade]||[];
+    var semVeic = catsCDE.filter(function(cat){
+      return !state.veiculos.some(function(v){
+        return v.ativo!==false&&v.status==='Disponível'&&v.categoria===cat&&(v.cidade===cidade||v.cidadeDestino===cidade);
+      });
+    });
+    var veicIndispCid = veicsAtivos.filter(function(v){return v.cidade===cidade&&v.status==='Indisponível';});
+    var frota = semVeic.length>0?'vermelho':veicIndispCid.length>0?'amarelo':'verde';
+
+    /* pessoas: vermelho se habilidade crítica sem cobertura OU chamado alta prio */
+    var habSem = habCriticasSemCobertura(cidade);
+    var chAlta = chamAbertos.filter(function(c){return c.cidade===cidade&&(c.prioridade==='Crítica'||c.prioridade==='Alta');});
+    var chMedia= chamAbertos.filter(function(c){return c.cidade===cidade&&c.prioridade==='Média';});
+    var pessoas= (habSem.length>0||chAlta.length>0)?'vermelho':chMedia.length>0?'amarelo':'verde';
+
+    var chEquip= chamAbertos.filter(function(c){return c.cidade===cidade&&c.tipoProblema==='Equipamento eletrônico embarcado';});
+    var equip  = chEquip.length>0?'vermelho':'verde';
+
+    var gargCid= gargalosAbertos.filter(function(d){return d.cidade===cidade;});
+
+    var status = (frota==='vermelho'||pessoas==='vermelho'||equip==='vermelho')?'vermelho'
+               : (frota==='amarelo'||pessoas==='amarelo'||equip==='amarelo')?'amarelo':'verde';
+    return {status,frota,pessoas,equip,semVeic,chAlta,chEquip,gargCid,veicIndispCid,habSem};
+  }
+
+  var totalVerm=0,totalAmar=0,totalVerd=0;
+  TODAS_CIDADES.forEach(function(c){
+    var p=avaliarPilares(c);
+    if(p.status==='vermelho')totalVerm++;
+    else if(p.status==='amarelo')totalAmar++;
+    else totalVerd++;
+  });
+
+  /* ── fins de semana ──────────────────────────────────────────── */
+  var fimSemMes=[];
   state.semanas.forEach(function(w){
     (w.entradas||[]).forEach(function(e){
-      var dias = (e.diasSelecionados||[]).concat(
-        Object.values(e.datasExatas||{}).reduce(function(a,v){
-          return a.concat(Array.isArray(v)?v:(v?[v]:[]));
-        },[])
-      );
+      var dias=(e.diasSelecionados||[]).concat(Object.values(e.datasExatas||{}).reduce(function(a,v){return a.concat(Array.isArray(v)?v:(v?[v]:[]));},[]));
       dias.forEach(function(d){
-        if(!d||!d.startsWith(mes)) return;
-        var dow = new Date(d+'T12:00:00').getDay();
-        if(dow!==6&&dow!==0) return;
-        if(!fimSemMes.find(function(x){return x.data===d;} )){
-          fimSemMes.push({data:d, tipo:dow===6?'Sábado':'Domingo', cidades:[]});
-        }
+        if(!d||!d.startsWith(mes))return;
+        var dow=new Date(d+'T12:00:00').getDay();
+        if(dow!==6&&dow!==0)return;
+        if(!fimSemMes.find(function(x){return x.data===d;})) fimSemMes.push({data:d,tipo:dow===6?'Sábado':'Domingo',cidades:[]});
         fimSemMes.find(function(x){return x.data===d;}).cidades.push(e.cidade);
       });
     });
   });
   fimSemMes.sort(function(a,b){return a.data.localeCompare(b.data);});
 
-  /* ── Indicadores de gestão ──────────────────────────────────────── */
-  var veicsAtivos   = state.veiculos.filter(function(v){return v.ativo!==false && v.tipo!=='Apoio (gestor/suporte)';});
-  var veicsApoio    = state.veiculos.filter(function(v){return v.ativo!==false && v.tipo==='Apoio (gestor/suporte)';});
-  var veicsProprios = veicsAtivos.filter(function(v){return !v.tipo||v.tipo==='Próprio';});
-  var veicsLocados  = veicsAtivos.filter(function(v){return v.tipo==='Locado / Alugado';});
-  var veicsIndisp   = veicsAtivos.filter(function(v){return v.status==='Indisponível';});
-  var chamadosAbertos = state.chamados.filter(function(c){return c.status==='Aberto'||c.status==='Em andamento';});
-  var chamadosMec   = chamadosAbertos.filter(function(c){return c.tipoProblema==='Problema mecânico';});
-  var diariosM      = state.diarios.filter(function(d){return d.mes===mes;});
-  var totalAgend    = diariosM.reduce(function(s,d){return s+d.agendados;},0);
-  var totalReal     = diariosM.reduce(function(s,d){return s+d.realizados;},0);
-  var taxaProd      = totalAgend>0?Math.round(totalReal/totalAgend*100):0;
-
-  /* usuários ativos */
-  var nUsuarios = state.usuarios ? state.usuarios.length : 0;
-
-  var html = '<div class="section-title">📋 Gestão — '+nomeMes(mes)+'</div>';
-
-  /* KPIs */
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:18px;">';
-  [
-    {i:'🚐',l:'Frota operacional', v:veicsAtivos.length,    col:'var(--teal-dk)'},
-    {i:'🏠',l:'Próprios',         v:veicsProprios.length,  col:'var(--teal-dk)'},
-    {i:'🔑',l:'Locados',          v:veicsLocados.length,   col:'#3355aa'},
-    {i:'🚗',l:'Apoio',            v:veicsApoio.length,     col:'#3355aa'},
-    {i:'🔴',l:'Indisponíveis',    v:veicsIndisp.length,    col:'var(--red)'},
-    {i:'🔧',l:'Chamados abertos', v:chamadosAbertos.length,col:'var(--amber-dk)'},
-    {i:'⚙️',l:'Mecânicos',        v:chamadosMec.length,    col:'var(--red)'},
-    {i:'📊',l:'Taxa produção',    v:taxaProd+'%',          col:taxaProd>=90?'var(--green)':taxaProd>=60?'var(--amber)':'var(--red)'},
-    {i:'👥',l:'Usuários',         v:nUsuarios,             col:'var(--teal-dk)'},
-  ].forEach(function(k){
-    html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;">'
-      + '<div style="font-size:14px;margin-bottom:4px;">'+k.i+'</div>'
-      + '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:4px;">'+k.l+'</div>'
-      + '<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:20px;color:'+k.col+';">'+k.v+'</div>'
-      + '</div>';
+  /* ── Sub-tab bar ─────────────────────────────────────────────── */
+  var subView = state.gestaoSubView||'pilares';
+  var SUBTABS=[
+    {id:'pilares', label:'🎯 Visão 3 pilares'},
+    {id:'pessoas', label:'👥 Pessoas'},
+    {id:'frota',   label:'🚐 Frota'},
+    {id:'equip',   label:'🧰 Equipamentos'},
+    {id:'reuniao', label:'📅 Reunião de sexta'},
+  ];
+  var html='';
+  html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">';
+  SUBTABS.forEach(function(t){
+    var a=subView===t.id;
+    html+='<button id="gestao-sub-'+t.id+'" data-sub="'+t.id+'" style="font-size:12.5px;padding:7px 14px;border-radius:25px;cursor:pointer;font-weight:700;background:'+(a?'var(--teal)':'#f5f5f5')+';color:'+(a?'#fff':'var(--ink-soft)')+';border:1.5px solid '+(a?'var(--teal)':'var(--line)')+';white-space:nowrap;">'+esc(t.label)+'</button>';
   });
-  html += '</div>';
+  html+='</div>';
 
-  /* Escala de fim de semana */
-  html += '<div class="rel-bloco" style="margin-bottom:14px;"><div class="rel-head">📅 Fins de semana com exames — '+nomeMes(mes)+'</div><div class="rel-body">';
-  if(!fimSemMes.length){
-    html += '<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:12px;">Nenhum fim de semana agendado para '+nomeMes(mes)+'.</div>';
-  } else {
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">';
-    fimSemMes.forEach(function(fs){
-      var isSab = fs.tipo==='Sábado';
-      var cor   = isSab?'#856404':'#5c3d8f';
-      var bg    = isSab?'#FFF3CD':'#f3e8ff';
-      var brd   = isSab?'#FFD700':'#c4a0e8';
-      html += '<div style="background:'+bg+';border:1px solid '+brd+';border-radius:10px;padding:10px 12px;">'
-        + '<div style="font-weight:700;color:'+cor+';margin-bottom:5px;">'+(isSab?'🟡':'🟠')+' '+fs.tipo+' '+esc(dataParaDisplay(fs.data))+'</div>'
-        + '<div style="font-size:12px;color:var(--ink-soft);">'+[...new Set(fs.cidades)].map(esc).join(', ')+'</div>'
-        + '</div>';
+  /* ── helper: dot color ──────────────────────────────────────── */
+  function dotC(s){return s==='vermelho'?'var(--red)':s==='amarelo'?'var(--amber)':'var(--green)';}
+
+  /* ══════════════════════════════════════════════════════════
+     SUB-VIEW: VISÃO 3 PILARES
+  ══════════════════════════════════════════════════════════ */
+  if(subView==='pilares'){
+    /* KPI strip 6 itens — idêntico ao live */
+    var kpis=[
+      {v:totalVerm, l:'Cidades em vermelho',  s:'risco de parada',       bg:'#FFF0F0',brd:'#FFBBBB',col:'var(--red)'},
+      {v:totalAmar, l:'Cidades em amarelo',   s:'atenção',               bg:'#FFF3CD',brd:'#FFD700',col:'#856404'},
+      {v:totalVerd, l:'Cidades em verde',     s:'operando normal',       bg:'#EBF7F0',brd:'#6FCF97',col:'#276749'},
+      {v:gargalosDesc7.length,l:'Descobertas (7 dias)',s:'nenhuma',      bg:'#fff',brd:'var(--line)',col:'var(--ink)'},
+      {v:chamAtrasados.length,l:'Chamados atrasados',s:'todos os pilares',bg:'#fff',brd:'var(--line)',col:'var(--amber-dk)'},
+      {v:gargalosVencidos.length,l:'Ações vencidas',s:gargalosAbertos.length+' gargalo(s) aberto(s)',bg:'#fff',brd:'var(--line)',col:gargalosVencidos.length>0?'var(--red)':'var(--ink-soft)'},
+    ];
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:14px;">';
+    kpis.forEach(function(k){
+      html+='<div style="background:'+k.bg+';border:1px solid '+k.brd+';border-radius:12px;padding:12px 14px;">'
+        +'<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:28px;color:'+k.col+';">'+k.v+'</div>'
+        +'<div style="font-size:12px;font-weight:700;color:'+k.col+';margin-top:2px;">'+esc(k.l)+'</div>'
+        +'<div style="font-size:11px;color:var(--ink-soft);">'+esc(k.s)+'</div>'
+        +'</div>';
     });
-    html += '</div>';
-  }
-  html += '</div></div>';
+    html+='</div>';
 
-  /* ── Escala de funcionários — fins de semana (hora extra) ─────── */
-  html += '<div class="rel-bloco" style="margin-bottom:14px;">';
-  html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
-  html += '<span>👷 Escala de hora extra — Fins de semana '+nomeMes(mes)+'</span>';
-  html += '</div>';
-  html += '<div class="rel-body">';
+    /* filtro */
+    var filtroPilares=state.filtroGestaoAlerta||false;
+    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;justify-content:space-between;flex-wrap:wrap;">';
+    html+='<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;cursor:pointer;">'
+      +'<input type="checkbox" id="gestao-filtro-alerta"'+(filtroPilares?' checked':'')+' style="accent-color:var(--teal);width:16px;height:16px;"> Mostrar só cidades com alerta</label>';
+    html+='<div style="font-size:11.5px;color:var(--ink-soft);">Cada card: 👥 Pessoas · 🚐 Frota · 🧰 Equipamentos</div>';
+    html+='</div>';
 
-  if(!fimSemMes.length){
-    html += '<div style="color:var(--ink-soft);font-size:13px;padding:8px;">Nenhum fim de semana com exames agendado para '+nomeMes(mes)+'.</div>';
-  } else {
-    var escala = state.gestaoEscala && state.gestaoEscala[mes] ? state.gestaoEscala[mes] : {};
-    var TURNOS = ['Manhã e tarde','Apenas manhã','Apenas tarde'];
-    fimSemMes.forEach(function(fs){
-      var isSab = fs.tipo==='Sábado';
-      var cor = isSab?'#856404':'#5c3d8f';
-      var bg  = isSab?'#FFF3CD':'#f3e8ff';
-      var brd = isSab?'#FFD700':'#c4a0e8';
-      var key = fs.data;
-      var turno     = escala[key+'_turno'] || 'Manhã e tarde';
-      var cidades   = [...new Set(fs.cidades)];
-      /* total de funcionários no dia (soma de todas as cidades) */
-      var totalDia  = cidades.reduce(function(s,c){ return s+((escala[key+'_c_'+c]||[]).length); }, 0);
-
-      html += '<div style="background:'+bg+';border:1px solid '+brd+';border-radius:10px;padding:10px 14px;margin-bottom:8px;">';
-      /* cabeçalho do dia */
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
-      html += '<span style="font-weight:700;color:'+cor+';font-size:13px;">'+(isSab?'🟡':'🟠')+' '+fs.tipo+' '+esc(dataParaDisplay(fs.data))+'</span>';
-      html += '<span style="margin-left:auto;font-size:11.5px;font-weight:700;color:'+cor+';">'+totalDia+' funcionário(s)</span>';
-      html += '</div>';
-      /* turno */
-      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">';
-      html += '<span style="font-size:12px;font-weight:600;color:'+cor+';">⏰ Turno:</span>';
-      TURNOS.forEach(function(t){
-        var ativo = turno===t;
-        html += '<button id="turno-'+esc(key)+'-'+esc(t)+'" data-key="'+esc(key)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mes)+'"'
-          + ' style="font-size:12px;padding:4px 10px;border-radius:7px;cursor:pointer;font-weight:600;'
-          + 'background:'+(ativo?cor:'#fff')+';color:'+(ativo?'#fff':cor)+';border:1.5px solid '+brd+';">'
-          + (t==='Manhã e tarde'?'🌅🌇 ':t==='Apenas manhã'?'🌅 ':'🌇 ')+esc(t)+'</button>';
-      });
-      html += '</div>';
-
-      /* ── Cidades com exame neste dia ────────────────────────────── */
-      cidades.forEach(function(cidade){
-        var ckeyC = key+'_c_'+cidade;
-        var funcsC = escala[ckeyC] ? escala[ckeyC].slice() : [];
-        html += '<div style="background:#fff;border:1px solid '+brd+';border-radius:8px;padding:8px 10px;margin-bottom:6px;">';
-        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">';
-        html += '<span style="font-size:12px;font-weight:700;color:'+cor+';">📍 '+esc(cidade)+'</span>';
-        html += '<span style="font-size:11px;color:var(--ink-soft);">'+funcsC.length+' funcionário(s)</span>';
-        html += '</div>';
-        /* lista */
-        if(funcsC.length){
-          html += '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">';
-          funcsC.forEach(function(nome, idx){
-            html += '<span style="background:'+bg+';border:1px solid '+brd+';border-radius:6px;padding:3px 8px;font-size:12px;display:flex;align-items:center;gap:5px;">'
-              + esc(nome)
-              + '<button style="background:none;border:none;cursor:pointer;color:#999;font-size:12px;line-height:1;padding:0;" '
-              + 'id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mes)+'">✕</button>'
-              + '</span>';
+    /* cards por polo */
+    POLOS.forEach(function(p){
+      var cids=p.cidades;
+      if(filtroPilares) cids=cids.filter(function(c){return avaliarPilares(c).status!=='verde';});
+      if(!cids.length)return;
+      html+='<div style="font-weight:700;font-size:14px;color:var(--teal-dk);margin-bottom:8px;margin-top:4px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:14px;">';
+      cids.forEach(function(cidade){
+        var p3=avaliarPilares(cidade);
+        var sBg=p3.status==='vermelho'?'#FFF0F0':p3.status==='amarelo'?'#FFF3CD':'#EBF7F0';
+        var sBrd=p3.status==='vermelho'?'#FFBBBB':p3.status==='amarelo'?'#FFD700':'#6FCF97';
+        var sCol=p3.status==='vermelho'?'var(--red)':p3.status==='amarelo'?'#856404':'#276749';
+        html+='<div style="background:#fff;border:1.5px solid '+sBrd+';border-radius:12px;overflow:hidden;">';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid '+sBrd+';">';
+        html+='<b style="font-size:14px;">'+esc(cidade)+'</b>';
+        html+='<span style="background:'+sBg+';color:'+sCol+';border:1px solid '+sBrd+';border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">⬤ '+esc(p3.status)+'</span>';
+        html+='</div>';
+        html+='<div style="display:flex;gap:6px;align-items:center;padding:8px 12px;">';
+        html+='<span style="color:'+dotC(p3.pessoas)+';font-size:14px;">⬤</span><span style="font-size:16px;" title="Pessoas">👥</span>';
+        html+='<span style="color:'+dotC(p3.frota)+';font-size:14px;margin-left:6px;">⬤</span><span style="font-size:16px;" title="Frota">🚐</span>';
+        html+='<span style="color:'+dotC(p3.equip)+';font-size:14px;margin-left:6px;">⬤</span><span style="font-size:16px;" title="Equipamentos">🧰</span>';
+        if(p3.gargCid.length) html+='<span style="margin-left:auto;font-size:11px;background:#FFF3CD;border:1px solid #FFD700;border-radius:5px;padding:1px 6px;color:#856404;font-weight:700;">'+p3.gargCid.length+' gargalo(s)</span>';
+        html+='</div>';
+        /* alertas */
+        var alertas=[];
+        if(p3.semVeic.length) p3.semVeic.forEach(function(cat){alertas.push({txt:'Cat. '+cat+' com exame na semana e sem veículo disponível',tipo:'frota'});});
+        if(p3.veicIndispCid.length&&!p3.semVeic.length) alertas.push({txt:p3.veicIndispCid.length+' veículo(s) indisponível(eis)',tipo:'frota'});
+        if(p3.habSem&&p3.habSem.length) p3.habSem.forEach(function(h){alertas.push({txt:'Sem ninguém apto para "'+h.nome+'" (habilidade crítica)',tipo:'pessoas'});});
+        if(p3.chAlta.length) alertas.push({txt:p3.chAlta.length+' chamado(s) de alta prioridade aberto(s)',tipo:'pessoas'});
+        if(p3.chEquip.length) alertas.push({txt:'Equipamento eletrônico com chamado aberto',tipo:'equip'});
+        if(alertas.length){
+          html+='<div style="padding:0 12px 8px;">';
+          alertas.forEach(function(a){
+            html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;">';
+            html+='<span style="font-size:12px;color:var(--ink-soft);flex:1;">'+esc(a.txt)+'</span>';
+            html+='<button style="font-size:11px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#f5f5f5;border:1px solid var(--line);cursor:pointer;font-weight:600;" id="gargalo-btn-'+encodeURIComponent(cidade)+'-'+a.tipo+'" data-cidade="'+esc(cidade)+'" data-tipo="'+a.tipo+'">+ gargalo</button>';
+            html+='</div>';
           });
-          html += '</div>';
+          html+='</div>';
+        } else {
+          html+='<div style="padding:6px 12px 10px;font-size:12px;color:#276749;font-weight:600;">✅ Nenhum alerta</div>';
         }
-        /* input */
-        html += '<div style="display:flex;gap:6px;align-items:center;">';
-        html += '<input type="text" id="escala-input-'+esc(ckeyC)+'" placeholder="Nome do funcionário…" '
-          + 'style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
-        html += '<button class="btn" style="font-size:11.5px;padding:3px 10px;background:'+cor+';color:#fff;border:none;" '
-          + 'id="add-escala-'+esc(ckeyC)+'" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mes)+'">+ Add</button>';
-        html += '</div>';
-        html += '</div>';
+        html+='</div>';
       });
-      html += '</div>';
+      html+='</div>';
     });
 
-    /* Resumo total de horas extras */
-    var totalFunc = 0;
-    fimSemMes.forEach(function(fs){
-      [...new Set(fs.cidades)].forEach(function(c){ totalFunc += (escala[fs.data+'_c_'+c]||[]).length; });
-    });
-    if(totalFunc > 0){
-      html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:9px;padding:10px 14px;margin-top:4px;">';
-      html += '<div style="font-weight:700;font-size:13px;margin-bottom:6px;">📋 Resumo de horas extras — '+nomeMes(mes)+'</div>';
-      /* agrupa por funcionário */
-      var porFuncionario = {};
-      fimSemMes.forEach(function(fs){
-        [...new Set(fs.cidades)].forEach(function(c){
-          (escala[fs.data+'_c_'+c]||[]).forEach(function(nome){
-            if(!porFuncionario[nome]) porFuncionario[nome]=[];
-            porFuncionario[nome].push({data:fs.data, tipo:fs.tipo, cidade:c, display:dataParaDisplay(fs.data)});
-          });
-        });
+    /* Lista de gargalos abertos */
+    if(gargalosAbertos.length){
+      html+='<div class="rel-bloco" style="margin-top:4px;"><div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;">';
+      html+='<span>📌 Gargalos abertos ('+gargalosAbertos.length+')</span>';
+      html+='<button class="btn btn-ghost" style="font-size:11.5px;" onclick="window.__setTab(\'planejamento\')">Ver todos →</button>';
+      html+='</div><div class="rel-body">';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      gargalosAbertos.slice(0,6).forEach(function(d){
+        var venc=d.prazo&&d.prazo<hoje;
+        html+='<div style="background:'+(venc?'#FFF0F0':'#f8f8f8')+';border:1px solid '+(venc?'#FFBBBB':'var(--line)')+';border-radius:9px;padding:7px 12px;font-size:12px;min-width:200px;max-width:320px;">'
+          +'<div style="font-weight:600;margin-bottom:2px;">'+esc(d.nota.slice(0,60))+(d.nota.length>60?'…':'')+'</div>'
+          +'<div style="font-size:11px;color:var(--ink-soft);">'+(d.cidade?esc(d.cidade)+' · ':'')+esc(d.prioridade)+(d.prazo?' · prazo: '+esc(d.prazo):'')+(venc?'<span style="color:var(--red);font-weight:700;"> ⚠ vencido</span>':'')+'</div>'
+          +'</div>';
       });
-      html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
-      html += '<thead><tr style="background:var(--teal);color:#fff;">'
-        + '<th style="padding:6px 10px;text-align:left;">Funcionário</th>'
-        + '<th style="padding:6px 10px;text-align:center;">Dias</th>'
-        + '<th style="padding:6px 10px;text-align:left;">Cidades · Datas</th>'
-        + '</tr></thead><tbody>';
-      Object.entries(porFuncionario).sort(function(a,b){return a[0].localeCompare(b[0],'pt-BR');}).forEach(function(e, idx){
-        var nome=e[0], dias=e[1];
-        html += '<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
-          + '<td style="padding:6px 10px;font-weight:600;">'+esc(nome)+'</td>'
-          + '<td style="padding:6px 10px;text-align:center;font-weight:700;color:var(--teal-dk);">'+dias.length+'</td>'
-          + '<td style="padding:6px 10px;font-size:11.5px;color:var(--ink-soft);">'+dias.map(function(d){return (d.tipo==='Sábado'?'🟡':'🟠')+' '+esc(d.display)+' ('+esc(d.cidade)+')';}).join(' · ')+'</td>'
-          + '</tr>';
-      });
-      html += '</tbody></table></div>';
-      html += '</div>';
+      if(gargalosAbertos.length>6) html+='<div style="color:var(--ink-soft);font-size:12px;padding:7px;">e mais '+(gargalosAbertos.length-6)+'…</div>';
+      html+='</div></div></div>';
     }
   }
-  html += '</div></div>';
 
-  /* Chamados por tipo */
-  html += '<div class="rel-bloco" style="margin-bottom:14px;"><div class="rel-head">🎫 Chamados abertos por tipo</div><div class="rel-body">';
-  if(!chamadosAbertos.length){
-    html += '<div style="color:var(--green);font-weight:600;text-align:center;padding:10px;">✅ Nenhum chamado aberto.</div>';
-  } else {
-    var porTipoCh = {};
-    chamadosAbertos.forEach(function(c){
-      porTipoCh[c.tipoProblema] = (porTipoCh[c.tipoProblema]||0)+1;
+  /* ══════════════════════════════════════════════════════════
+     SUB-VIEW: PESSOAS
+  ══════════════════════════════════════════════════════════ */
+  else if(subView==='pessoas'){
+    var hj = hojeLocal();
+    var FUNCOES = ['Examinador','Examinador CDE','Suporte de TI','Coordenador de polo','Motorista','Administrativo','Outro'];
+    var TIPOS_AUS = ['Férias','Folga','Atestado','Treinamento','Licença','Outro'];
+    var TIPOS_OC  = ['Atraso','Falta','Comportamento','Desempenho','Acidente','Outro'];
+    var GRAVIDADES= ['Baixa','Média','Alta','Crítica'];
+    var colabors  = state.colaboradores||[];
+    var habilidades = state.habilidades||[];
+    var ausencias   = state.ausencias||[];
+    var ocorrencias = state.ocorrencias||[];
+
+    /* ── sub-sub-tabs pessoas ────── */
+    var ppView = state.pessoasSubView||'catalogo';
+    var PP_TABS=[{id:'catalogo',l:'👥 Colaboradores'},{id:'ausencias',l:'🌴 Ausências'},{id:'ocorrencias',l:'📝 Ocorrências'},{id:'habilidades',l:'⚙️ Habilidades'}];
+    html+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;">';
+    PP_TABS.forEach(function(t){
+      var a=ppView===t.id;
+      html+='<button id="pp-sub-'+t.id+'" data-sub="'+t.id+'" style="font-size:12px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:600;background:'+(a?'#276749':'#f5f5f5')+';color:'+(a?'#fff':'var(--ink-soft)')+';border:1.5px solid '+(a?'#276749':'var(--line)')+';white-space:nowrap;">'+esc(t.l)+'</button>';
     });
-    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-    Object.entries(porTipoCh).sort(function(a,b){return b[1]-a[1];}).forEach(function(e){
-      html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:9px;padding:8px 14px;text-align:center;">'
-        + '<div style="font-size:20px;font-weight:700;color:var(--red);">'+e[1]+'</div>'
-        + '<div style="font-size:11.5px;color:var(--ink-soft);">'+esc(e[0])+'</div>'
-        + '</div>';
-    });
-    html += '</div>';
+    html+='</div>';
+
+    /* ════════ SUB-SUB: COLABORADORES ════════ */
+    if(ppView==='catalogo'){
+      /* form cadastro */
+      html+='<details id="form-colab-details" style="background:#f8f8f8;border:1px solid var(--teal);border-radius:12px;margin-bottom:14px;" open>'
+        +'<summary style="cursor:pointer;padding:10px 14px;font-weight:700;font-size:13px;background:var(--teal);color:#fff;border-radius:11px;list-style:none;">+ Novo colaborador</summary>'
+        +'<div style="padding:14px;">';
+      /* linha 1 */
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:8px;">';
+      html+='<label style="font-size:12px;font-weight:600;">Nome<input id="cb-nome" type="text" placeholder="Nome completo" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Função<select id="cb-funcao" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;">'+FUNCOES.map(function(f){return '<option>'+esc(f)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Cidade-base<select id="cb-cidade" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">Selecione a cidade</option>'+TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Setor (Recife)<input id="cb-setor" type="text" placeholder="Frota, Suporte, Agendamento…" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Status<select id="cb-status" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option>Ativo</option><option>Inativo</option><option>Afastado</option></select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Backup (quem cobre)<select id="cb-backup" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">— sem backup —</option>'+colabors.map(function(c){return '<option value="'+c.id+'">'+esc(c.nome)+'</option>';}).join('')+'</select></label>';
+      html+='</div>';
+      /* linha 2 */
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px;">';
+      html+='<label style="font-size:12px;font-weight:600;">Usuário do painel<select id="cb-usuario" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">— não tem login —</option>'+(state.usuarios||[]).map(function(u){return '<option value="'+u.id+'">'+esc(u.nome)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Telefone<input id="cb-tel" type="tel" placeholder="(81) 9…" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Admissão<input id="cb-adm" type="date" value="'+hj+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Trabalha sábado?<select id="cb-sabado" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option>Sim</option><option>Não</option></select></label>';
+      html+='</div>';
+      /* backup cidades */
+      html+='<div style="font-size:12px;font-weight:600;margin-bottom:5px;">Cobre também (backup de outras cidades)</div>';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;" id="cb-cidades-backup">';
+      TODAS_CIDADES.forEach(function(c){
+        html+='<label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;background:#fff;"><input type="checkbox" class="cb-cidade-bkp" value="'+esc(c)+'" style="accent-color:var(--teal);"> '+esc(c)+'</label>';
+      });
+      html+='</div>';
+      /* habilidades */
+      html+='<div style="font-size:12px;font-weight:600;margin-bottom:5px;">Habilidades</div>';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;" id="cb-habs">';
+      habilidades.forEach(function(h){
+        html+='<label style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;background:#fff;"><input type="checkbox" class="cb-hab-ck" value="'+h.id+'" style="accent-color:var(--teal);"> '+esc(h.nome)+(h.critica?' ★':'')+'</label>';
+      });
+      html+='</div>';
+      /* obs */
+      html+='<label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;">Observações<textarea id="cb-obs" rows="2" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:2px;resize:vertical;"></textarea></label>';
+      html+='<button class="btn btn-primary" id="btn-cad-colab" style="font-size:13px;padding:8px 18px;">+ Cadastrar colaborador</button>';
+      html+='</div></details>';
+
+      /* tabela colaboradores */
+      if(!colabors.length){
+        html+='<div style="text-align:center;color:var(--ink-soft);padding:16px;">Nenhum colaborador cadastrado ainda.</div>';
+      } else {
+        html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:600px;">';
+        html+='<thead><tr style="background:var(--teal);color:#fff;">'
+          +'<th style="padding:7px 10px;text-align:left;">Nome</th>'
+          +'<th style="padding:7px 10px;">Função</th>'
+          +'<th style="padding:7px 10px;">Cidade</th>'
+          +'<th style="padding:7px 10px;text-align:center;">Status</th>'
+          +'<th style="padding:7px 10px;text-align:center;">Habilidades</th>'
+          +'<th style="padding:7px 10px;text-align:center;">Sáb?</th>'
+          +'<th style="padding:7px 10px;"></th>'
+          +'</tr></thead><tbody>';
+        colabors.forEach(function(col, idx){
+          var ausente=(ausencias).some(function(a){return a.colaboradorId===col.id&&a.inicio<=hj&&a.fim>=hj;});
+          var nomeAus = ausente?' <span style="font-size:10px;background:#FFF3CD;color:#856404;border:1px solid #FFD700;border-radius:5px;padding:1px 5px;">ausente</span>':'';
+          var rowBg=ausente?'#FFFBF0':(idx%2===0?'#fafafa':'#fff');
+          var habNomes=(col.habilidades||[]).map(function(hid){var h=habilidades.find(function(x){return x.id===hid;});return h?esc(h.nome.split(' ').slice(-1)[0]+(h.critica?' ★':'')):hid;}).join(', ');
+          html+='<tr style="background:'+rowBg+';">'
+            +'<td style="padding:7px 10px;font-weight:600;">'+esc(col.nome)+nomeAus+'</td>'
+            +'<td style="padding:7px 10px;font-size:11.5px;">'+esc(col.funcao||'—')+'</td>'
+            +'<td style="padding:7px 10px;">'+esc(col.cidade||'—')+'</td>'
+            +'<td style="padding:7px 10px;text-align:center;"><span class="pill '+(col.status==='Ativo'?'green':'red')+'">'+esc(col.status)+'</span></td>'
+            +'<td style="padding:7px 10px;font-size:11px;color:var(--ink-soft);">'+esc(habNomes||'—')+'</td>'
+            +'<td style="padding:7px 10px;text-align:center;">'+(col.trabalhaSabado==='Sim'?'✅':'—')+'</td>'
+            +'<td style="padding:7px 10px;text-align:center;"><button class="icon-btn" id="rm-colab-'+col.id+'" data-cid="'+col.id+'" style="font-size:11px;">excluir</button></td>'
+            +'</tr>';
+        });
+        html+='</tbody></table></div>';
+      }
+    }
+
+    /* ════════ SUB-SUB: AUSÊNCIAS ════════ */
+    else if(ppView==='ausencias'){
+      /* form */
+      html+='<div style="background:#f8f8f8;border:1px solid #6FCF97;border-radius:12px;margin-bottom:14px;overflow:hidden;">'
+        +'<div style="background:#276749;color:#fff;padding:10px 14px;font-weight:700;font-size:13px;">🌴 Ausências (férias, folgas, atestados, treinamentos)</div>'
+        +'<div style="padding:14px;">';
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:8px;">';
+      html+='<label style="font-size:12px;font-weight:600;">Colaborador<select id="aus-colab" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">Selecione</option>'+colabors.map(function(c){return '<option value="'+c.id+'">'+esc(c.nome)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Tipo<select id="aus-tipo" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;">'+TIPOS_AUS.map(function(t){return '<option>'+esc(t)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Início<input id="aus-ini" type="date" value="'+hj+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Fim<input id="aus-fim" type="date" value="'+hj+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Substituto<select id="aus-sub" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">— sem substituto —</option>'+colabors.map(function(c){return '<option value="'+c.id+'">'+esc(c.nome)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Impacto nos exames<select id="aus-imp" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option>Nenhum</option><option>Baixo</option><option>Médio</option><option>Alto</option></select></label>';
+      html+='</div>';
+      html+='<label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;">Obs.<input id="aus-obs" type="text" style="display:block;width:200px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='<button class="btn btn-primary" id="btn-add-aus" style="background:#276749;font-size:13px;padding:7px 16px;">+ Registrar ausência</button>';
+      html+='</div></div>';
+      /* lista */
+      var ausList = ausencias.filter(function(a){return a.fim>=hj||(new Date(a.fim+'T12:00:00')-new Date()>-30*86400000);}).sort(function(a,b){return b.inicio.localeCompare(a.inicio);});
+      if(!ausList.length){
+        html+='<div style="text-align:center;color:var(--ink-soft);padding:12px;font-size:13px;">Nenhuma ausência recente ou prevista.</div>';
+      } else {
+        html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">';
+        html+='<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:6px 10px;text-align:left;">Colaborador</th><th style="padding:6px 10px;">Tipo</th><th style="padding:6px 10px;">Início</th><th style="padding:6px 10px;">Fim</th><th style="padding:6px 10px;">Substituto</th><th style="padding:6px 10px;">Impacto</th><th></th></tr></thead><tbody>';
+        ausList.forEach(function(a,idx){
+          var ativa=a.inicio<=hj&&a.fim>=hj;
+          var col=colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'—'};
+          var sub=colabors.find(function(c){return c.id===a.substitutoId;})||null;
+          html+='<tr style="background:'+(ativa?'#FFF3CD':idx%2===0?'#fafafa':'#fff')+'">'
+            +'<td style="padding:6px 10px;font-weight:600;">'+esc(col.nome)+(ativa?' <span style="font-size:10px;background:#FFD700;border-radius:4px;padding:1px 5px;color:#856404;">agora</span>':'')+'</td>'
+            +'<td style="padding:6px 10px;">'+esc(a.tipo)+'</td>'
+            +'<td style="padding:6px 10px;">'+esc(a.inicio)+'</td>'
+            +'<td style="padding:6px 10px;">'+esc(a.fim)+'</td>'
+            +'<td style="padding:6px 10px;font-size:11.5px;">'+esc(sub?sub.nome:'—')+'</td>'
+            +'<td style="padding:6px 10px;font-size:11.5px;">'+esc(a.impacto||'Nenhum')+'</td>'
+            +'<td style="padding:6px 10px;"><button class="icon-btn" id="rm-aus-'+a.id+'" data-aid="'+a.id+'" style="font-size:11px;">✕</button></td>'
+            +'</tr>';
+        });
+        html+='</tbody></table></div>';
+      }
+    }
+
+    /* ════════ SUB-SUB: OCORRÊNCIAS ════════ */
+    else if(ppView==='ocorrencias'){
+      html+='<div style="background:#f8f8f8;border:1px solid #FFBBBB;border-radius:12px;margin-bottom:14px;overflow:hidden;">'
+        +'<div style="background:#C44536;color:#fff;padding:10px 14px;font-weight:700;font-size:13px;">📝 Ocorrências (últimos 60 dias)</div>'
+        +'<div style="padding:14px;">';
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:8px;">';
+      html+='<label style="font-size:12px;font-weight:600;">Colaborador<select id="oc-colab" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">Selecione</option>'+colabors.map(function(c){return '<option value="'+c.id+'">'+esc(c.nome)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Data<input id="oc-data" type="date" value="'+hj+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Tipo<select id="oc-tipo" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;">'+TIPOS_OC.map(function(t){return '<option>'+esc(t)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Gravidade<select id="oc-grav" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;">'+GRAVIDADES.map(function(g){return '<option>'+esc(g)+'</option>';}).join('')+'</select></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Exames impactados<input id="oc-exames" type="number" value="0" min="0" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='<label style="font-size:12px;font-weight:600;">Ação tomada<input id="oc-acao" type="text" placeholder="Conversa, advertência, re…" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+      html+='</div>';
+      html+='<label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;">Descrição<textarea id="oc-desc" rows="2" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:2px;resize:vertical;"></textarea></label>';
+      html+='<button class="btn btn-primary" id="btn-add-oc" style="background:#C44536;font-size:13px;padding:7px 16px;">+ Registrar ocorrência</button>';
+      html+='</div></div>';
+      /* lista */
+      var sessentaDias = (function(){var d=new Date(hj+'T12:00:00');d.setDate(d.getDate()-60);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+      var ocList = ocorrencias.filter(function(o){return o.data>=sessentaDias;}).sort(function(a,b){return b.data.localeCompare(a.data);});
+      if(!ocList.length){
+        html+='<div style="text-align:center;color:var(--ink-soft);padding:12px;font-size:13px;">Nenhuma ocorrência nos últimos 60 dias.</div>';
+      } else {
+        html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">';
+        html+='<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:6px 10px;text-align:left;">Colaborador</th><th>Data</th><th>Tipo</th><th>Gravidade</th><th>Ação</th><th></th></tr></thead><tbody>';
+        ocList.forEach(function(o,idx){
+          var col=colabors.find(function(c){return c.id===o.colaboradorId;})||{nome:'—'};
+          var gravCol=o.gravidade==='Crítica'?'var(--red)':o.gravidade==='Alta'?'var(--amber-dk)':'var(--ink-soft)';
+          html+='<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
+            +'<td style="padding:6px 10px;font-weight:600;">'+esc(col.nome)+'</td>'
+            +'<td style="padding:6px 10px;">'+esc(o.data)+'</td>'
+            +'<td style="padding:6px 10px;">'+esc(o.tipo)+'</td>'
+            +'<td style="padding:6px 10px;color:'+gravCol+';font-weight:700;">'+esc(o.gravidade)+'</td>'
+            +'<td style="padding:6px 10px;font-size:11.5px;">'+esc(o.acaoTomada||'—')+'</td>'
+            +'<td style="padding:6px 10px;"><button class="icon-btn" id="rm-oc-'+o.id+'" data-oid="'+o.id+'" style="font-size:11px;">✕</button></td>'
+            +'</tr>';
+        });
+        html+='</tbody></table></div>';
+      }
+    }
+
+    /* ════════ SUB-SUB: CATÁLOGO DE HABILIDADES ════════ */
+    else if(ppView==='habilidades'){
+      html+='<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:12px;overflow:hidden;">'
+        +'<div style="background:#333;color:#fff;padding:10px 14px;font-weight:700;font-size:13px;">⚙️ Catálogo de habilidades</div>'
+        +'<div style="padding:0;">';
+      html+='<table style="width:100%;border-collapse:collapse;font-size:12.5px;">';
+      html+='<thead><tr style="border-bottom:2px solid var(--line);"><th style="padding:9px 14px;text-align:left;text-transform:uppercase;font-size:11px;color:var(--ink-soft);">Habilidade</th><th style="padding:9px 14px;text-transform:uppercase;font-size:11px;color:var(--ink-soft);text-align:center;">Criticidade</th><th style="padding:9px 14px;text-transform:uppercase;font-size:11px;color:var(--ink-soft);text-align:center;">Pessoas aptas</th><th></th></tr></thead><tbody>';
+      habilidades.forEach(function(h,idx){
+        var aptas=(state.colaboradores||[]).filter(function(col){return (col.habilidades||[]).indexOf(h.id)>-1&&col.status==='Ativo';}).length;
+        html+='<tr style="border-bottom:1px solid var(--line);background:'+(idx%2===0?'#fff':'#fafafa')+'">'
+          +'<td style="padding:10px 14px;font-weight:600;">'+esc(h.nome)+' <code style="font-size:10px;color:var(--ink-soft);background:#f0f0f0;padding:1px 4px;border-radius:3px;">'+esc(h.slug)+'</code></td>'
+          +'<td style="padding:10px 14px;text-align:center;">'
+            +'<label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
+              +'<input type="checkbox" class="hab-critica-ck" data-hid="'+h.id+'" '+(h.critica?'checked':'')+' style="accent-color:var(--teal);width:16px;height:16px;">'
+              +'<span style="font-size:12px;color:var(--ink-soft);">crítica</span>'
+            +'</label>'
+          +'</td>'
+          +'<td style="padding:10px 14px;text-align:center;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:16px;color:'+(aptas===0&&h.critica?'var(--red)':'var(--ink)')+';"><b>'+aptas+'</b></td>'
+          +'<td style="padding:10px 14px;text-align:center;"><button class="icon-btn" id="rm-hab-'+h.id+'" data-hid="'+h.id+'">🗑</button></td>'
+          +'</tr>';
+      });
+      html+='</tbody></table>';
+      html+='<div style="padding:10px 14px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);">'
+        +'<input id="nova-hab-nome" type="text" placeholder="Nova habilidade (ex.: Aplicar exame cat. E)" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:12.5px;">'
+        +'<label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;"><input type="checkbox" id="nova-hab-critica" style="accent-color:var(--teal);"> crítica</label>'
+        +'<button class="btn btn-primary" id="btn-add-hab" style="font-size:12px;white-space:nowrap;padding:6px 14px;">+ Adicionar</button>'
+        +'</div>'
+        +'<div style="padding:8px 14px;font-size:11px;color:var(--ink-soft);border-top:1px solid var(--line);">★ Habilidade crítica: a cidade fica em vermelho se ninguém (titular ou backup) a tiver.</div>'
+        +'</div></div>';
+    }
+
+    /* check-ins de hoje (resumo compacto abaixo em qualquer sub-view) */
+    if(ppView==='catalogo'){
+      var checkinsHj=state.checkins.filter(function(c){return c.data===hj;});
+      if(checkinsHj.length||true){
+        html+='<div style="margin-top:14px;"><div style="font-size:12.5px;font-weight:700;margin-bottom:8px;">✅ Check-ins de hoje</div>';
+        html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
+        POLOS.forEach(function(p){
+          var ci=checkinsHj.find(function(c){return c.polo===p.id;});
+          if(ci){
+            html+='<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:9px;padding:10px 12px;">'
+              +'<div style="font-weight:700;color:#276749;margin-bottom:4px;">'+esc(p.nome)+'</div>'
+              +'<div style="font-size:12px;"><b>Roda hoje:</b> '+esc(ci.queRoda||'—')+'</div>'
+              +(ci.riscoDia?'<div style="font-size:12px;"><b>Risco:</b> '+esc(ci.riscoDia)+'</div>':'')
+              +(ci.bloqueios&&ci.bloqueios.toLowerCase()!=='nenhum'?'<div style="font-size:12px;color:var(--red);"><b>Bloqueio:</b> '+esc(ci.bloqueios)+'</div>':'')
+              +'<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">por '+esc(ci.responsavel||'—')+'</div>'
+              +'</div>';
+          } else {
+            html+='<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:9px;padding:10px 12px;">'
+              +'<div style="font-weight:700;color:#856404;margin-bottom:4px;">'+esc(p.nome)+'</div>'
+              +'<div style="font-size:12px;color:var(--ink-soft);">⏳ Check-in não realizado</div>'
+              +'</div>';
+          }
+        });
+        html+='</div></div>';
+      }
+    }
   }
-  html += '</div></div>';
 
-  /* Frota operacional — tabela simples com polo, ordem numérica e categoria */
-  html += '<div class="rel-bloco"><div class="rel-head">🚐 Frota operacional — por polo e ordem</div><div class="rel-body">';
-  function firstNumG(s){ var m=(s||'').match(/\d+/g); return m&&m.length?parseInt(m[0],10):0; }
-  var catOrderG = {A:0,X:1,B:2,C:3,D:4,E:5};
 
-  /* Monta lista completa ordenada por polo → cidade → categoria → nº ordem */
-  var ativosAll = state.veiculos.filter(function(v){ return v.ativo !== false; });
-  var todaFrota = [];
-  POLOS.forEach(function(p){
-    p.cidades.forEach(function(c){
-      ativosAll.filter(function(v){ return v.cidade===c; })
-        .sort(function(a,b){
-          var aA=a.tipo==='Apoio (gestor/suporte)'?1:0, bA=b.tipo==='Apoio (gestor/suporte)'?1:0;
-          if(aA!==bA) return aA-bA;
-          var ca=catOrderG[a.categoria]!==undefined?catOrderG[a.categoria]:9;
-          var cb=catOrderG[b.categoria]!==undefined?catOrderG[b.categoria]:9;
-          if(ca!==cb) return ca-cb;
-          return firstNumG(a.nome)-firstNumG(b.nome);
-        })
-        .forEach(function(v){ todaFrota.push({v:v, polo:p}); });
+  else if(subView==='frota'){
+    /* KPIs frota */
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;">';
+    [
+      {i:'🚐',l:'Frota operacional', v:veicsAtivos.length,    col:'var(--teal-dk)'},
+      {i:'🏠',l:'Próprios',          v:veicsProprios.length,  col:'var(--teal-dk)'},
+      {i:'🔑',l:'Locados',           v:veicsLocados.length,   col:'#3355aa'},
+      {i:'🚗',l:'Apoio',             v:veicsApoio.length,     col:'#3355aa'},
+      {i:'🔴',l:'Indisponíveis',     v:veicsIndisp.length,    col:'var(--red)'},
+      {i:'🔧',l:'Chamados mecânicos',v:chamAbertos.filter(function(c){return c.tipoProblema==='Problema mecânico';}).length, col:'var(--amber-dk)'},
+    ].forEach(function(k){
+      html+='<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;">'
+        +'<div style="font-size:14px;margin-bottom:4px;">'+k.i+'</div>'
+        +'<div style="font-size:11px;color:var(--ink-soft);margin-bottom:4px;">'+esc(k.l)+'</div>'
+        +'<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:20px;color:'+k.col+';">'+k.v+'</div>'
+        +'</div>';
+    });
+    html+='</div>';
+
+    /* tabela frota por polo */
+    function firstNumG(s){var m=(s||'').match(/\d+/g);return m&&m.length?parseInt(m[0],10):0;}
+    var catOrderG={A:0,X:1,B:2,C:3,D:4,E:5};
+    var todaFrota=[];
+    POLOS.forEach(function(p){
+      p.cidades.forEach(function(c){
+        ativosAll.filter(function(v){return v.cidade===c;})
+          .sort(function(a,b){
+            var aA=a.tipo==='Apoio (gestor/suporte)'?1:0,bA=b.tipo==='Apoio (gestor/suporte)'?1:0;
+            if(aA!==bA)return aA-bA;
+            var ca=catOrderG[a.categoria]!==undefined?catOrderG[a.categoria]:9;
+            var cb=catOrderG[b.categoria]!==undefined?catOrderG[b.categoria]:9;
+            if(ca!==cb)return ca-cb;
+            return firstNumG(a.nome)-firstNumG(b.nome);
+          }).forEach(function(v){todaFrota.push({v,polo:p});});
+      });
+    });
+    if(!todaFrota.length){
+      html+='<div style="color:var(--ink-soft);text-align:center;padding:16px;">Nenhum veículo cadastrado.</div>';
+    } else {
+      html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:550px;">';
+      html+='<thead><tr style="background:var(--teal);color:#fff;">'
+        +'<th style="padding:7px 10px;text-align:left;">Polo</th>'
+        +'<th style="padding:7px 10px;text-align:left;">Veículo</th>'
+        +'<th style="padding:7px 10px;text-align:center;">Cat.</th>'
+        +'<th style="padding:7px 10px;text-align:left;">Cidade</th>'
+        +'<th style="padding:7px 10px;text-align:center;">Tipo</th>'
+        +'<th style="padding:7px 10px;text-align:left;">Motivo</th>'
+        +'<th style="padding:7px 10px;text-align:center;">Status</th>'
+        +'</tr></thead><tbody>';
+      var prevPolo='';
+      todaFrota.forEach(function(item,idx){
+        var v=item.v,p=item.polo;
+        var tipoIcon=v.tipo==='Locado / Alugado'?'🔑':v.tipo==='Apoio (gestor/suporte)'?'🚗':'🏠';
+        var isApoio=v.tipo==='Apoio (gestor/suporte)';
+        var rowBg=isApoio?'#f0f4ff':v.status==='Indisponível'?'#FFF0F0':(idx%2===0?'#fafafa':'#fff');
+        var poloCel=p.nome!==prevPolo?'<td style="padding:7px 10px;font-weight:700;font-size:11.5px;color:var(--teal-dk);border-top:2px solid var(--teal);">'+esc(p.nome)+'</td>':'<td style="padding:7px 10px;"></td>';
+        if(p.nome!==prevPolo)prevPolo=p.nome;
+        html+='<tr style="background:'+rowBg+';">'
+          +poloCel
+          +'<td style="padding:7px 10px;font-weight:600;">'+esc(v.nome||'Veículo')+'</td>'
+          +'<td style="padding:7px 10px;text-align:center;"><span class="cat-tag">'+esc(catLabel(v.categoria))+'</span></td>'
+          +'<td style="padding:7px 10px;">'+esc(v.cidade)+'</td>'
+          +'<td style="padding:7px 10px;text-align:center;font-size:15px;" title="'+esc(v.tipo||'Próprio')+'">'+tipoIcon+'</td>'
+          +'<td style="padding:7px 10px;font-size:11.5px;color:var(--ink-soft);">'+esc(v.motivo||'—')+'</td>'
+          +'<td style="padding:7px 10px;text-align:center;"><span class="pill '+(v.status==='Disponível'?'green':'red')+'">'+esc(v.status)+'</span></td>'
+          +'</tr>';
+      });
+      html+='</tbody></table></div>';
+      html+='<div style="display:flex;gap:10px;margin-top:8px;font-size:11.5px;color:var(--ink-soft);">'
+        +'<span>🏠 Próprio</span><span>🔑 Locado</span><span>🚗 Apoio</span></div>';
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SUB-VIEW: EQUIPAMENTOS
+  ══════════════════════════════════════════════════════════ */
+  else if(subView==='equip'){
+    html+='<div class="section-title" style="margin-bottom:12px;">🧰 Equipamentos — chamados por cidade</div>';
+    var chEquipAll=chamAbertos.filter(function(c){return c.tipoProblema==='Equipamento eletrônico embarcado';});
+    if(!chEquipAll.length){
+      html+='<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:10px;padding:14px;text-align:center;font-size:13px;font-weight:600;color:#276749;">✅ Nenhum chamado de equipamento eletrônico em aberto.</div>';
+    } else {
+      html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:500px;">';
+      html+='<thead><tr style="background:var(--teal);color:#fff;">'
+        +'<th style="padding:7px 10px;text-align:left;">Chamado</th>'
+        +'<th style="padding:7px 10px;text-align:left;">Cidade</th>'
+        +'<th style="padding:7px 10px;text-align:center;">Prioridade</th>'
+        +'<th style="padding:7px 10px;text-align:left;">Aberto em</th>'
+        +'<th style="padding:7px 10px;text-align:center;">Status</th>'
+        +'</tr></thead><tbody>';
+      chEquipAll.forEach(function(c,idx){
+        var prioCol=c.prioridade==='Crítica'?'var(--red)':c.prioridade==='Alta'?'var(--amber-dk)':'var(--ink-soft)';
+        html+='<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
+          +'<td style="padding:7px 10px;font-weight:600;">'+esc(c.titulo||c.id)+'</td>'
+          +'<td style="padding:7px 10px;">'+esc(c.cidade)+'</td>'
+          +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:'+prioCol+';">'+esc(c.prioridade)+'</td>'
+          +'<td style="padding:7px 10px;font-size:11.5px;color:var(--ink-soft);">'+esc((c.criadoEm||'').slice(0,10))+'</td>'
+          +'<td style="padding:7px 10px;text-align:center;"><span class="pill '+(c.status==='Em andamento'?'green':'gray')+'">'+esc(c.status)+'</span></td>'
+          +'</tr>';
+      });
+      html+='</tbody></table></div>';
+    }
+    /* chamados mecânicos também */
+    var chMecAll=chamAbertos.filter(function(c){return c.tipoProblema==='Problema mecânico';});
+    if(chMecAll.length){
+      html+='<div style="margin-top:14px;font-size:12.5px;font-weight:700;margin-bottom:8px;">⚙️ Chamados mecânicos em aberto ('+chMecAll.length+')</div>';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      chMecAll.forEach(function(c){
+        var pCol=c.prioridade==='Crítica'?'var(--red)':c.prioridade==='Alta'?'var(--amber-dk)':'var(--ink)';
+        html+='<div style="background:#FFF0F0;border:1px solid #FFBBBB;border-radius:8px;padding:7px 12px;font-size:12px;">'
+          +'<b>'+esc(c.cidade)+'</b> · '+esc(c.titulo||c.id)+'<span style="color:'+pCol+';margin-left:6px;font-weight:700;">'+esc(c.prioridade)+'</span></div>';
+      });
+      html+='</div>';
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SUB-VIEW: REUNIÃO DE SEXTA
+  ══════════════════════════════════════════════════════════ */
+  else if(subView==='reuniao'){
+    html+='<div class="section-title" style="margin-bottom:12px;">📅 Reunião de sexta — pauta operacional</div>';
+    html+='<div style="background:#EEF4FF;border:1px solid #93B4F5;border-radius:10px;padding:14px;margin-bottom:14px;">';
+    html+='<div style="font-size:12.5px;font-weight:700;color:#1E3A8A;margin-bottom:10px;">🚦 Status dos KPIs desta semana</div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">';
+    [{l:'🚐 Frota',v:veicsAtivos.length+' ativos',c:'var(--teal-dk)'},{l:'🔴 Indisp.',v:veicsIndisp.length,c:'var(--red)'},{l:'🔧 Chamados',v:chamAbertos.length+' abertos',c:'var(--amber-dk)'},{l:'📊 Produção',v:taxaProd+'%',c:taxaProd>=90?'var(--green)':taxaProd>=60?'var(--amber)':'var(--red)'},{l:'🔴 Cidades',v:totalVerm+' em vermelho',c:'var(--red)'},{l:'📌 Gargalos',v:gargalosAbertos.length+' abertos',c:gargalosAbertos.length>0?'var(--amber-dk)':'var(--green)'}].forEach(function(k){
+      html+='<div style="background:#fff;border:1px solid #93B4F5;border-radius:8px;padding:8px 10px;">'
+        +'<div style="font-size:11.5px;color:var(--ink-soft);">'+esc(k.l)+'</div>'
+        +'<div style="font-family:Space Grotesk,sans-serif;font-weight:700;font-size:16px;color:'+k.c+';">'+k.v+'</div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+    var cidsVerm=TODAS_CIDADES.filter(function(c){return avaliarPilares(c).status==='vermelho';});
+    if(cidsVerm.length){
+      html+='<div class="rel-bloco"><div class="rel-head">🔴 Pontos de pauta — cidades em vermelho</div><div class="rel-body">';
+      cidsVerm.forEach(function(cidade){
+        var p3=avaliarPilares(cidade);
+        html+='<div style="background:#FFF0F0;border:1px solid #FFBBBB;border-radius:9px;padding:10px 12px;margin-bottom:8px;">'
+          +'<b style="font-size:13px;">'+esc(cidade)+'</b>'
+          +(p3.semVeic.length?'<div style="font-size:12px;color:var(--red);margin-top:4px;">🚐 Sem veículo Cat.'+p3.semVeic.join('/')+'</div>':'')
+          +(p3.chAlta.length?'<div style="font-size:12px;color:var(--red);margin-top:2px;">👥 '+p3.chAlta.length+' chamado(s) de alta prioridade</div>':'')
+          +(p3.chEquip.length?'<div style="font-size:12px;color:var(--red);margin-top:2px;">🧰 Equipamento eletrônico com chamado</div>':'')
+          +(p3.gargCid.length?'<div style="font-size:12px;color:var(--amber-dk);margin-top:2px;">📌 '+p3.gargCid.length+' gargalo(s) aberto(s)</div>':'')
+          +'</div>';
+      });
+      html+='</div></div>';
+    } else {
+      html+='<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:10px;padding:14px;text-align:center;font-size:13px;font-weight:600;color:#276749;">✅ Nenhuma cidade em vermelho esta semana!</div>';
+    }
+    if(fimSemMes.length){
+      html+='<div class="rel-bloco" style="margin-top:14px;"><div class="rel-head">🗓️ Fins de semana com exames no mês</div><div class="rel-body">';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+      fimSemMes.forEach(function(fs){
+        var isSab=fs.tipo==='Sábado'; var cor=isSab?'#856404':'#5c3d8f'; var bg=isSab?'#FFF3CD':'#f3e8ff'; var brd=isSab?'#FFD700':'#c4a0e8';
+        html+='<div style="background:'+bg+';border:1px solid '+brd+';border-radius:9px;padding:8px 12px;">'+(isSab?'🟡':'🟠')+' <b>'+esc(dataParaDisplay(fs.data))+'</b> · '+[...new Set(fs.cidades)].map(esc).join(', ')+'</div>';
+      });
+      html+='</div></div></div>';
+    }
+  }
+
+  document.getElementById('tabContent').innerHTML = html;
+
+  /* ── Event listeners ──────────────────────────────────────── */
+  /* pessoas sub-sub tabs */
+  document.querySelectorAll('[id^="pp-sub-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){state.pessoasSubView=this.dataset.sub;renderGestaoTab();});
+  });
+  var btnCad=document.getElementById('btn-cad-colab');
+  if(btnCad) btnCad.addEventListener('click',window.__cadColaborador);
+  var btnAus=document.getElementById('btn-add-aus');
+  if(btnAus) btnAus.addEventListener('click',window.__addAusencia);
+  var btnOc=document.getElementById('btn-add-oc');
+  if(btnOc) btnOc.addEventListener('click',window.__addOcorrencia);
+  var btnHab=document.getElementById('btn-add-hab');
+  if(btnHab) btnHab.addEventListener('click',window.__addHabilidade);
+  document.querySelectorAll('.hab-critica-ck').forEach(function(ck){
+    ck.addEventListener('change',function(){window.__toggleHabCritica(this.dataset.hid,this.checked);});
+  });
+  document.querySelectorAll('[id^="rm-hab-"]').forEach(function(btn){btn.addEventListener('click',function(){window.__rmHabilidade(this.dataset.hid);});});
+  document.querySelectorAll('[id^="rm-colab-"]').forEach(function(btn){btn.addEventListener('click',function(){window.__rmColaborador(this.dataset.cid);});});
+  document.querySelectorAll('[id^="rm-aus-"]').forEach(function(btn){btn.addEventListener('click',function(){window.__rmAusencia(this.dataset.aid);});});
+  document.querySelectorAll('[id^="rm-oc-"]').forEach(function(btn){btn.addEventListener('click',function(){window.__rmOcorrencia(this.dataset.oid);});});
+  document.querySelectorAll('[id^="gestao-sub-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){state.gestaoSubView=this.dataset.sub;renderGestaoTab();});
+  });
+  var fa=document.getElementById('gestao-filtro-alerta');
+  if(fa) fa.addEventListener('change',function(){state.filtroGestaoAlerta=this.checked;renderGestaoTab();});
+  /* gargalo → cria demanda */
+  document.querySelectorAll('[id^="gargalo-btn-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      state.gestaoSubView='pilares';
+      var cidade=this.dataset.cidade;
+      var tipo=this.dataset.tipo;
+      var nota=tipo==='frota'?'Sem veículo disponível para Cat CDE em '+cidade
+              :tipo==='equip'?'Equipamento eletrônico com problema em '+cidade
+              :'Chamado de alta prioridade em '+cidade;
+      var nova={
+        id:'DM'+Date.now().toString(36).toUpperCase(),
+        nota:nota, prazo:'', cidade:cidade, prioridade:'Alto',
+        status:'Pendente',
+        criadoPor:state.perfil?state.perfil.nome+' ('+state.perfil.papel+')':'—',
+        criadoEm:nowStr()
+      };
+      state.demandas = state.demandas||[];
+      state.demandas.unshift(nova);
+      storageSet('demandas-lista',JSON.stringify(state.demandas),true);
+      showToast('📌 Gargalo registrado para '+cidade+'.');
+      renderGestaoTab();
     });
   });
-
-  if(!todaFrota.length){
-    html += '<div style="color:var(--ink-soft);text-align:center;padding:16px;">Nenhum veículo ativo cadastrado.</div>';
-  } else {
-    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:550px;">';
-    html += '<thead><tr style="background:var(--teal);color:#fff;">'
-      + '<th style="padding:7px 10px;text-align:left;">Polo</th>'
-      + '<th style="padding:7px 10px;text-align:left;">Veículo</th>'
-      + '<th style="padding:7px 10px;text-align:center;">Cat.</th>'
-      + '<th style="padding:7px 10px;text-align:left;">Cidade</th>'
-      + '<th style="padding:7px 10px;text-align:center;">Tipo</th>'
-      + '<th style="padding:7px 10px;text-align:center;">Status</th>'
-      + '</tr></thead><tbody>';
-
-    var prevPolo = '';
-    todaFrota.forEach(function(item, idx){
-      var v = item.v, p = item.polo;
-      var tipoIcon = v.tipo==='Locado / Alugado'?'🔑':v.tipo==='Apoio (gestor/suporte)'?'🚗':'🏠';
-      var isApoio  = v.tipo==='Apoio (gestor/suporte)';
-      var rowBg    = isApoio?'#f0f4ff':(idx%2===0?'#fafafa':'#fff');
-      var poloCell = p.nome !== prevPolo
-        ? '<td style="padding:7px 10px;font-weight:700;font-size:11.5px;color:var(--teal-dk);border-top:2px solid var(--teal);">'+esc(p.nome)+'</td>'
-        : '<td style="padding:7px 10px;"></td>';
-      if(p.nome !== prevPolo) prevPolo = p.nome;
-      html += '<tr style="background:'+rowBg+';">'
-        + poloCell
-        + '<td style="padding:7px 10px;font-weight:600;">'+esc(v.nome||'Veículo')+'</td>'
-        + '<td style="padding:7px 10px;text-align:center;"><span class="cat-tag">'+esc(catLabel(v.categoria))+'</span></td>'
-        + '<td style="padding:7px 10px;">'+esc(v.cidade)+'</td>'
-        + '<td style="padding:7px 10px;text-align:center;font-size:16px;" title="'+esc(v.tipo||'Próprio')+'">'+tipoIcon+'</td>'
-        + '<td style="padding:7px 10px;text-align:center;"><span class="pill '+(v.status==='Disponível'?'green':'red')+'">'+esc(v.status)+'</span></td>'
-        + '</tr>';
-    });
-    html += '</tbody></table></div>';
-    html += '<div style="display:flex;gap:10px;margin-top:8px;font-size:11.5px;color:var(--ink-soft);">'
-      + '<span>🏠 Próprio</span><span>🔑 Locado</span><span>🚗 Apoio</span>'
-      + '</div>';
-  }
-  html += '</div></div>';
-
-  document.getElementById('tabContent').innerHTML = g3Shell('frota') + html;
-
-  /* Turno por dia */
+  /* escala listeners */
   document.querySelectorAll('[id^="turno-"]').forEach(function(btn){
-    btn.addEventListener('click', function(){ window.__setTurnoFds(this.dataset.key, this.dataset.turno, this.dataset.mes); });
+    btn.addEventListener('click',function(){window.__setTurnoFds(this.dataset.key,this.dataset.turno,this.dataset.mes);});
   });
-  /* Escala fins de semana */
   document.querySelectorAll('[id^="add-escala-"]').forEach(function(btn){
-    btn.addEventListener('click', function(){ window.__addEscalaFds(this.dataset.key, this.dataset.mes); });
+    btn.addEventListener('click',function(){window.__addEscalaFds(this.dataset.key,this.dataset.mes);});
   });
   document.querySelectorAll('[id^="rm-escala-"]').forEach(function(btn){
-    btn.addEventListener('click', function(){ window.__rmEscalaFds(this.dataset.key, parseInt(this.dataset.idx,10), this.dataset.mes); });
+    btn.addEventListener('click',function(){window.__rmEscalaFds(this.dataset.key,parseInt(this.dataset.idx,10),this.dataset.mes);});
   });
-  /* Enter no input de nome */
   document.querySelectorAll('[id^="escala-input-"]').forEach(function(inp){
-    inp.addEventListener('keydown', function(e){
-      if(e.key==='Enter'){
-        var key = this.id.replace('escala-input-','');
-        window.__addEscalaFds(key, state.relMes || mesRelAtual());
-      }
+    inp.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){window.__addEscalaFds(this.id.replace('escala-input-',''),state.relMes||mesRelAtual());}
     });
   });
 }
+
 
 function renderAdminTab(){
   if(!state.sessao || !state.sessao.isAdmin){ document.getElementById('tabContent').innerHTML='<div class="empty card">Acesso restrito ao administrador.</div>'; return; }
@@ -2220,25 +2596,59 @@ function renderMapa(){
     '<div style="font-size:11.5px;color:var(--ink-soft);">Ajuste os nomes acima conforme as categorias usadas na sua operação. A mudança vale para todos.</div>'+
   '</div>';
 
+  /* coleta cidades com CDE agendado na semana corrente */
+  var hoje = hojeLocal();
+  var cdeCidadeSem = {};
+  state.semanas.forEach(function(w){
+    var wIni = dateToISO(w.inicio)||w.inicio, wFim = dateToISO(w.fim)||w.fim;
+    if(hoje < wIni || hoje > wFim) return;
+    (w.entradas||[]).forEach(function(e){
+      var catsCDE = (e.categorias||[]).filter(function(c){return c==='C'||c==='D'||c==='E'||c==='X';});
+      if(!catsCDE.length) return;
+      if(!cdeCidadeSem[e.cidade]) cdeCidadeSem[e.cidade] = [];
+      catsCDE.forEach(function(cat){ if(cdeCidadeSem[e.cidade].indexOf(cat)===-1) cdeCidadeSem[e.cidade].push(cat); });
+    });
+  });
+
   html += '<div class="polos-grid">';
   POLOS.forEach(function(p){
     html += '<div class="polo-card"><div class="polo-sign">🛣️ '+esc(p.nome)+' — '+esc(p.regiao)+'</div><div class="polo-body">';
     p.cidades.forEach(function(c){
-      var abertos = state.chamados.filter(function(x){return x.cidade===c && isOpenStatus(x.status);});
+      var abertos  = state.chamados.filter(function(x){return x.cidade===c && isOpenStatus(x.status);});
       var criticos = abertos.filter(function(x){return x.prioridade==='Crítica';}).length;
-      var dot = criticos>0 ? 'var(--red)' : (abertos.length>0 ? 'var(--amber)' : 'var(--green)');
-      html += '<button class="city-pin" onclick="window.__filtrarCidade(\''+c.replace(/'/g,"\\'")+'\')">'+
-        '<span class="pin-dot" style="background:'+dot+';"></span>'+
-        '<span class="pin-name">'+esc(c)+'</span>'+
-        '<span class="pin-count">'+abertos.length+' aberto(s)</span>'+
-      '</button>';
+      var dotCh    = criticos>0 ? 'var(--red)' : (abertos.length>0 ? 'var(--amber)' : 'var(--green)');
+      /* veículos CDE sem cobertura na semana corrente */
+      var catsCDE  = cdeCidadeSem[c] || [];
+      var semVeic  = catsCDE.filter(function(cat){
+        return !state.veiculos.some(function(v){
+          return v.ativo!==false && v.status==='Disponível' && v.categoria===cat
+            && (v.cidade===c || v.cidadeDestino===c);
+        });
+      });
+      var dotVeic  = catsCDE.length===0 ? '' : (semVeic.length===0 ? '🟢' : '🔴');
+      html += '<button class="city-pin" onclick="window.__filtrarCidade(\''+c.replace(/'/g,"\\\'")+'\')";'
+        + ' style="'+(semVeic.length>0?'border-color:var(--red);':'')+'">'
+        + '<span class="pin-dot" style="background:'+dotCh+';"></span>'
+        + '<span class="pin-name">'+esc(c)+'</span>'
+        + (dotVeic ? '<span style="font-size:11px;margin-left:2px;" title="Veículo CDE'+(semVeic.length>0?' — sem veículo Cat.'+semVeic.join('/'):'')+'">'+dotVeic+'🚌</span>' : '')
+        + '<span class="pin-count">'+abertos.length+' aberto(s)</span>'
+        + '</button>';
     });
     html += '</div></div>';
   });
   html += '</div>';
 
+  if(Object.keys(cdeCidadeSem).length){
+    html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;">'
+      + '<span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--green);display:inline-block;"></span> Chamados ok</span>'
+      + '<span>🟢🚌 Veículo CDE disponível</span>'
+      + '<span>🔴🚌 Sem veículo CDE</span>'
+    + '</div>';
+  }
+
   document.getElementById('tabContent').innerHTML = html;
 }
+
 
 window.__saveCatLabel = async function(k, val){
   state.catLabels[k] = val || DEFAULT_CAT_LABELS[k];
@@ -2349,7 +2759,7 @@ function renderChamadosList(){
         )+
         '<div class="ticket-meta">'+
           '<span class="pill teal">'+esc(c.cidade)+'</span>'+
-          (c.pilar && c.pilar!=='frota' ? '<span class="pill amber">🧰 '+esc(c.alvoLabel||'Equipamento')+'</span>' : '<span class="pill gray">'+esc(catLabel(c.categoria))+'</span>')+
+          '<span class="pill gray">'+esc(catLabel(c.categoria))+'</span>'+
           (c.tipoProblema ? '<span class="pill amber">'+esc(c.tipoProblema)+'</span>' : '')+
           '<span class="pill '+prioridadePillClass(c.prioridade)+'">'+esc(c.prioridade)+'</span>'+
           (isAtrasado(c) ? '<span class="pill red">⏰ atrasado · '+horasAberto(c)+'h</span>' : '')+
@@ -2439,7 +2849,6 @@ window.__criarChamado = async function(){
     id: genId(), polo:d.polo, poloId:d.polo, cidade:d.cidade, categoria:d.categoria, tipoProblema:d.tipoProblema,
     prioridade:d.prioridade, titulo:d.titulo.trim(), descricao:d.descricao.trim(),
     status:'Aberto', responsavelNome:state.perfil.nome, responsavelPapel:state.perfil.papel,
-    pilar:'frota', alvoId:null, alvoLabel:d.titulo.trim(), prazoISO:g3PrazoChamadoISO(Date.now(), d.prioridade),
     criadoEm:nowStr(), atualizadoEm:nowStr(), criadoTs:Date.now()
   };
   state.chamados.unshift(novo);
@@ -2475,7 +2884,6 @@ window.__salvarChamado = async function(id){
   c.prioridade   = prio;
   c.tipoProblema = tipo;
   c.descricao    = desc.trim();
-  c.prazoISO     = g3PrazoChamadoISO(c.criadoTs, prio);
   c.atualizadoEm = nowStr();
   c.editadoPor   = state.perfil.nome+' ('+state.perfil.papel+')';
   await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
@@ -3244,6 +3652,12 @@ function renderAgendaTab(){
       window.__draftEntryCDEDia(this.dataset.wid, this.dataset.cat, this.dataset.date, this.checked);
     });
   });
+  /* Sugestão automática de veículo para entrada CDE sem veículo selecionado */
+  document.querySelectorAll('[id^="sugerir-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      window.__setVeiculoCDE(this.dataset.wid, this.dataset.eid, this.dataset.cat, 'veiculoId', this.dataset.vid);
+    });
+  });
   /* addEventListener para edição de entradas */
   document.querySelectorAll('[id^="btn-editar-e-"]').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -3647,6 +4061,15 @@ function renderWeekCard(w, numero){
             });
             var veicsTodos = state.veiculos.filter(function(v){ return v.ativo !== false && v.categoria===cat; });
             var veicsLista = veicsDisponiveis.length ? veicsDisponiveis : veicsTodos;
+            /* ── Auto-sugestão: veículo disponível mas não selecionado ── */
+            var semSelecao = !cd.veiculoId;
+            var sugestao = '';
+            if(semSelecao && veicsDisponiveis.length===1){
+              var vs = veicsDisponiveis[0];
+              sugestao = '<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:7px;padding:5px 9px;font-size:12px;font-weight:600;color:#276749;display:flex;align-items:center;gap:8px;">⚡ Disponível: <b>'+esc(vs.nome)+'</b><button style="font-size:11.5px;padding:2px 9px;background:#276749;color:#fff;border:none;border-radius:6px;cursor:pointer;" id="sugerir-'+w.id+'-'+e.id+'-'+cat+'" data-wid="'+w.id+'" data-eid="'+e.id+'" data-cat="'+cat+'" data-vid="'+vs.id+'">Selecionar ✓</button></div>';
+            } else if(semSelecao && veicsDisponiveis.length>1){
+              sugestao = '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:7px;padding:5px 9px;font-size:12px;color:#856404;">⚠️ '+veicsDisponiveis.length+' veículos disponíveis — selecione acima</div>';
+            }
             bloco += '<div class="cde-veiculo-linha" style="border-top:1px dashed #93B4F5;padding-top:6px;">'+
               '<span class="cde-cat-tag">Cat. '+esc(cat)+'</span>'+
               '<span style="font-size:11.5px;color:#1E3A8A;">📅 '+esc(dataExata)+'</span>'+
@@ -3661,6 +4084,7 @@ function renderWeekCard(w, numero){
                 }).join('')+
               '</select>'+
             '</div>'+
+            (sugestao ? '<div class="cde-veiculo-linha">'+sugestao+'</div>' : '')+
             '<div class="cde-veiculo-linha">'+
               '<label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Motorista:</label>'+
               '<input type="text" value="'+esc(cd.motorista||'')+'" placeholder="Nome do motorista" style="flex:1;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12.5px;" onblur="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'motorista\',this.value)">'+
@@ -4373,18 +4797,45 @@ window.__salvarVeiculo = async function(id){
   var cat    = catEl    ? catEl.value             : v.categoria;
   var tipo   = tipoEl   ? tipoEl.value            : (v.tipo||'Próprio');
   if(!nome){ showToast('A identificação não pode estar vazia.'); return; }
-  var antigaCat = v.categoria;
+  var antigaCat    = v.categoria;
+  var antigaCidade = v.cidade;
   v.nome      = nome;
   v.cidade    = cidade;
   v.categoria = cat;
   v.tipo      = tipo;
+  /* se mudou cidade ou categoria: status volta para Disponível automaticamente */
+  if(cidade !== antigaCidade || cat !== antigaCat){
+    v.status = 'Disponível';
+    v.motivo = '';
+    v.motivoOutroDescricao = '';
+  }
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm  = nowStr();
   if(antigaCat !== cat)
     addHistorico(v,'manutencao','Categoria alterada: '+antigaCat+' → '+cat,{cidade:cidade});
+  if(antigaCidade !== cidade)
+    addHistorico(v,'manutencao','Cidade alterada: '+antigaCidade+' → '+cidade,{cidade:cidade});
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   state.veiculoEditando = null;
-  showToast('✅ Veículo atualizado.');
+  /* verifica agendamentos CDE pendentes para essa cidade+categoria */
+  function _agendCDEpendentes(cidade, cat){
+    var count = 0;
+    state.semanas.forEach(function(w){
+      (w.entradas||[]).forEach(function(e){
+        if(e.cidade===cidade && (e.categorias||[]).indexOf(cat)>-1){
+          var cd = ((e.veiculosCDE||{})[cat]) || {};
+          if(!cd.veiculoId) count++;
+        }
+      });
+    });
+    return count;
+  }
+  var pendCDE = _agendCDEpendentes(cidade, cat);
+  if(pendCDE > 0){
+    showToast('✅ Veículo atualizado. ⚡ '+pendCDE+' agendamento(s) CDE em '+cidade+'/Cat '+cat+' aguardam seleção de veículo — acesse a Agenda.');
+  } else {
+    showToast('✅ Veículo atualizado.');
+  }
   renderVeiculosTab();
 };
 
@@ -4439,6 +4890,122 @@ window.__rmFotoApoio = async function(id){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   showToast('Foto removida.');
   renderVeiculosTab();
+};
+
+/* ── Pessoas: CRUD colaboradores, ausências, ocorrências, habilidades ── */
+window.__cadColaborador = async function(){
+  var nome = (document.getElementById('cb-nome')||{}).value||'';
+  if(!nome.trim()){showToast('Informe o nome do colaborador.');return;}
+  var cidadesBackup = [...document.querySelectorAll('.cb-cidade-bkp:checked')].map(function(el){return el.value;});
+  var habilidades   = [...document.querySelectorAll('.cb-hab-ck:checked')].map(function(el){return el.value;});
+  var novo = {
+    id:'CB'+Date.now().toString(36).toUpperCase(),
+    nome:nome.trim(),
+    funcao:(document.getElementById('cb-funcao')||{}).value||'',
+    cidade:(document.getElementById('cb-cidade')||{}).value||'',
+    setor:(document.getElementById('cb-setor')||{}).value||'',
+    status:(document.getElementById('cb-status')||{}).value||'Ativo',
+    backupId:(document.getElementById('cb-backup')||{}).value||'',
+    usuarioId:(document.getElementById('cb-usuario')||{}).value||'',
+    telefone:(document.getElementById('cb-tel')||{}).value||'',
+    admissao:(document.getElementById('cb-adm')||{}).value||'',
+    trabalhaSabado:(document.getElementById('cb-sabado')||{}).value||'Não',
+    cidadesBackup:cidadesBackup,
+    habilidades:habilidades,
+    obs:(document.getElementById('cb-obs')||{}).value||'',
+    criadoPor:state.perfil?state.perfil.nome:'—',
+    criadoEm:nowStr()
+  };
+  state.colaboradores = state.colaboradores||[];
+  state.colaboradores.push(novo);
+  await storageSet('colaboradores-lista',JSON.stringify(state.colaboradores),true);
+  showToast('✅ Colaborador '+esc(novo.nome)+' cadastrado.');
+  renderGestaoTab();
+};
+
+window.__rmColaborador = async function(id){
+  state.colaboradores=(state.colaboradores||[]).filter(function(c){return c.id!==id;});
+  await storageSet('colaboradores-lista',JSON.stringify(state.colaboradores),true);
+  showToast('Colaborador removido.');renderGestaoTab();
+};
+
+window.__addAusencia = async function(){
+  var cid=(document.getElementById('aus-colab')||{}).value||'';
+  var ini=(document.getElementById('aus-ini')||{}).value||'';
+  var fim=(document.getElementById('aus-fim')||{}).value||'';
+  if(!cid||!ini||!fim){showToast('Preencha colaborador e datas.');return;}
+  var nova={
+    id:'AUS'+Date.now().toString(36).toUpperCase(),
+    colaboradorId:cid,
+    tipo:(document.getElementById('aus-tipo')||{}).value||'Férias',
+    inicio:ini,fim:fim,
+    substitutoId:(document.getElementById('aus-sub')||{}).value||'',
+    impacto:(document.getElementById('aus-imp')||{}).value||'Nenhum',
+    obs:(document.getElementById('aus-obs')||{}).value||'',
+    criadoEm:nowStr()
+  };
+  state.ausencias=state.ausencias||[];
+  state.ausencias.push(nova);
+  await storageSet('ausencias-lista',JSON.stringify(state.ausencias),true);
+  showToast('✅ Ausência registrada.');renderGestaoTab();
+};
+
+window.__rmAusencia = async function(id){
+  state.ausencias=(state.ausencias||[]).filter(function(a){return a.id!==id;});
+  await storageSet('ausencias-lista',JSON.stringify(state.ausencias),true);
+  showToast('Ausência removida.');renderGestaoTab();
+};
+
+window.__addOcorrencia = async function(){
+  var cid=(document.getElementById('oc-colab')||{}).value||'';
+  if(!cid){showToast('Selecione o colaborador.');return;}
+  var nova={
+    id:'OC'+Date.now().toString(36).toUpperCase(),
+    colaboradorId:cid,
+    data:(document.getElementById('oc-data')||{}).value||hojeLocal(),
+    tipo:(document.getElementById('oc-tipo')||{}).value||'',
+    gravidade:(document.getElementById('oc-grav')||{}).value||'Baixa',
+    examesImpactados:parseInt((document.getElementById('oc-exames')||{}).value||'0',10),
+    acaoTomada:(document.getElementById('oc-acao')||{}).value||'',
+    descricao:(document.getElementById('oc-desc')||{}).value||'',
+    criadoEm:nowStr()
+  };
+  state.ocorrencias=state.ocorrencias||[];
+  state.ocorrencias.push(nova);
+  await storageSet('ocorrencias-lista',JSON.stringify(state.ocorrencias),true);
+  showToast('✅ Ocorrência registrada.');renderGestaoTab();
+};
+
+window.__rmOcorrencia = async function(id){
+  state.ocorrencias=(state.ocorrencias||[]).filter(function(o){return o.id!==id;});
+  await storageSet('ocorrencias-lista',JSON.stringify(state.ocorrencias),true);
+  showToast('Ocorrência removida.');renderGestaoTab();
+};
+
+window.__addHabilidade = async function(){
+  var nome=(document.getElementById('nova-hab-nome')||{}).value||'';
+  if(!nome.trim()){showToast('Digite o nome da habilidade.');return;}
+  var critica=!!(document.getElementById('nova-hab-critica')||{}).checked;
+  var slug=nome.trim().toLowerCase().replace(/[^a-z0-9]/g,'_').slice(0,20);
+  var nova={id:'HAB'+Date.now().toString(36).toUpperCase(),nome:nome.trim(),slug:slug,critica:critica};
+  state.habilidades=state.habilidades||[];
+  state.habilidades.push(nova);
+  await storageSet('habilidades-lista',JSON.stringify(state.habilidades),true);
+  showToast('✅ Habilidade adicionada.');renderGestaoTab();
+};
+
+window.__rmHabilidade = async function(id){
+  state.habilidades=(state.habilidades||[]).filter(function(h){return h.id!==id;});
+  await storageSet('habilidades-lista',JSON.stringify(state.habilidades),true);
+  showToast('Habilidade removida.');renderGestaoTab();
+};
+
+window.__toggleHabCritica = async function(id,critica){
+  var h=(state.habilidades||[]).find(function(x){return x.id===id;});
+  if(!h)return;
+  h.critica=critica;
+  await storageSet('habilidades-lista',JSON.stringify(state.habilidades),true);
+  renderGestaoTab();
 };
 
 window.__desativarVeiculo = async function(id){
@@ -5530,1149 +6097,6 @@ function downloadCSV(rows, filename){
   a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
-
-
-/* ===================================================================
-   GESTÃO — 3 PILARES  (Pessoas · Frota · Equipamentos)  +  Reunião de sexta
-   Coleções novas no kv_store (mesmo padrão xxx-lista / xxx-config):
-     colaboradores-lista, ausencias-lista, ocorrencias-lista, habilidades-config,
-     equipamentos-lista, kit-padrao-config, conferencias-lista,
-     gargalos-lista, acoes-lista, reunioes-lista
-=================================================================== */
-var G3_KEYS = {
-  colaboradores:'colaboradores-lista', ausencias:'ausencias-lista', ocorrencias:'ocorrencias-lista',
-  habilidadesConfig:'habilidades-config', equipamentos:'equipamentos-lista', kitConfig:'kit-padrao-config',
-  conferencias:'conferencias-lista', gargalos:'gargalos-lista', acoes:'acoes-lista', reunioes:'reunioes-lista'
-};
-var G3_FUNCOES        = ['Examinador','Apoio','Supervisor','Líder de Operação','Suporte','Administrativo'];
-var G3_STATUS_COLAB   = ['Ativo','Em férias','Afastado','Desligado'];
-var G3_TIPOS_AUSENCIA = ['Férias','Folga','Atestado','Treinamento','Licença','Outro'];
-var G3_IMPACTO_AUS    = ['Nenhum','Reduzido','Suspenso'];
-var G3_TIPOS_OCORR    = ['Atraso','Falta','Erro de procedimento','Conflito','Elogio','Sobrecarga','Outro'];
-var G3_GRAVIDADES     = ['Baixa','Média','Alta'];
-var G3_STATUS_EQUIP   = ['Operando','Com defeito','Em reparo','Reserva','Extraviado','Baixado'];
-var G3_STATUS_GARGALO = ['Identificado','Em tratamento','Monitorando','Resolvido'];
-var G3_STATUS_ACAO    = ['Aberta','Em andamento','Concluída','Cancelada'];
-var G3_IMPACTOS       = ['Baixo','Médio','Alto'];
-var G3_PILARES        = [['pessoas','👥 Pessoas'],['frota','🚐 Frota'],['equipamentos','🧰 Equipamentos'],['processo','🔁 Processo']];
-var G3_PRAZO_DIAS     = {'Crítica':1,'Alta':2,'Média':5,'Baixa':10};
-var G3_DIAS_CONFERENCIA = 45;
-
-var G3_HAB_DEFAULT = { itens:[
-  {id:'exame_A',        nome:'Aplicar exame cat. A',          critica:true},
-  {id:'exame_B',        nome:'Aplicar exame cat. B',          critica:true},
-  {id:'exame_CD',       nome:'Aplicar exame cat. C/D/E',      critica:false},
-  {id:'sistema_detran', nome:'Operar sistema do Detran',      critica:true},
-  {id:'checkin_painel', nome:'Check-in no painel',            critica:true},
-  {id:'manut_basica',   nome:'Manutenção básica da moto',     critica:false},
-  {id:'abrir_chamado',  nome:'Abrir chamado',                 critica:false},
-  {id:'cnh_D',          nome:'Habilitado cat. D',             critica:false}
-]};
-var G3_KIT_DEFAULT = {
-  tipos:[
-    {id:'tablet',     nome:'Tablet de check-in', critico:true,  porUnidade:true},
-    {id:'minipc',     nome:'Mini PC',            critico:true,  porUnidade:true},
-    {id:'camera',     nome:'Câmera',             critico:true,  porUnidade:true},
-    {id:'biometria',  nome:'Leitor biométrico',  critico:true,  porUnidade:true},
-    {id:'radio',      nome:'Rádio',              critico:false, porUnidade:true},
-    {id:'impressora', nome:'Impressora',         critico:false, porUnidade:true},
-    {id:'chip',       nome:'Chip de dados',      critico:true,  porUnidade:true},
-    {id:'colete',     nome:'Colete',             critico:false, porUnidade:false},
-    {id:'cone',       nome:'Cone',               critico:false, porUnidade:false}
-  ],
-  kits:{
-    padrao:{tablet:1, minipc:1, camera:2, biometria:1, radio:2, chip:1, colete:4, cone:12},
-    porPolo:{ p1:{tablet:6, minipc:3, camera:8, biometria:4, radio:10, impressora:2, chip:6, colete:20, cone:60} },
-    porCidade:{}
-  }
-};
-
-/* ---------- helpers ---------- */
-function g3Id(p){ return p + Date.now().toString(36).toUpperCase().slice(-6) + Math.random().toString(36).slice(2,5).toUpperCase(); }
-function g3Autor(){ return state.perfil ? state.perfil.nome+' ('+state.perfil.papel+')' : '—'; }
-function g3Hist(tipo, descricao, extra){
-  return Object.assign({id:g3Id('H'), tipo:tipo, descricao:descricao, por:g3Autor(), dataISO:hojeLocal(), em:nowStr()}, extra||{});
-}
-function g3Val(id){ var el=document.getElementById(id); return el ? (el.value||'').toString().trim() : ''; }
-function g3Num(id){ var v=parseFloat(g3Val(id)); return isNaN(v)?0:v; }
-function g3Chk(id){ var el=document.getElementById(id); return !!(el && el.checked); }
-function g3Opts(arr, sel, vazio){
-  var h = vazio ? '<option value="">'+esc(vazio)+'</option>' : '';
-  arr.forEach(function(o){
-    var v = typeof o==='string' ? o : o[0]; var l = typeof o==='string' ? o : o[1];
-    h += '<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(l)+'</option>';
-  });
-  return h;
-}
-function g3AddDias(iso, n){ var d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function g3DiffDias(a, b){ return Math.round((new Date(b+'T12:00:00') - new Date(a+'T12:00:00'))/86400000); }
-function g3Disp(iso){ if(!iso) return '—'; var p=iso.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; }
-function g3SemanaISO(iso){
-  var d=new Date(iso+'T12:00:00'); var dn=(d.getDay()+6)%7; d.setDate(d.getDate()-dn+3);
-  var y=d.getFullYear(); var w=Math.ceil(((d-new Date(y,0,4))/86400000+((new Date(y,0,4).getDay()+6)%7)+1)/7);
-  return y+'-W'+String(w).padStart(2,'0');
-}
-function g3PoloId(cidade){ var p=CIDADE_POLO[cidade]; return p?p.id:''; }
-function g3Colab(id){ return state.colaboradores.filter(function(c){return c.id===id;})[0]||null; }
-function g3Equip(id){ return state.equipamentos.filter(function(e){return e.id===id;})[0]||null; }
-function g3Gargalo(id){ return state.gargalos.filter(function(g){return g.id===id;})[0]||null; }
-function g3Acao(id){ return state.acoes.filter(function(a){return a.id===id;})[0]||null; }
-function g3TipoKit(id){ return (state.kitConfig.tipos||[]).filter(function(t){return t.id===id;})[0]||null; }
-function g3HabNome(id){ var h=(state.habilidadesConfig.itens||[]).filter(function(x){return x.id===id;})[0]; return h?h.nome:id; }
-function g3Nivel(n){ return n==='vermelho'?'red':n==='amarelo'?'amber':'green'; }
-function g3Bolinha(n){ return n==='vermelho'?'🔴':n==='amarelo'?'🟡':'🟢'; }
-function g3Pior(arr){ if(arr.indexOf('vermelho')>-1) return 'vermelho'; if(arr.indexOf('amarelo')>-1) return 'amarelo'; return 'verde'; }
-function g3UsuariosAtivos(){ return (state.usuarios||[]).filter(function(u){return u.status==='aprovado';}); }
-
-async function g3Load(){
-  /* Nunca zera uma coleção por falha de rede (storageGet devolve null em erro):
-     só substitui quando veio valor; defaults só enquanto o state ainda está vazio.
-     Enquanto um handler g3 está no meio de um await (state.g3.busy), não troca as listas. */
-  if(state.g3 && state.g3.busy) return;
-  var ks = Object.keys(G3_KEYS);
-  var vals = await Promise.all(ks.map(function(k){ return storageGet(G3_KEYS[k], true); }));
-  if(state.g3 && state.g3.busy) return;
-  ks.forEach(function(k, i){
-    var v = vals[i]; var parsed = null;
-    if(v){ try{ parsed = JSON.parse(v); }catch(e){ parsed = null; } }
-    if(k==='habilidadesConfig'){
-      if(parsed && Array.isArray(parsed.itens)) state.habilidadesConfig = parsed;
-      else if(!state.habilidadesConfig) state.habilidadesConfig = JSON.parse(JSON.stringify(G3_HAB_DEFAULT));
-      return;
-    }
-    if(k==='kitConfig'){
-      if(parsed && Array.isArray(parsed.tipos)) state.kitConfig = parsed;
-      else if(!state.kitConfig) state.kitConfig = JSON.parse(JSON.stringify(G3_KIT_DEFAULT));
-      var kk = state.kitConfig.kits = state.kitConfig.kits || {};
-      kk.padrao = kk.padrao || {}; kk.porPolo = kk.porPolo || {}; kk.porCidade = kk.porCidade || {};
-      return;
-    }
-    if(Array.isArray(parsed)) state[k] = parsed;
-    else if(!Array.isArray(state[k])) state[k] = [];
-  });
-}
-async function g3Save(k){
-  var payload = state[k];
-  return await storageSet(G3_KEYS[k], JSON.stringify(payload), true);
-}
-
-/* ---------- regras de negócio ---------- */
-function g3ColabsCidade(cidade){
-  return state.colaboradores.filter(function(c){ return c.cidade===cidade && c.status!=='Desligado'; });
-}
-function g3AusenciaEm(colabId, iso){
-  return state.ausencias.filter(function(a){ return a.colaboradorId===colabId && a.inicioISO<=iso && a.fimISO>=iso; })[0]||null;
-}
-function g3DisponivelEm(colab, iso){
-  if(!colab || colab.status!=='Ativo') return false;
-  return !g3AusenciaEm(colab.id, iso);
-}
-function g3Backups(cidade){
-  var ids = {};
-  g3ColabsCidade(cidade).forEach(function(c){ if(c.backupId) ids[c.backupId]=true; });
-  state.colaboradores.forEach(function(c){
-    if(c.status==='Desligado' || c.cidade===cidade) return;
-    if((c.cobreCidades||[]).indexOf(cidade)>-1) ids[c.id]=true;
-  });
-  return Object.keys(ids).map(g3Colab).filter(function(c){ return c && c.status!=='Desligado'; });
-}
-function g3AusenciaCidade(a){ var c=g3Colab(a.colaboradorId); return c ? c.cidade : a.cidade; }
-function g3AusenciasFuturas(cidade, hoje, dias){
-  /* cidade resolvida pelo cadastro atual do colaborador (transferências), ausências de excluídos/desligados não contam */
-  var fim = g3AddDias(hoje, dias);
-  return state.ausencias.filter(function(a){ var c=g3Colab(a.colaboradorId); return c && c.status!=='Desligado' && c.cidade===cidade && a.fimISO>=hoje && a.inicioISO<=fim; });
-}
-function g3KitCidade(cidade){
-  var k = state.kitConfig.kits || {};
-  var r = Object.assign({}, k.padrao||{});
-  var pid = g3PoloId(cidade);
-  Object.assign(r, (k.porPolo||{})[pid]||{});
-  Object.assign(r, (k.porCidade||{})[cidade]||{});
-  return r;
-}
-function g3EquipsCidade(cidade){ return state.equipamentos.filter(function(e){ return e.cidade===cidade && e.status!=='Baixado'; }); }
-function g3Aderencia(cidade){
-  var kit = g3KitCidade(cidade), eqs = g3EquipsCidade(cidade);
-  var exigido=0, operando=0, faltantes=[], criticoSemReserva=[];
-  Object.keys(kit).forEach(function(tipo){
-    var req = parseInt(kit[tipo],10)||0; if(req<=0) return;
-    var t = g3TipoKit(tipo) || {id:tipo, nome:tipo, critico:false};
-    var doTipo = eqs.filter(function(e){ return e.tipo===tipo; });
-    var qtd = function(list){ return list.reduce(function(s,e){ return s + (e.quantidade!=null ? (parseInt(e.quantidade,10)||0) : 1); },0); };
-    var op = qtd(doTipo.filter(function(e){ return e.status==='Operando'; }));
-    var reserva = qtd(doTipo.filter(function(e){ return e.status==='Reserva'; }));
-    var defeito = doTipo.filter(function(e){ return e.status==='Com defeito'||e.status==='Extraviado'; });
-    exigido += req; operando += Math.min(op, req);
-    if(op < req) faltantes.push({tipo:tipo, nome:t.nome, exigido:req, tem:op, critico:!!t.critico});
-    if(t.critico && defeito.length && reserva===0 && op < req) criticoSemReserva.push(t.nome);
-  });
-  var ratio = exigido>0 ? operando/exigido : 1;
-  return {exigido:exigido, operando:operando, ratio:ratio, faltantes:faltantes, criticoSemReserva:criticoSemReserva};
-}
-function g3UltimaConferencia(cidade){
-  var cs = state.conferencias.filter(function(c){ return c.cidade===cidade; }).sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
-  return cs[0] ? cs[0].dataISO : null;
-}
-function g3ExamesProximos(cidade, hoje, dias){
-  /* Mesma regra da agenda (examesHoje): A/B "todos os dias" dentro da semana, C/D/E/X só em datas exatas */
-  var cats = {};
-  for(var i=0;i<=dias;i++){
-    var d = g3AddDias(hoje, i);
-    examesHoje(d).forEach(function(x){ if(x.cidade===cidade && x.status!=='Interrompido') x.cats.forEach(function(c){ cats[c]=true; }); });
-  }
-  return Object.keys(cats);
-}
-function g3PrazoChamadoISO(criadoTs, prioridade){
-  var d = new Date(criadoTs || Date.now()); d.setHours(d.getHours() + (SLA_HORAS[prioridade]||48));
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
-function g3ChamadoPrazo(c){
-  /* prazo = criação + SLA da prioridade (mesma tabela SLA_HORAS usada na aba Chamados) */
-  if(!c.criadoTs) return c.prazoISO || null;
-  return g3PrazoChamadoISO(c.criadoTs, c.prioridade);
-}
-function g3ChamadoAberto(c){ return c.status==='Aberto'||c.status==='Em andamento'; }
-function g3ChamadoAtrasado(c){ return isAtrasado(c); }
-function g3ChamadoPilar(c){ return c.pilar || 'frota'; }
-function g3AcaoAtrasada(a, hoje){ return (a.status==='Aberta'||a.status==='Em andamento') && a.prazoISO && a.prazoISO<hoje; }
-
-function calcularSemaforo(cidade, hoje){
-  hoje = hoje || hojeLocal();
-  var r = {pessoas:{nivel:'verde',motivos:[]}, frota:{nivel:'verde',motivos:[]}, equipamentos:{nivel:'verde',motivos:[]}, geral:'verde'};
-
-  /* ---- Pessoas ---- */
-  var colabs = g3ColabsCidade(cidade);
-  var backups = g3Backups(cidade);
-  var pm = r.pessoas.motivos; var pv=false, pa=false;
-  if(!state.colaboradores.length){ /* pilar ainda não em uso */ }
-  else if(!colabs.length && !backups.length){ pa=true; pm.push('Nenhum colaborador cadastrado na cidade'); }
-  else {
-    var dispHoje = colabs.filter(function(c){ return g3DisponivelEm(c, hoje); });
-    var dispBackupHoje = backups.filter(function(c){ return g3DisponivelEm(c, hoje); });
-    if(!dispHoje.length && !dispBackupHoje.length){ pv=true; pm.push('Ninguém disponível hoje (ausência sem substituto)'); }
-    /* próximos 7 dias sem ninguém */
-    for(var i=1;i<=7;i++){
-      var d=g3AddDias(hoje,i);
-      var ok = colabs.some(function(c){return g3DisponivelEm(c,d);}) || backups.some(function(c){return g3DisponivelEm(c,d);});
-      if(!ok){ pv=true; pm.push('Cidade descoberta em '+g3Disp(d)); break; }
-    }
-    /* ausência sem substituto = atenção (amarelo); vermelho só quando a cidade fica realmente sem ninguém (regra acima) */
-    g3AusenciasFuturas(cidade, hoje, 30).forEach(function(a){
-      if(a.substitutoId) return;
-      pa=true; pm.push(a.colaboradorNome+' ausente ('+a.tipo+') '+g3Disp(a.inicioISO)+'→'+g3Disp(a.fimISO)+' sem substituto');
-    });
-    if(colabs.length===1 && !backups.length){ pa=true; pm.push('Um único colaborador, sem backup definido'); }
-    /* habilidades críticas */
-    var criticas = (state.habilidadesConfig.itens||[]).filter(function(h){return h.critica;});
-    var todas = colabs.concat(backups);
-    criticas.forEach(function(h){
-      var tem = todas.some(function(c){ return (c.habilidades||[]).indexOf(h.id)>-1; });
-      if(!tem && todas.some(function(c){ return (c.habilidades||[]).length; })){ pa=true; pm.push('Ninguém apto: '+h.nome); }
-    });
-    var d30 = g3AddDias(hoje,-30);
-    var occ = state.ocorrencias.filter(function(o){ return o.cidade===cidade && o.dataISO>=d30 && (o.gravidade==='Média'||o.gravidade==='Alta'); });
-    if(occ.length>=2){ pa=true; pm.push(occ.length+' ocorrências média/alta em 30 dias'); }
-  }
-  r.pessoas.nivel = pv?'vermelho':pa?'amarelo':'verde';
-
-  /* ---- Frota ---- */
-  var fm = r.frota.motivos; var fv=false, fa=false;
-  var veics = state.veiculos.filter(function(v){ return v.ativo!==false && v.tipo!=='Apoio (gestor/suporte)' && (v.cidade===cidade || (v.cidadeDestino===cidade && v.cidadeDestino!=='__volta__')); });
-  var cats = g3ExamesProximos(cidade, hoje, 7);
-  cats.forEach(function(cat){
-    var disp = veics.filter(function(v){ return v.categoria===cat && v.status==='Disponível'; });
-    if(!disp.length){ fv=true; fm.push('Cat. '+cat+' com exame na semana e sem veículo disponível'); }
-  });
-  var indisp = veics.filter(function(v){ return v.status==='Indisponível'; });
-  indisp.forEach(function(v){
-    var reservaCat = veics.filter(function(x){ return x.categoria===v.categoria && x.status==='Disponível'; }).length;
-    if(reservaCat===0 && fm.indexOf('Cat. '+v.categoria+' com exame na semana e sem veículo disponível')<0){ fa=true; fm.push((v.nome||'Veículo')+' indisponível sem reserva na cat. '+v.categoria); }
-  });
-  var chCid = state.chamados.filter(function(c){ return c.cidade===cidade && g3ChamadoPilar(c)==='frota' && g3ChamadoAtrasado(c); });
-  chCid.forEach(function(c){
-    if(c.prioridade==='Alta'||c.prioridade==='Crítica'){ fv=true; fm.push('Chamado '+c.id+' ('+c.prioridade+') atrasado'); }
-    else { fa=true; fm.push('Chamado '+c.id+' atrasado'); }
-  });
-  r.frota.nivel = fv?'vermelho':fa?'amarelo':'verde';
-
-  /* ---- Equipamentos ---- */
-  var em = r.equipamentos.motivos; var ev=false, ea=false;
-  var ad = g3Aderencia(cidade);
-  if(g3EquipsCidade(cidade).length){
-    if(ad.criticoSemReserva.length){ ev=true; em.push('Crítico sem reserva: '+ad.criticoSemReserva.join(', ')); }
-    if(ad.ratio<0.7){ ev=true; em.push('Kit em '+Math.round(ad.ratio*100)+'% ('+ad.operando+'/'+ad.exigido+')'); }
-    else if(ad.ratio<1){ ea=true; em.push('Kit em '+Math.round(ad.ratio*100)+'% — falta '+ad.faltantes.map(function(f){return f.nome+' ('+f.tem+'/'+f.exigido+')';}).join(', ')); }
-    var uc = g3UltimaConferencia(cidade);
-    if(g3EquipsCidade(cidade).length){
-      if(!uc){ ea=true; em.push('Nenhuma conferência registrada'); }
-      else if(g3DiffDias(uc, hoje)>G3_DIAS_CONFERENCIA){ ea=true; em.push('Última conferência há '+g3DiffDias(uc,hoje)+' dias'); }
-    }
-    var chEq = state.chamados.filter(function(c){ return c.cidade===cidade && g3ChamadoPilar(c)==='equipamentos' && g3ChamadoAtrasado(c); });
-    if(chEq.length){ ea=true; em.push(chEq.length+' chamado(s) de equipamento atrasado(s)'); }
-  }
-  r.equipamentos.nivel = ev?'vermelho':ea?'amarelo':'verde';
-
-  r.geral = g3Pior([r.pessoas.nivel, r.frota.nivel, r.equipamentos.nivel]);
-  return r;
-}
-window.calcularSemaforo = calcularSemaforo; window.g3Equip = g3Equip; window.g3Colab = g3Colab;
-function g3SemaforoTodas(hoje){
-  var out = {};
-  TODAS_CIDADES.forEach(function(c){ out[c] = calcularSemaforo(c, hoje); });
-  return out;
-}
-
-/* ---------- shell / navegação interna da aba Gestão ---------- */
-var G3_SUBS = [['visao','🎯 Visão 3 pilares'],['pessoas','👥 Pessoas'],['frota','🚐 Frota'],['equipamentos','🧰 Equipamentos'],['reuniao','📅 Reunião de sexta']];
-function g3Shell(sub){
-  state.g3.sub = sub;
-  var h = '<div class="g3-subnav">';
-  G3_SUBS.forEach(function(s){
-    h += '<button class="'+(s[0]===sub?'active':'')+'" onclick="window.__g3Sub(\''+s[0]+'\')">'+s[1]+'</button>';
-  });
-  h += '</div>';
-  return h;
-}
-window.__g3Sub = function(sub){ state.g3.sub = sub; state.g3.preAcao = null; renderGestaoTab(); };
-window.renderGestaoTab = function(){ renderGestaoTab(); };
-function renderGestaoTab(){
-  if(!state.sessao || !state.sessao.isAdmin){ document.getElementById('tabContent').innerHTML='<div class="empty card">Acesso restrito ao administrador.</div>'; return; }
-  var sub = state.g3.sub || 'visao';
-  if(sub==='frota'){ renderGestaoFrotaLegacy(); return; }
-  var html = g3Shell(sub);
-  if(sub==='visao') html += renderG3Visao();
-  else if(sub==='pessoas') html += renderG3Pessoas();
-  else if(sub==='equipamentos') html += renderG3Equip();
-  else if(sub==='reuniao') html += renderG3Reuniao();
-  document.getElementById('tabContent').innerHTML = html;
-}
-function g3Bloco(titulo, corpo, extraHead){
-  return '<div class="rel-bloco"><div class="rel-head"><span>'+titulo+'</span>'+(extraHead||'')+'</div><div class="rel-body">'+corpo+'</div></div>';
-}
-function g3Vazio(txt){ return '<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:12px;">'+txt+'</div>'; }
-function g3Kpi(cls, num, lbl, meta){ return '<div class="kpi-tatic '+cls+'"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div>'+(meta?'<div class="meta">'+meta+'</div>':'')+'</div>'; }
-function g3Th(cols){ return '<thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead>'; }
-function g3Tabela(inner){ return '<div class="table-wrap g3-table"><table>'+inner+'</table></div>'; }
-function g3SelCidades(id, sel, vazio){ return '<select id="'+id+'">'+g3Opts(TODAS_CIDADES, sel, vazio||'Selecione a cidade')+'</select>'; }
-
-/* ===================== VISÃO 3 PILARES ===================== */
-function renderG3Visao(){
-  var hoje = hojeLocal();
-  var sem = g3SemaforoTodas(hoje);
-  state.g3._motivos = {};
-  var cont = {verde:0, amarelo:0, vermelho:0};
-  TODAS_CIDADES.forEach(function(c){ cont[sem[c].geral]++; });
-  var acoesVenc = state.acoes.filter(function(a){ return g3AcaoAtrasada(a, hoje); });
-  var chAtras = state.chamados.filter(function(c){ return g3ChamadoAtrasado(c); });
-  var gargAb = state.gargalos.filter(function(g){ return g.status!=='Resolvido'; });
-  var descob = TODAS_CIDADES.filter(function(c){ return sem[c].pessoas.motivos.some(function(m){ return m.indexOf('descoberta')>-1 || m.indexOf('Ninguém disponível')>-1; }); });
-
-  var html = '<div class="section-title">🎯 Visão consolidada por cidade <span style="font-weight:400;font-size:12px;color:var(--ink-soft);">· '+g3Disp(hoje)+'</span></div>';
-  html += '<div class="kpi-tatic-grid">'
-    + g3Kpi('vermelho', cont.vermelho, 'Cidades em vermelho', 'risco de parada')
-    + g3Kpi('amarelo', cont.amarelo, 'Cidades em amarelo', 'atenção')
-    + g3Kpi('verde', cont.verde, 'Cidades em verde', 'operando normal')
-    + g3Kpi(descob.length?'vermelho':'verde', descob.length, 'Descobertas (7 dias)', descob.slice(0,3).join(', ')||'nenhuma')
-    + g3Kpi(chAtras.length?'amarelo':'verde', chAtras.length, 'Chamados atrasados', 'todos os pilares')
-    + g3Kpi(acoesVenc.length?'vermelho':'verde', acoesVenc.length, 'Ações vencidas', gargAb.length+' gargalo(s) aberto(s)')
-    + '</div>';
-
-  html += '<div class="filters" style="align-items:center;">'
-    + '<label class="g3-toggle"><input type="checkbox" '+(state.g3.soAlerta?'checked':'')+' onchange="state.g3.soAlerta=this.checked;renderGestaoTab()"> Mostrar só cidades com alerta</label>'
-    + '<span style="font-size:12px;color:var(--ink-soft);margin-left:auto;">Cada card: 👥 Pessoas · 🚐 Frota · 🧰 Equipamentos</span>'
-    + '</div>';
-
-  POLOS.forEach(function(p){
-    var cidades = p.cidades.filter(function(c){ return !state.g3.soAlerta || sem[c].geral!=='verde'; });
-    if(!cidades.length) return;
-    html += '<div class="section-title" style="font-size:13px;margin-top:14px;">'+esc(p.nome)+' — '+esc(p.regiao)+'</div>';
-    html += '<div class="g3-cards">';
-    cidades.forEach(function(c){
-      var s = sem[c];
-      html += '<div class="g3-card nivel-'+s.geral+'">'
-        + '<div class="g3-card-top"><b>'+esc(c)+'</b><span class="pill '+g3Nivel(s.geral)+'">'+g3Bolinha(s.geral)+' '+s.geral+'</span></div>'
-        + '<div class="g3-pilares">'
-        + '<span class="g3-pil" title="Pessoas">'+g3Bolinha(s.pessoas.nivel)+' 👥</span>'
-        + '<span class="g3-pil" title="Frota">'+g3Bolinha(s.frota.nivel)+' 🚐</span>'
-        + '<span class="g3-pil" title="Equipamentos">'+g3Bolinha(s.equipamentos.nivel)+' 🧰</span>'
-        + '</div>';
-      var motivos = s.pessoas.motivos.map(function(m){return ['pessoas',m];}).concat(s.frota.motivos.map(function(m){return ['frota',m];}), s.equipamentos.motivos.map(function(m){return ['equipamentos',m];}));
-      state.g3._motivos[c] = motivos;
-      if(motivos.length){
-        html += '<ul class="g3-motivos">';
-        motivos.slice(0,5).forEach(function(m, mi){
-          html += '<li><span>'+esc(m[1])+'</span><button class="g3-mini" title="Registrar como gargalo" onclick="window.__g3GargaloDeMotivo(\''+esc(c)+'\','+mi+')">+ gargalo</button></li>';
-        });
-        if(motivos.length>5) html += '<li style="color:var(--ink-soft);">+'+(motivos.length-5)+' outro(s)</li>';
-        html += '</ul>';
-      } else {
-        html += '<div style="font-size:12px;color:var(--ink-soft);">Sem alertas.</div>';
-      }
-      html += '</div>';
-    });
-    html += '</div>';
-  });
-  if(state.g3.soAlerta && !cont.vermelho && !cont.amarelo) html += g3Vazio('Todas as 18 cidades em verde. 🎉');
-  return html;
-}
-window.__g3GargaloDeMotivo = async function(cidade, idx){
-  var m = ((state.g3._motivos||{})[cidade]||[])[idx]; if(!m) return;
-  var pilar = m[0], titulo = m[1];
-  if(state.gargalos.some(function(g){ return g.cidade===cidade && g.titulo===titulo && g.status!=='Resolvido'; })){ showToast('Já existe um gargalo aberto com esse título.'); return; }
-  var g = { id:g3Id('GA'), titulo:titulo, pilar:pilar, cidade:cidade, poloId:g3PoloId(cidade), descricao:'Gerado a partir do semáforo em '+g3Disp(hojeLocal()),
-    impacto:'Médio', status:'Identificado', recorrencias:1, vinculos:{chamadoIds:[],ocorrenciaIds:[],veiculoIds:[],equipamentoIds:[],colaboradorIds:[]},
-    donoId: state.sessao?state.sessao.id:null, donoNome: state.perfil?state.perfil.nome:'', identificadoEm:hojeLocal(), resolvidoEm:null,
-    criadoPor:g3Autor(), criadoEm:nowStr(), criadoTs:Date.now(), historico:[g3Hist('status','Identificado')] };
-  state.gargalos.unshift(g);
-  await g3Save('gargalos');
-  showToast('Gargalo registrado. Veja em Reunião de sexta.');
-};
-
-/* ===================== PESSOAS ===================== */
-function renderG3Pessoas(){
-  var hoje = hojeLocal();
-  var ed = state.g3.editColab ? g3Colab(state.g3.editColab) : null;
-  var html = '<div class="section-title">👥 Pessoas</div>';
-
-  /* KPIs */
-  var ativos = state.colaboradores.filter(function(c){return c.status!=='Desligado';});
-  var semBackup = TODAS_CIDADES.filter(function(c){ var cs=g3ColabsCidade(c); return cs.length===1 && !g3Backups(c).length; });
-  var semNinguem = TODAS_CIDADES.filter(function(c){ return !g3ColabsCidade(c).length; });
-  var ausProx = state.ausencias.filter(function(a){ return a.fimISO>=hoje && a.inicioISO<=g3AddDias(hoje,30); });
-  var ausSemSub = ausProx.filter(function(a){ return !a.substitutoId; });
-  html += '<div class="kpi-tatic-grid">'
-    + g3Kpi('verde', ativos.length, 'Colaboradores ativos', TODAS_CIDADES.length-semNinguem.length+' de 18 cidades cobertas')
-    + g3Kpi(semNinguem.length?'vermelho':'verde', semNinguem.length, 'Cidades sem cadastro', semNinguem.slice(0,3).join(', '))
-    + g3Kpi(semBackup.length?'amarelo':'verde', semBackup.length, 'Cidades sem backup', 'um único colaborador')
-    + g3Kpi(ausSemSub.length?'vermelho':'verde', ausSemSub.length, 'Ausências sem substituto', 'próximos 30 dias ('+ausProx.length+' no total)')
-    + '</div>';
-
-  /* Mapa de cobertura */
-  var rows = '';
-  POLOS.forEach(function(p){
-    p.cidades.forEach(function(c){
-      var cs = g3ColabsCidade(c), bk = g3Backups(c), s = calcularSemaforo(c, hoje).pessoas;
-      var aus = g3AusenciasFuturas(c, hoje, 30);
-      rows += '<tr><td style="color:var(--ink-soft);font-size:12px;">'+esc(p.nome)+'</td><td><b>'+esc(c)+'</b></td>'
-        + '<td>'+(cs.length? cs.map(function(x){ var a=g3AusenciaEm(x.id,hoje); return '<span class="pill '+(a?'gray':'teal')+'" title="'+esc(x.funcao||'')+'">'+esc(x.nome)+(a?' · '+esc(a.tipo):'')+'</span>'; }).join(' ') : '<span class="pill red">ninguém</span>')+'</td>'
-        + '<td>'+(bk.length? bk.map(function(x){return '<span class="pill gray">'+esc(x.nome)+' <small>('+esc(x.cidade)+')</small></span>';}).join(' ') : '<span style="color:var(--ink-soft);">—</span>')+'</td>'
-        + '<td>'+(aus.length? aus.map(function(a){return '<div style="font-size:12px;">'+esc(a.colaboradorNome)+' · '+esc(a.tipo)+' '+g3Disp(a.inicioISO)+'→'+g3Disp(a.fimISO)+(a.substitutoId?'':' <span class="pill red">sem subst.</span>')+'</div>';}).join('') : '<span style="color:var(--ink-soft);">—</span>')+'</td>'
-        + '<td><span class="pill '+g3Nivel(s.nivel)+'">'+g3Bolinha(s.nivel)+'</span>'+(s.motivos.length?'<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">'+esc(s.motivos[0])+'</div>':'')+'</td></tr>';
-    });
-  });
-  html += g3Bloco('🗺️ Mapa de cobertura por cidade', g3Tabela(g3Th(['Polo','Cidade','Titular(es)','Backup','Ausências (30 dias)','Semáforo'])+'<tbody>'+rows+'</tbody>'));
-
-  /* Cadastro de colaborador */
-  var habs = state.habilidadesConfig.itens||[];
-  var outros = state.colaboradores.filter(function(c){ return c.status!=='Desligado' && (!ed || c.id!==ed.id); });
-  var form = '<div class="form-grid">'
-    + '<label>Nome<input id="g3c-nome" type="text" value="'+esc(ed?ed.nome:'')+'" placeholder="Nome completo"></label>'
-    + '<label>Função<select id="g3c-funcao">'+g3Opts(G3_FUNCOES, ed?ed.funcao:'Examinador')+'</select></label>'
-    + '<label>Cidade-base'+g3SelCidades('g3c-cidade', ed?ed.cidade:'')+'</label>'
-    + '<label>Setor (Recife)<input id="g3c-setor" type="text" value="'+esc(ed&&ed.setor?ed.setor:'')+'" placeholder="Frota, Suporte, Agendamento…"></label>'
-    + '<label>Status<select id="g3c-status">'+g3Opts(G3_STATUS_COLAB, ed?ed.status:'Ativo')+'</select></label>'
-    + '<label>Backup (quem cobre)<select id="g3c-backup">'+g3Opts(outros.map(function(c){return [c.id, c.nome+' ('+c.cidade+')'];}), ed?ed.backupId:'', '— sem backup —')+'</select></label>'
-    + '<label>Usuário do painel<select id="g3c-usuario">'+g3Opts(g3UsuariosAtivos().map(function(u){return [u.id,u.nome];}), ed?ed.usuarioId:'', '— não tem login —')+'</select></label>'
-    + '<label>Telefone<input id="g3c-tel" type="text" value="'+esc(ed&&ed.telefone?ed.telefone:'')+'"></label>'
-    + '<label>Admissão<input id="g3c-adm" type="date" value="'+esc(ed&&ed.admissaoISO?ed.admissaoISO:'')+'"></label>'
-    + '<label>Trabalha sábado?<select id="g3c-sab">'+g3Opts([['1','Sim'],['0','Não']], ed&&ed.trabalhaSabado===false?'0':'1')+'</select></label>'
-    + '</div>';
-  form += '<div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin:4px 0;">Cobre também (backup de outras cidades)</div><div class="chip-check" style="margin-bottom:10px;">'
-    + TODAS_CIDADES.map(function(c){ return '<label><input type="checkbox" class="g3c-cobre" value="'+esc(c)+'" '+(ed&&(ed.cobreCidades||[]).indexOf(c)>-1?'checked':'')+'>'+esc(c)+'</label>'; }).join('')+'</div>';
-  form += '<div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin:4px 0;">Habilidades</div><div class="chip-check" style="margin-bottom:10px;">'
-    + habs.map(function(h){ return '<label><input type="checkbox" class="g3c-hab" value="'+esc(h.id)+'" '+(ed&&(ed.habilidades||[]).indexOf(h.id)>-1?'checked':'')+'>'+esc(h.nome)+(h.critica?' <span title="crítica">★</span>':'')+'</label>'; }).join('')+'</div>';
-  form += '<label style="display:block;font-size:12px;color:var(--ink-soft);font-weight:600;">Observações<textarea id="g3c-obs" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px;margin-top:4px;">'+esc(ed&&ed.observacoes?ed.observacoes:'')+'</textarea></label>';
-  form += '<div style="display:flex;gap:8px;margin-top:10px;">'
-    + '<button class="btn btn-primary" onclick="window.__g3SalvarColab()">'+(ed?'💾 Salvar alterações':'➕ Cadastrar colaborador')+'</button>'
-    + (ed?'<button class="btn btn-ghost" onclick="state.g3.editColab=null;renderGestaoTab()">Cancelar</button>':'')
-    + '</div>';
-  html += g3Bloco(ed?'✏️ Editando: '+esc(ed.nome):'➕ Novo colaborador', form);
-
-  /* Lista de colaboradores */
-  var fc = state.g3.fColabCidade;
-  var lista = state.colaboradores.filter(function(c){ return !fc || c.cidade===fc; }).sort(function(a,b){ return (a.cidade+a.nome).localeCompare(b.cidade+b.nome); });
-  var filtro = '<select onchange="state.g3.fColabCidade=this.value;renderGestaoTab()" style="border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:4px 8px;font-size:12px;">'+g3Opts(TODAS_CIDADES, fc, 'Todas as cidades')+'</select>';
-  var lrows = lista.map(function(c){
-    var bk = c.backupId ? g3Colab(c.backupId) : null;
-    return '<tr'+(c.status==='Desligado'?' style="opacity:.55"':'')+'><td><b>'+esc(c.nome)+'</b>'+(c.usuarioId?' <span class="pill teal" title="tem login">🔑</span>':'')+'<div style="font-size:11px;color:var(--ink-soft);">'+esc(c.funcao||'')+(c.setor?' · '+esc(c.setor):'')+'</div></td>'
-      + '<td>'+esc(c.cidade)+(c.cobreCidades&&c.cobreCidades.length?'<div style="font-size:11px;color:var(--ink-soft);">cobre: '+c.cobreCidades.map(esc).join(', ')+'</div>':'')+'</td>'
-      + '<td>'+(bk?esc(bk.nome):'<span style="color:var(--ink-soft);">—</span>')+'</td>'
-      + '<td style="font-size:11.5px;">'+(c.habilidades||[]).map(function(h){return '<span class="pill gray" style="margin:1px;">'+esc(g3HabNome(h))+'</span>';}).join(' ')+'</td>'
-      + '<td><span class="pill '+(c.status==='Ativo'?'green':c.status==='Desligado'?'gray':'amber')+'">'+esc(c.status)+'</span></td>'
-      + '<td style="white-space:nowrap;"><button class="g3-mini" onclick="state.g3.editColab=\''+c.id+'\';renderGestaoTab();window.scrollTo(0,0)">✏️ editar</button> <button class="g3-mini" onclick="window.__g3ExcluirColab(\''+c.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  html += g3Bloco('📋 Colaboradores ('+lista.length+')', lista.length? g3Tabela(g3Th(['Nome','Cidade','Backup','Habilidades','Status',''])+'<tbody>'+lrows+'</tbody>') : g3Vazio('Nenhum colaborador cadastrado ainda.'), filtro);
-
-  /* Ausências */
-  var colabsSel = state.colaboradores.filter(function(c){return c.status!=='Desligado';}).sort(function(a,b){return a.nome.localeCompare(b.nome);});
-  var fa = '<div class="form-grid">'
-    + '<label>Colaborador<select id="g3a-colab">'+g3Opts(colabsSel.map(function(c){return [c.id,c.nome+' ('+c.cidade+')'];}), '', 'Selecione')+'</select></label>'
-    + '<label>Tipo<select id="g3a-tipo">'+g3Opts(G3_TIPOS_AUSENCIA,'Férias')+'</select></label>'
-    + '<label>Início<input id="g3a-ini" type="date" value="'+hoje+'"></label>'
-    + '<label>Fim<input id="g3a-fim" type="date" value="'+hoje+'"></label>'
-    + '<label>Substituto<select id="g3a-sub">'+g3Opts(colabsSel.map(function(c){return [c.id,c.nome+' ('+c.cidade+')'];}), '', '— sem substituto —')+'</select></label>'
-    + '<label>Impacto nos exames<select id="g3a-imp">'+g3Opts(G3_IMPACTO_AUS,'Nenhum')+'</select></label>'
-    + '<label>Obs.<input id="g3a-obs" type="text"></label>'
-    + '</div><button class="btn btn-primary" onclick="window.__g3AddAusencia()">➕ Registrar ausência</button>';
-  var ausLista = state.ausencias.filter(function(a){ return a.fimISO>=g3AddDias(hoje,-7); }).sort(function(a,b){ return a.inicioISO.localeCompare(b.inicioISO); });
-  var arows = ausLista.map(function(a){
-    var st = a.fimISO<hoje?'encerrada':a.inicioISO>hoje?'prevista':'em curso';
-    return '<tr><td><b>'+esc(a.colaboradorNome)+'</b><div style="font-size:11px;color:var(--ink-soft);">'+esc(g3AusenciaCidade(a))+'</div></td><td>'+esc(a.tipo)+'</td><td style="white-space:nowrap;">'+g3Disp(a.inicioISO)+' → '+g3Disp(a.fimISO)+'</td>'
-      + '<td>'+(a.substitutoId?esc(a.substitutoNome):'<span class="pill red">sem substituto</span>')+'</td><td><span class="pill '+(st==='em curso'?'amber':st==='prevista'?'teal':'gray')+'">'+st+'</span></td>'
-      + '<td>'+esc(a.impactoExames||'')+(a.obs?'<div style="font-size:11px;color:var(--ink-soft);">'+esc(a.obs)+'</div>':'')+'</td>'
-      + '<td><button class="g3-mini" onclick="window.__g3ExcluirAusencia(\''+a.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  html += g3Bloco('🏖️ Ausências (férias, folgas, atestados, treinamentos)', fa + '<div style="height:12px"></div>' + (ausLista.length? g3Tabela(g3Th(['Colaborador','Tipo','Período','Substituto','Situação','Impacto',''])+'<tbody>'+arows+'</tbody>') : g3Vazio('Nenhuma ausência recente ou prevista.')));
-
-  /* Ocorrências */
-  var fo = '<div class="form-grid">'
-    + '<label>Colaborador<select id="g3o-colab">'+g3Opts(colabsSel.map(function(c){return [c.id,c.nome+' ('+c.cidade+')'];}), '', 'Selecione')+'</select></label>'
-    + '<label>Data<input id="g3o-data" type="date" value="'+hoje+'"></label>'
-    + '<label>Tipo<select id="g3o-tipo">'+g3Opts(G3_TIPOS_OCORR,'Atraso')+'</select></label>'
-    + '<label>Gravidade<select id="g3o-grav">'+g3Opts(G3_GRAVIDADES,'Baixa')+'</select></label>'
-    + '<label>Exames impactados<input id="g3o-exames" type="number" min="0" value="0"></label>'
-    + '<label>Ação tomada<input id="g3o-acao" type="text" placeholder="Conversa, advertência, reconhecimento…"></label>'
-    + '</div>'
-    + '<label style="display:block;font-size:12px;color:var(--ink-soft);font-weight:600;">Descrição<textarea id="g3o-desc" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px;margin-top:4px;"></textarea></label>'
-    + '<button class="btn btn-primary" style="margin-top:8px;" onclick="window.__g3AddOcorrencia()">➕ Registrar ocorrência</button>';
-  var d60 = g3AddDias(hoje,-60);
-  var occ = state.ocorrencias.filter(function(o){ return o.dataISO>=d60; }).sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
-  var orows = occ.map(function(o){
-    var cls = o.tipo==='Elogio'?'green':o.gravidade==='Alta'?'red':o.gravidade==='Média'?'amber':'gray';
-    return '<tr><td style="white-space:nowrap;">'+g3Disp(o.dataISO)+'</td><td><b>'+esc(o.colaboradorNome)+'</b><div style="font-size:11px;color:var(--ink-soft);">'+esc(o.cidade)+'</div></td>'
-      + '<td><span class="pill '+cls+'">'+esc(o.tipo)+(o.tipo!=='Elogio'&&o.gravidade?' · '+esc(o.gravidade):'')+'</span></td>'
-      + '<td style="font-size:12.5px;">'+esc(o.descricao||'')+(o.acaoTomada?'<div style="font-size:11px;color:var(--ink-soft);">↳ '+esc(o.acaoTomada)+'</div>':'')+'</td>'
-      + '<td style="text-align:center;">'+(o.examesImpactados||0)+'</td>'
-      + '<td><button class="g3-mini" onclick="window.__g3ExcluirOcorrencia(\''+o.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  html += g3Bloco('📝 Ocorrências (últimos 60 dias)', fo + '<div style="height:12px"></div>' + (occ.length? g3Tabela(g3Th(['Data','Colaborador','Tipo','Descrição','Exames',''])+'<tbody>'+orows+'</tbody>') : g3Vazio('Nenhuma ocorrência registrada no período.')));
-
-  /* Habilidades config */
-  var hrows = habs.map(function(h){
-    var qtd = state.colaboradores.filter(function(c){ return c.status!=='Desligado' && (c.habilidades||[]).indexOf(h.id)>-1; }).length;
-    return '<tr><td><b>'+esc(h.nome)+'</b> <span class="mono" style="font-size:11px;color:var(--ink-soft);">'+esc(h.id)+'</span></td>'
-      + '<td><label class="g3-toggle"><input type="checkbox" '+(h.critica?'checked':'')+' onchange="window.__g3HabCritica(\''+h.id+'\',this.checked)"> crítica</label></td>'
-      + '<td style="text-align:center;">'+qtd+'</td><td><button class="g3-mini" onclick="window.__g3RmHab(\''+h.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  var hform = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;"><input id="g3h-nome" type="text" placeholder="Nova habilidade (ex.: Aplicar exame cat. E)" style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;"><label class="g3-toggle"><input id="g3h-crit" type="checkbox"> crítica</label><button class="btn btn-ghost" onclick="window.__g3AddHab()">➕ Adicionar</button></div>'
-    + '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;">★ Habilidade crítica: a cidade fica em vermelho se ninguém (titular ou backup) a tiver.</div>';
-  html += g3Bloco('⚙️ Catálogo de habilidades', g3Tabela(g3Th(['Habilidade','Criticidade','Pessoas aptas',''])+'<tbody>'+hrows+'</tbody>') + hform);
-  return html;
-}
-
-window.__g3SalvarColab = async function(){
-  var nome = g3Val('g3c-nome'), cidade = g3Val('g3c-cidade');
-  if(!nome){ showToast('Informe o nome.'); return; }
-  if(!cidade){ showToast('Selecione a cidade-base.'); return; }
-  var backupId = g3Val('g3c-backup'); var bk = backupId ? g3Colab(backupId) : null;
-  var dados = {
-    nome:nome, funcao:g3Val('g3c-funcao'), cidade:cidade, poloId:g3PoloId(cidade), setor:g3Val('g3c-setor')||null,
-    status:g3Val('g3c-status'), backupId:backupId||null, backupNome:bk?bk.nome:null, usuarioId:g3Val('g3c-usuario')||null,
-    telefone:g3Val('g3c-tel'), admissaoISO:g3Val('g3c-adm')||null, trabalhaSabado:g3Val('g3c-sab')==='1',
-    cobreCidades:Array.from(document.querySelectorAll('.g3c-cobre:checked')).map(function(x){return x.value;}).filter(function(c){return c!==cidade;}),
-    habilidades:Array.from(document.querySelectorAll('.g3c-hab:checked')).map(function(x){return x.value;}),
-    observacoes:g3Val('g3c-obs'), atualizadoPor:g3Autor(), atualizadoEm:nowStr()
-  };
-  var ed = state.g3.editColab ? g3Colab(state.g3.editColab) : null;
-  if(ed){
-    var mud = [];
-    if(ed.cidade!==dados.cidade) mud.push(g3Hist('transferencia','Movido de '+ed.cidade+' para '+dados.cidade));
-    if(ed.funcao!==dados.funcao) mud.push(g3Hist('promocao','Função: '+(ed.funcao||'—')+' → '+dados.funcao));
-    if(ed.status!==dados.status) mud.push(g3Hist('status','Status: '+ed.status+' → '+dados.status));
-    Object.assign(ed, dados); ed.historico = (ed.historico||[]).concat(mud);
-    state.g3.editColab = null;
-    showToast('Colaborador atualizado.');
-  } else {
-    var novo = Object.assign({id:g3Id('CO'), criadoTs:Date.now(), historico:[g3Hist('status','Cadastrado')]}, dados);
-    state.colaboradores.push(novo);
-    showToast('Colaborador cadastrado.');
-  }
-  await g3Save('colaboradores');
-  renderGestaoTab();
-};
-window.__g3ExcluirColab = async function(id){
-  var c = g3Colab(id); if(!c) return;
-  if(!confirm('Excluir '+c.nome+'? Prefira marcar como "Desligado" para manter o histórico.')) return;
-  state.colaboradores = state.colaboradores.filter(function(x){return x.id!==id;});
-  if(state.g3.editColab===id) state.g3.editColab=null;
-  await g3Save('colaboradores'); showToast('Colaborador excluído.'); renderGestaoTab();
-};
-window.__g3AddAusencia = async function(){
-  var cid = g3Val('g3a-colab'); var c = g3Colab(cid);
-  if(!c){ showToast('Selecione o colaborador.'); return; }
-  var ini = g3Val('g3a-ini'), fim = g3Val('g3a-fim');
-  if(!ini||!fim||fim<ini){ showToast('Período inválido.'); return; }
-  var sid = g3Val('g3a-sub'); var s = sid ? g3Colab(sid) : null;
-  if(s && s.id===c.id){ showToast('O substituto não pode ser a própria pessoa.'); return; }
-  state.ausencias.push({ id:g3Id('AU'), colaboradorId:c.id, colaboradorNome:c.nome, cidade:c.cidade, poloId:c.poloId||g3PoloId(c.cidade),
-    tipo:g3Val('g3a-tipo'), inicioISO:ini, fimISO:fim, substitutoId:s?s.id:null, substitutoNome:s?s.nome:null,
-    impactoExames:g3Val('g3a-imp'), obs:g3Val('g3a-obs'), criadoPor:g3Autor(), criadoEm:nowStr(), criadoTs:Date.now() });
-  await g3Save('ausencias'); showToast('Ausência registrada.'); renderGestaoTab();
-};
-window.__g3ExcluirAusencia = async function(id){
-  if(!confirm('Excluir esta ausência?')) return;
-  state.ausencias = state.ausencias.filter(function(a){return a.id!==id;});
-  await g3Save('ausencias'); renderGestaoTab();
-};
-window.__g3AddOcorrencia = async function(){
-  var c = g3Colab(g3Val('g3o-colab')); if(!c){ showToast('Selecione o colaborador.'); return; }
-  var desc = g3Val('g3o-desc'); if(!desc){ showToast('Descreva a ocorrência.'); return; }
-  var tipo = g3Val('g3o-tipo');
-  state.ocorrencias.unshift({ id:g3Id('OC'), colaboradorId:c.id, colaboradorNome:c.nome, cidade:c.cidade, poloId:c.poloId||g3PoloId(c.cidade),
-    dataISO:g3Val('g3o-data')||hojeLocal(), tipo:tipo, gravidade:tipo==='Elogio'?null:g3Val('g3o-grav'), descricao:desc,
-    examesImpactados:g3Num('g3o-exames'), acaoTomada:g3Val('g3o-acao'), gargaloId:null,
-    registradoPor:g3Autor(), registradoEm:nowStr(), criadoTs:Date.now() });
-  await g3Save('ocorrencias'); showToast('Ocorrência registrada.'); renderGestaoTab();
-};
-window.__g3ExcluirOcorrencia = async function(id){
-  if(!confirm('Excluir esta ocorrência?')) return;
-  state.ocorrencias = state.ocorrencias.filter(function(o){return o.id!==id;});
-  await g3Save('ocorrencias'); renderGestaoTab();
-};
-window.__g3HabCritica = async function(id, v){
-  var h = (state.habilidadesConfig.itens||[]).filter(function(x){return x.id===id;})[0]; if(!h) return;
-  h.critica = !!v; state.habilidadesConfig.atualizadoPor=g3Autor(); state.habilidadesConfig.atualizadoEm=nowStr();
-  await g3Save('habilidadesConfig'); renderGestaoTab();
-};
-window.__g3AddHab = async function(){
-  var nome = g3Val('g3h-nome'); if(!nome){ showToast('Informe o nome da habilidade.'); return; }
-  var id = nomeSemAcento(nome).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || g3Id('hab_').toLowerCase();
-  if((state.habilidadesConfig.itens||[]).some(function(h){return h.id===id;})) id += '_'+Date.now().toString(36).slice(-3);
-  state.habilidadesConfig.itens = (state.habilidadesConfig.itens||[]).concat([{id:id, nome:nome, critica:g3Chk('g3h-crit')}]);
-  state.habilidadesConfig.atualizadoPor=g3Autor(); state.habilidadesConfig.atualizadoEm=nowStr();
-  await g3Save('habilidadesConfig'); renderGestaoTab();
-};
-window.__g3RmHab = async function(id){
-  if(!confirm('Remover esta habilidade do catálogo?')) return;
-  state.habilidadesConfig.itens = (state.habilidadesConfig.itens||[]).filter(function(h){return h.id!==id;});
-  await g3Save('habilidadesConfig'); renderGestaoTab();
-};
-
-/* ===================== EQUIPAMENTOS ===================== */
-function renderG3Equip(){
-  var hoje = hojeLocal();
-  var tipos = state.kitConfig.tipos||[];
-  var ed = state.g3.editEquip ? g3Equip(state.g3.editEquip) : null;
-  var html = '<div class="section-title">🧰 Equipamentos</div>';
-
-  var ativos = state.equipamentos.filter(function(e){return e.status!=='Baixado';});
-  var defeito = ativos.filter(function(e){return e.status==='Com defeito'||e.status==='Extraviado';});
-  var reparo = ativos.filter(function(e){return e.status==='Em reparo';});
-  var abaixo = TODAS_CIDADES.filter(function(c){ return g3EquipsCidade(c).length && g3Aderencia(c).ratio<1; });
-  var semConf = TODAS_CIDADES.filter(function(c){ var u=g3UltimaConferencia(c); return g3EquipsCidade(c).length && (!u || g3DiffDias(u,hoje)>G3_DIAS_CONFERENCIA); });
-  html += '<div class="kpi-tatic-grid">'
-    + g3Kpi('verde', ativos.length, 'Itens cadastrados', tipos.length+' tipos no catálogo')
-    + g3Kpi(defeito.length?'vermelho':'verde', defeito.length, 'Com defeito / extraviados', reparo.length+' em reparo')
-    + g3Kpi(abaixo.length?'amarelo':'verde', abaixo.length, 'Cidades abaixo do kit', abaixo.slice(0,3).join(', '))
-    + g3Kpi(semConf.length?'amarelo':'verde', semConf.length, 'Conferência vencida', '> '+G3_DIAS_CONFERENCIA+' dias')
-    + '</div>';
-
-  /* Aderência ao kit */
-  var rows = '';
-  POLOS.forEach(function(p){
-    p.cidades.forEach(function(c){
-      var ad = g3Aderencia(c), uc = g3UltimaConferencia(c), s = calcularSemaforo(c, hoje).equipamentos;
-      var pct = Math.round(ad.ratio*100);
-      rows += '<tr><td style="color:var(--ink-soft);font-size:12px;">'+esc(p.nome)+'</td><td><b>'+esc(c)+'</b></td>'
-        + '<td><div class="g3-bar"><div style="width:'+pct+'%;background:'+(pct>=100?'var(--green)':pct>=70?'var(--amber)':'var(--red)')+'"></div></div><span style="font-size:12px;">'+ad.operando+'/'+ad.exigido+' · '+pct+'%</span></td>'
-        + '<td style="font-size:12px;">'+(ad.faltantes.length? ad.faltantes.map(function(f){return '<span class="pill '+(f.critico?'red':'amber')+'" style="margin:1px;">'+esc(f.nome)+' '+f.tem+'/'+f.exigido+'</span>';}).join(' ') : '<span style="color:var(--ink-soft);">completo</span>')+'</td>'
-        + '<td style="white-space:nowrap;">'+(uc? g3Disp(uc)+' <small style="color:var(--ink-soft);">('+g3DiffDias(uc,hoje)+'d)</small>' : '<span style="color:var(--ink-soft);">nunca</span>')+'</td>'
-        + '<td><span class="pill '+g3Nivel(s.nivel)+'">'+g3Bolinha(s.nivel)+'</span></td>'
-        + '<td><button class="g3-mini" onclick="state.g3.confCidade=\''+esc(c)+'\';renderGestaoTab();document.getElementById(\'g3-conf\').scrollIntoView()">📋 conferir</button></td></tr>';
-    });
-  });
-  html += g3Bloco('📦 Aderência ao kit padrão por cidade', g3Tabela(g3Th(['Polo','Cidade','Operando / exigido','Faltando','Última conferência','Semáforo',''])+'<tbody>'+rows+'</tbody>'));
-
-  /* Cadastro */
-  var colabs = state.colaboradores.filter(function(c){return c.status!=='Desligado';}).sort(function(a,b){return a.nome.localeCompare(b.nome);});
-  var tipoSel = ed?ed.tipo:(tipos[0]?tipos[0].id:'');
-  var form = '<div class="form-grid">'
-    + '<label>Tipo<select id="g3e-tipo">'+g3Opts(tipos.map(function(t){return [t.id,t.nome+(t.critico?' ★':'')];}), tipoSel)+'</select></label>'
-    + '<label>Identificador / patrimônio<input id="g3e-ident" type="text" value="'+esc(ed?ed.identificador:'')+'" placeholder="TAB-017 ou LOTE"></label>'
-    + '<label>Descrição<input id="g3e-desc" type="text" value="'+esc(ed&&ed.descricao?ed.descricao:'')+'" placeholder="Marca/modelo, chip, série…"></label>'
-    + '<label>Cidade'+g3SelCidades('g3e-cidade', ed?ed.cidade:'')+'</label>'
-    + '<label>Responsável<select id="g3e-resp">'+g3Opts(colabs.map(function(c){return [c.id,c.nome+' ('+c.cidade+')'];}), ed?ed.responsavelId:'', '— sem responsável —')+'</select></label>'
-    + '<label>Status<select id="g3e-status">'+g3Opts(G3_STATUS_EQUIP, ed?ed.status:'Operando')+'</select></label>'
-    + '<label>Quantidade (só para lotes)<input id="g3e-qtd" type="number" min="1" value="'+(ed&&ed.quantidade!=null?ed.quantidade:'')+'" placeholder="vazio = 1 unidade"></label>'
-    + '<label>Aquisição<input id="g3e-aq" type="date" value="'+esc(ed&&ed.aquisicaoISO?ed.aquisicaoISO:'')+'"></label>'
-    + '<label>Vida útil (meses)<input id="g3e-vida" type="number" min="0" value="'+(ed&&ed.vidaUtilMeses?ed.vidaUtilMeses:'')+'"></label>'
-    + '<label>Custo de reposição (R$)<input id="g3e-custo" type="number" min="0" step="0.01" value="'+(ed&&ed.custoReposicao?ed.custoReposicao:'')+'"></label>'
-    + '</div>'
-    + '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-primary" onclick="window.__g3SalvarEquip()">'+(ed?'💾 Salvar alterações':'➕ Cadastrar equipamento')+'</button>'
-    + (ed?'<button class="btn btn-ghost" onclick="state.g3.editEquip=null;renderGestaoTab()">Cancelar</button>':'')+'</div>';
-  html += g3Bloco(ed?'✏️ Editando: '+esc(ed.identificador):'➕ Novo equipamento', form);
-
-  /* Lista */
-  var fcid = state.g3.fCidadeEquip, fst = state.g3.fStatusEquip;
-  var lista = state.equipamentos.filter(function(e){ return (!fcid||e.cidade===fcid) && (!fst||e.status===fst); }).sort(function(a,b){ return (a.cidade+a.tipo+a.identificador).localeCompare(b.cidade+b.tipo+b.identificador); });
-  var filtros = '<span style="display:flex;gap:6px;">'
-    + '<select onchange="state.g3.fCidadeEquip=this.value;renderGestaoTab()" class="g3-head-sel">'+g3Opts(TODAS_CIDADES, fcid, 'Todas as cidades')+'</select>'
-    + '<select onchange="state.g3.fStatusEquip=this.value;renderGestaoTab()" class="g3-head-sel">'+g3Opts(G3_STATUS_EQUIP, fst, 'Todos os status')+'</select></span>';
-  var erows = lista.map(function(e){
-    var t = g3TipoKit(e.tipo); var stCls = e.status==='Operando'?'green':e.status==='Reserva'?'teal':e.status==='Em reparo'?'amber':e.status==='Baixado'?'gray':'red';
-    var ult = (e.historico||[]).slice(-1)[0];
-    return '<tr'+(e.status==='Baixado'?' style="opacity:.55"':'')+'><td><b>'+esc(e.identificador)+'</b>'+(e.quantidade!=null?' <span class="pill gray">×'+e.quantidade+'</span>':'')+'<div style="font-size:11px;color:var(--ink-soft);">'+esc(t?t.nome:e.tipo)+(e.descricao?' · '+esc(e.descricao):'')+'</div></td>'
-      + '<td>'+esc(e.cidade)+'</td><td style="font-size:12.5px;">'+esc(e.responsavelNome||'—')+'</td>'
-      + '<td><select class="status-select" style="font-size:11.5px;" onchange="window.__g3StatusEquip(\''+e.id+'\',this.value)">'+g3Opts(G3_STATUS_EQUIP, e.status)+'</select>'+(e.motivo?'<div style="font-size:11px;color:var(--ink-soft);">'+esc(e.motivo)+'</div>':'')+'</td>'
-      + '<td style="font-size:11.5px;white-space:nowrap;">'+(e.ultimaConferenciaISO?g3Disp(e.ultimaConferenciaISO):'—')+'</td>'
-      + '<td style="font-size:11px;color:var(--ink-soft);">'+(ult?esc(ult.descricao)+'<br>'+esc(ult.em):'')+'</td>'
-      + '<td style="white-space:nowrap;"><button class="g3-mini" onclick="state.g3.editEquip=\''+e.id+'\';renderGestaoTab();window.scrollTo(0,0)">✏️</button> <button class="g3-mini" onclick="window.__g3MoverEquip(\''+e.id+'\')" title="Deslocar para outra cidade">🚚</button> <button class="g3-mini" onclick="window.__g3ExcluirEquip(\''+e.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  html += g3Bloco('📋 Inventário ('+lista.length+')', lista.length? g3Tabela(g3Th(['Item','Cidade','Responsável','Status','Conferido','Último evento',''])+'<tbody>'+erows+'</tbody>') : g3Vazio('Nenhum equipamento cadastrado com esses filtros.'), filtros);
-
-  /* Conferência */
-  var cc = state.g3.confCidade;
-  var conf = '<div class="form-grid" style="grid-template-columns:220px 1fr;"><label>Cidade<select id="g3cf-cidade" onchange="state.g3.confCidade=this.value;renderGestaoTab()">'+g3Opts(TODAS_CIDADES, cc, 'Selecione a cidade')+'</select></label>'
-    + '<label>Conferido por<select id="g3cf-por">'+g3Opts(colabs.filter(function(c){return !cc||c.cidade===cc||(c.cobreCidades||[]).indexOf(cc)>-1;}).map(function(c){return [c.id,c.nome];}), '', '— eu mesmo ('+esc(state.perfil?state.perfil.nome:'')+') —')+'</select></label></div>';
-  if(cc){
-    var eqs = g3EquipsCidade(cc);
-    if(!eqs.length) conf += g3Vazio('Nenhum equipamento cadastrado em '+esc(cc)+'. Cadastre acima antes de conferir.');
-    else {
-      conf += g3Tabela(g3Th(['Item','Tipo','Situação encontrada','Qtd. encontrada','Obs.'])+'<tbody>'+eqs.map(function(e){
-        var t=g3TipoKit(e.tipo);
-        return '<tr data-eq="'+e.id+'"><td><b>'+esc(e.identificador)+'</b></td><td>'+esc(t?t.nome:e.tipo)+'</td>'
-          + '<td><select id="g3cf-sit-'+e.id+'">'+g3Opts([['OK','✅ OK'],['Defeito','⚠️ Defeito'],['Faltando','❌ Faltando / extraviado']], e.status==='Operando'||e.status==='Reserva'?'OK':e.status==='Extraviado'?'Faltando':'Defeito')+'</select></td>'
-          + '<td>'+(e.quantidade!=null?'<input id="g3cf-qtd-'+e.id+'" type="number" min="0" value="'+e.quantidade+'" style="width:80px;border:1px solid var(--line);border-radius:7px;padding:5px;">':'—')+'</td>'
-          + '<td><input id="g3cf-obs-'+e.id+'" type="text" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:5px;"></td></tr>';
-      }).join('')+'</tbody>');
-      conf += '<button class="btn btn-primary" style="margin-top:10px;" onclick="window.__g3SalvarConferencia()">💾 Salvar conferência de '+esc(cc)+'</button>'
-        + '<span style="font-size:11.5px;color:var(--ink-soft);margin-left:10px;">Itens com defeito ou faltando abrem chamado automaticamente e mudam de status.</span>';
-    }
-  }
-  var confs = state.conferencias.slice().sort(function(a,b){return b.dataISO.localeCompare(a.dataISO);}).slice(0,12);
-  if(confs.length){
-    conf += '<div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;">Últimas conferências</div>'
-      + g3Tabela(g3Th(['Data','Cidade','Por','OK','Defeito','Faltando','Aderência'])+'<tbody>'+confs.map(function(c){
-        return '<tr><td>'+g3Disp(c.dataISO)+'</td><td><b>'+esc(c.cidade)+'</b></td><td>'+esc(c.conferidoPorNome)+'</td><td style="text-align:center;">'+c.resumo.ok+'</td><td style="text-align:center;">'+c.resumo.defeito+'</td><td style="text-align:center;">'+c.resumo.faltando+'</td><td>'+Math.round(c.resumo.aderencia*100)+'%</td></tr>';
-      }).join('')+'</tbody>');
-  }
-  html += '<div id="g3-conf">'+g3Bloco('📋 Conferência mensal do kit', conf)+'</div>';
-
-  /* Kit padrão config */
-  var kits = state.kitConfig.kits;
-  var kt = g3Th(['Tipo','Crítico','Padrão (Polos 2-4)'].concat(POLOS.map(function(p){return p.nome;})));
-  var krows = tipos.map(function(t){
-    var cells = '<td><b>'+esc(t.nome)+'</b> <span class="mono" style="font-size:11px;color:var(--ink-soft);">'+esc(t.id)+'</span></td>'
-      + '<td><label class="g3-toggle"><input type="checkbox" '+(t.critico?'checked':'')+' onchange="window.__g3TipoCritico(\''+t.id+'\',this.checked)"> crítico</label></td>'
-      + '<td><input type="number" min="0" class="g3-kit-in" value="'+(kits.padrao[t.id]!=null?kits.padrao[t.id]:'')+'" onchange="window.__g3KitSet(\'padrao\',null,\''+t.id+'\',this.value)"></td>';
-    POLOS.forEach(function(p){
-      var v = (kits.porPolo[p.id]||{})[t.id];
-      cells += '<td><input type="number" min="0" class="g3-kit-in" placeholder="'+(kits.padrao[t.id]!=null?kits.padrao[t.id]:'—')+'" value="'+(v!=null?v:'')+'" onchange="window.__g3KitSet(\'porPolo\',\''+p.id+'\',\''+t.id+'\',this.value)"></td>';
-    });
-    return '<tr>'+cells+'<td><button class="g3-mini" onclick="window.__g3RmTipo(\''+t.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  var kform = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;"><input id="g3k-nome" type="text" placeholder="Novo tipo (ex.: Bafômetro)" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;"><label class="g3-toggle"><input id="g3k-crit" type="checkbox"> crítico</label><label class="g3-toggle"><input id="g3k-lote" type="checkbox"> controlado por lote</label><button class="btn btn-ghost" onclick="window.__g3AddTipo()">➕ Adicionar tipo</button></div>';
-  var exc = Object.keys(kits.porCidade||{});
-  kform += '<div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;">Exceções por cidade</div>'
-    + (exc.length? exc.map(function(c){ return '<div style="font-size:12.5px;margin-bottom:4px;"><b>'+esc(c)+'</b>: '+Object.keys(kits.porCidade[c]).map(function(t){ var tt=g3TipoKit(t); return esc(tt?tt.nome:t)+' = '+kits.porCidade[c][t]; }).join(', ')+' <button class="g3-mini" onclick="window.__g3KitRmCidade(\''+esc(c)+'\')">limpar</button></div>'; }).join('') : '<div style="font-size:12px;color:var(--ink-soft);">Nenhuma. Use quando uma cidade precisa de quantidade diferente do polo (ex.: Caruaru com 14 examinadores).</div>')
-    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;">'+g3SelCidades('g3kc-cidade','', 'Cidade')+'<select id="g3kc-tipo">'+g3Opts(tipos.map(function(t){return [t.id,t.nome];}))+'</select><input id="g3kc-qtd" type="number" min="0" placeholder="qtd" style="width:80px;border:1px solid var(--line);border-radius:8px;padding:7px;"><button class="btn btn-ghost" onclick="window.__g3KitCidadeSet()">Definir exceção</button></div>';
-  html += g3Bloco('⚙️ Kit padrão por polo', '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Resolução: padrão → polo → cidade (cada nível sobrescreve só o que informar). Campo vazio no polo = usa o padrão.</div>'+g3Tabela(kt+'<tbody>'+krows+'</tbody>')+kform);
-  return html;
-}
-
-window.__g3SalvarEquip = async function(){
-  var ident = g3Val('g3e-ident'), cidade = g3Val('g3e-cidade'), tipo = g3Val('g3e-tipo');
-  if(!ident){ showToast('Informe o identificador.'); return; }
-  if(!cidade){ showToast('Selecione a cidade.'); return; }
-  if(!tipo){ showToast('Cadastre ao menos um tipo no kit padrão.'); return; }
-  var rid = g3Val('g3e-resp'); var r = rid ? g3Colab(rid) : null;
-  var qtdRaw = g3Val('g3e-qtd');
-  var dados = { tipo:tipo, identificador:ident, descricao:g3Val('g3e-desc'), cidade:cidade, poloId:g3PoloId(cidade),
-    responsavelId:r?r.id:null, responsavelNome:r?r.nome:null, status:g3Val('g3e-status'),
-    quantidade: qtdRaw===''?null:(parseInt(qtdRaw,10)||1),
-    aquisicaoISO:g3Val('g3e-aq')||null, vidaUtilMeses:g3Num('g3e-vida')||null, custoReposicao:g3Num('g3e-custo')||null,
-    atualizadoPor:g3Autor(), atualizadoEm:nowStr() };
-  var ed = state.g3.editEquip ? g3Equip(state.g3.editEquip) : null;
-  if(ed){
-    var mud=[];
-    if(ed.cidade!==dados.cidade) mud.push(g3Hist('deslocamento','Chegou em '+dados.cidade+' (vindo de '+ed.cidade+')',{cidadeOrigem:ed.cidade,cidadeDestino:dados.cidade}));
-    if(ed.responsavelId!==dados.responsavelId) mud.push(g3Hist('troca_responsavel','Responsável: '+(ed.responsavelNome||'—')+' → '+(dados.responsavelNome||'—')));
-    if(ed.status!==dados.status) mud.push(g3Hist('status','Status: '+ed.status+' → '+dados.status));
-    Object.assign(ed, dados); ed.historico=(ed.historico||[]).concat(mud); state.g3.editEquip=null; showToast('Equipamento atualizado.');
-  } else {
-    state.equipamentos.push(Object.assign({id:g3Id('EQ'), motivo:'', chamadoId:null, ultimaConferenciaISO:null, criadoTs:Date.now(), historico:[g3Hist('obs','Cadastrado em '+cidade)]}, dados));
-    showToast('Equipamento cadastrado.');
-  }
-  await g3Save('equipamentos'); renderGestaoTab();
-};
-async function g3AbrirChamadoEquip(e, motivo, origem){
-  var t = g3TipoKit(e.tipo);
-  var prio = (t&&t.critico)?'Alta':'Média';
-  var agora = Date.now();
-  var ch = { id:genId(), pilar:'equipamentos', alvoId:e.id, alvoLabel:(t?t.nome:e.tipo)+' '+e.identificador,
-    polo:e.poloId, poloId:e.poloId, cidade:e.cidade, categoria:null, tipoProblema:'Equipamento eletrônico embarcado', prioridade:prio,
-    titulo:e.identificador, descricao:(motivo||'Defeito reportado')+(origem?' — '+origem:''), status:'Aberto',
-    prazoISO:g3PrazoChamadoISO(agora, prio),
-    responsavelNome:state.perfil?state.perfil.nome:'', responsavelPapel:state.perfil?state.perfil.papel:'',
-    criadoEm:nowStr(), atualizadoEm:nowStr(), criadoTs:agora };
-  state.chamados.unshift(ch); e.chamadoId = ch.id;
-  await storageSet('chamados-lista', JSON.stringify(state.chamados), true);
-  return ch;
-}
-window.__g3StatusEquip = async function(id, novo){
-  var e = g3Equip(id); if(!e || e.status===novo) return;
-  state.g3.busy = true; try{ await _g3StatusEquip(e, novo); } finally { state.g3.busy = false; }
-  renderGestaoTab();
-};
-async function _g3StatusEquip(e, novo){
-  var motivo = '';
-  if(novo==='Com defeito'||novo==='Extraviado'||novo==='Em reparo'){ motivo = prompt('Motivo / descrição do problema:', e.motivo||'') || ''; }
-  var antes = e.status; e.status = novo; e.motivo = motivo; e.atualizadoPor=g3Autor(); e.atualizadoEm=nowStr();
-  e.historico = (e.historico||[]).concat([g3Hist(novo==='Com defeito'?'defeito':novo==='Operando'&&(antes==='Em reparo'||antes==='Com defeito')?'reparo':'status', 'Status: '+antes+' → '+novo+(motivo?' — '+motivo:''))]);
-  if(novo==='Com defeito'||novo==='Extraviado'){
-    var aberto = e.chamadoId && state.chamados.some(function(c){return c.id===e.chamadoId && g3ChamadoAberto(c);});
-    if(!aberto){ var ch = await g3AbrirChamadoEquip(e, motivo||novo, 'via inventário'); showToast('Chamado '+ch.id+' aberto para '+e.identificador+'.'); }
-  }
-  await g3Save('equipamentos');
-}
-window.__g3MoverEquip = async function(id){
-  var e = g3Equip(id); if(!e) return;
-  var dest = prompt('Deslocar '+e.identificador+' para qual cidade?\n'+TODAS_CIDADES.join(', '), '');
-  if(!dest) return;
-  var c = TODAS_CIDADES.filter(function(x){ return nomeSemAcento(x).toLowerCase()===nomeSemAcento(dest).toLowerCase(); })[0];
-  if(!c){ showToast('Cidade não reconhecida.'); return; }
-  if(c===e.cidade){ showToast('Já está em '+c+'.'); return; }
-  e.historico=(e.historico||[]).concat([g3Hist('deslocamento','Chegou em '+c+' (vindo de '+e.cidade+')',{cidadeOrigem:e.cidade,cidadeDestino:c})]);
-  e.cidade=c; e.poloId=g3PoloId(c); e.responsavelId=null; e.responsavelNome=null; e.atualizadoPor=g3Autor(); e.atualizadoEm=nowStr();
-  await g3Save('equipamentos'); showToast(e.identificador+' movido para '+c+'.'); renderGestaoTab();
-};
-window.__g3ExcluirEquip = async function(id){
-  var e=g3Equip(id); if(!e) return;
-  if(!confirm('Excluir '+e.identificador+'? Prefira o status "Baixado" para manter o histórico.')) return;
-  state.equipamentos = state.equipamentos.filter(function(x){return x.id!==id;});
-  await g3Save('equipamentos'); renderGestaoTab();
-};
-window.__g3SalvarConferencia = async function(){
-  var cidade = state.g3.confCidade; if(!cidade) return;
-  var eqs = g3EquipsCidade(cidade); if(!eqs.length) return;
-  state.g3.busy = true; try{ await _g3SalvarConferencia(cidade, eqs); } finally { state.g3.busy = false; }
-  state.g3.confCidade=''; renderGestaoTab();
-};
-async function _g3SalvarConferencia(cidade, eqs){
-  var porId = g3Val('g3cf-por'); var por = porId ? g3Colab(porId) : null;
-  var hoje = hojeLocal(), itens=[], ok=0, def=0, falt=0, novosChamados=0;
-  for(var i=0;i<eqs.length;i++){
-    var e = eqs[i]; var sit = g3Val('g3cf-sit-'+e.id) || 'OK'; var obs = g3Val('g3cf-obs-'+e.id);
-    var item = {equipamentoId:e.id, tipo:e.tipo, identificador:e.identificador, situacao:sit, obs:obs};
-    if(e.quantidade!=null){ var q = g3Val('g3cf-qtd-'+e.id); if(q!==''){ item.quantidadeEncontrada = parseInt(q,10)||0; e.quantidade = item.quantidadeEncontrada; } }
-    e.ultimaConferenciaISO = hoje;
-    e.historico = (e.historico||[]).concat([g3Hist('conferencia','Conferência: '+sit+(obs?' — '+obs:''))]);
-    if(sit==='OK'){ ok++; if(e.status==='Com defeito'||e.status==='Extraviado'){ e.status='Operando'; e.motivo=''; } }
-    else {
-      if(sit==='Defeito'){ def++; e.status='Com defeito'; } else { falt++; e.status='Extraviado'; }
-      e.motivo = obs || sit;
-      var aberto = e.chamadoId && state.chamados.some(function(c){return c.id===e.chamadoId && g3ChamadoAberto(c);});
-      if(!aberto){ var ch = await g3AbrirChamadoEquip(e, e.motivo, 'conferência de '+g3Disp(hoje)); item.chamadoId = ch.id; novosChamados++; }
-      else item.chamadoId = e.chamadoId;
-    }
-    itens.push(item);
-  }
-  var ad = g3Aderencia(cidade);
-  state.conferencias.unshift({ id:g3Id('CF'), cidade:cidade, poloId:g3PoloId(cidade), dataISO:hoje,
-    conferidoPorId:por?por.id:(state.sessao?state.sessao.id:null), conferidoPorNome:por?por.nome:(state.perfil?state.perfil.nome:'—'),
-    itens:itens, resumo:{ok:ok, defeito:def, faltando:falt, aderencia:ad.ratio}, registradoEm:nowStr(), criadoTs:Date.now() });
-  await g3Save('equipamentos'); await g3Save('conferencias');
-  showToast('Conferência de '+cidade+' salva'+(novosChamados?' · '+novosChamados+' chamado(s) aberto(s)':'')+'.');
-}
-window.__g3TipoCritico = async function(id, v){ var t=g3TipoKit(id); if(!t) return; t.critico=!!v; await g3SaveKit(); renderGestaoTab(); };
-async function g3SaveKit(){ state.kitConfig.atualizadoPor=g3Autor(); state.kitConfig.atualizadoEm=nowStr(); await g3Save('kitConfig'); }
-window.__g3KitSet = async function(nivel, poloId, tipo, val){
-  var k = state.kitConfig.kits;
-  if(nivel==='padrao'){ if(val==='') delete k.padrao[tipo]; else k.padrao[tipo]=parseInt(val,10)||0; }
-  else { k.porPolo[poloId]=k.porPolo[poloId]||{}; if(val==='') delete k.porPolo[poloId][tipo]; else k.porPolo[poloId][tipo]=parseInt(val,10)||0; }
-  await g3SaveKit(); showToast('Kit atualizado.');
-};
-window.__g3KitCidadeSet = async function(){
-  var c=g3Val('g3kc-cidade'), t=g3Val('g3kc-tipo'), q=g3Val('g3kc-qtd');
-  if(!c||!t||q===''){ showToast('Informe cidade, tipo e quantidade.'); return; }
-  var k=state.kitConfig.kits; k.porCidade[c]=k.porCidade[c]||{}; k.porCidade[c][t]=parseInt(q,10)||0;
-  await g3SaveKit(); renderGestaoTab();
-};
-window.__g3KitRmCidade = async function(c){ delete state.kitConfig.kits.porCidade[c]; await g3SaveKit(); renderGestaoTab(); };
-window.__g3AddTipo = async function(){
-  var nome=g3Val('g3k-nome'); if(!nome){ showToast('Informe o nome do tipo.'); return; }
-  var id = nomeSemAcento(nome).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,24);
-  if(!id || g3TipoKit(id)) id = (id||'tipo')+'_'+Date.now().toString(36).slice(-3);
-  state.kitConfig.tipos = (state.kitConfig.tipos||[]).concat([{id:id, nome:nome, critico:g3Chk('g3k-crit'), porUnidade:!g3Chk('g3k-lote')}]);
-  await g3SaveKit(); renderGestaoTab();
-};
-window.__g3RmTipo = async function(id){
-  var usados = state.equipamentos.filter(function(e){return e.tipo===id;}).length;
-  if(usados){ showToast('Há '+usados+' equipamento(s) desse tipo. Reclassifique-os antes de remover.'); return; }
-  if(!confirm('Remover este tipo do catálogo?')) return;
-  state.kitConfig.tipos = state.kitConfig.tipos.filter(function(t){return t.id!==id;});
-  var k=state.kitConfig.kits; delete k.padrao[id]; Object.keys(k.porPolo).forEach(function(p){ delete k.porPolo[p][id]; }); Object.keys(k.porCidade).forEach(function(c){ delete k.porCidade[c][id]; });
-  await g3SaveKit(); renderGestaoTab();
-};
-
-/* ===================== REUNIÃO DE SEXTA ===================== */
-function g3PilarLabel(p){ var x=G3_PILARES.filter(function(q){return q[0]===p;})[0]; return x?x[1]:p||'—'; }
-function g3ReuniaoAberta(){ return state.reunioes.filter(function(r){return r.status==='Aberta';})[0]||null; }
-function g3UltimaSextaMes(iso){
-  var d=new Date(iso+'T12:00:00'); var last=new Date(d.getFullYear(), d.getMonth()+1, 0);
-  while(last.getDay()!==5) last.setDate(last.getDate()-1);
-  return last.getFullYear()+'-'+String(last.getMonth()+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0');
-}
-function g3MontarPauta(hoje){
-  var sem = g3SemaforoTodas(hoje);
-  var semRes = {}; TODAS_CIDADES.forEach(function(c){ var s=sem[c]; semRes[c]={pessoas:s.pessoas.nivel, frota:s.frota.nivel, equipamentos:s.equipamentos.nivel, geral:s.geral, motivos:s.pessoas.motivos.concat(s.frota.motivos, s.equipamentos.motivos)}; });
-  var d7 = g3AddDias(hoje,-7);
-  var diariosSem = state.diarios.filter(function(d){ return d.dataISO>=d7 && d.dataISO<hoje; });
-  var ini7 = new Date(d7+'T00:00:00').getTime(), fim = new Date(hoje+'T23:59:59').getTime();
-  return {
-    geradaEm: nowStr(),
-    semaforo: semRes,
-    cidadesVermelhas: TODAS_CIDADES.filter(function(c){return sem[c].geral==='vermelho';}),
-    cidadesAmarelas: TODAS_CIDADES.filter(function(c){return sem[c].geral==='amarelo';}),
-    chamadosAtrasados: state.chamados.filter(function(c){return g3ChamadoAtrasado(c);}).map(function(c){return c.id;}),
-    acoesVencidas: state.acoes.filter(function(a){return g3AcaoAtrasada(a,hoje);}).map(function(a){return a.id;}),
-    cidadesDescobertasProximaSemana: TODAS_CIDADES.filter(function(c){ return sem[c].pessoas.motivos.some(function(m){return m.indexOf('descoberta')>-1||m.indexOf('Ninguém disponível')>-1;}); }),
-    gargalosAbertos: state.gargalos.filter(function(g){return g.status!=='Resolvido';}).map(function(g){return g.id;}),
-    indicadores: {
-      examesAgendados: diariosSem.reduce(function(s,d){return s+(d.agendados||0);},0),
-      examesRealizados: diariosSem.reduce(function(s,d){return s+(d.realizados||0);},0),
-      veiculosIndisponiveis: state.veiculos.filter(function(v){return v.ativo!==false && v.status==='Indisponível';}).length,
-      equipamentosComDefeito: state.equipamentos.filter(function(e){return e.status==='Com defeito'||e.status==='Extraviado';}).length,
-      ocorrenciasSemana: state.ocorrencias.filter(function(o){return o.dataISO>=d7 && o.dataISO<=hoje;}).length,
-      chamadosAbertos: state.chamados.filter(g3ChamadoAberto).length,
-      chamadosFechadosSemana: state.chamados.filter(function(c){ return !g3ChamadoAberto(c) && c.atualizadoEm && (function(){ var p=c.atualizadoEm.split(' ')[0].split('/'); var t=new Date(p[2],p[1]-1,p[0]).getTime(); return t>=ini7 && t<=fim; })(); }).length,
-      colaboradoresAtivos: state.colaboradores.filter(function(c){return c.status!=='Desligado';}).length
-    }
-  };
-}
-
-function renderG3Reuniao(){
-  var hoje = hojeLocal();
-  var ab = g3ReuniaoAberta();
-  var html = '<div class="section-title">📅 Reunião de sexta — tática &amp; estratégica</div>';
-  var usuarios = g3UsuariosAtivos();
-
-  /* ---- abrir / reunião em andamento ---- */
-  if(!ab){
-    var ehUltima = hoje===g3UltimaSextaMes(hoje);
-    html += g3Bloco('▶️ Abrir reunião de hoje ('+g3Disp(hoje)+')',
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
-      + '<select id="g3r-tipo" style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;">'+g3Opts([['tatica','Tática (semanal, 30 min) — semana passada e próxima'],['estrategica','Estratégica (mensal) — tendências e recorrências']], ehUltima?'estrategica':'tatica')+'</select>'
-      + '<button class="btn btn-primary" onclick="window.__g3AbrirReuniao()">▶️ Abrir e gerar pauta</button>'
-      + '<span style="font-size:12px;color:var(--ink-soft);">A pauta é um retrato do painel neste momento: semáforo das 18 cidades, chamados atrasados, ações vencidas, cidades descobertas e indicadores da semana.</span></div>'
-      + '<div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin:12px 0 4px;">Participantes</div><div class="chip-check">'
-      + usuarios.map(function(u){ return '<label><input type="checkbox" class="g3r-part" value="'+u.id+'" '+(u.cargo==='Coordenador'||u.cargo==='Supervisor'||u.cargo==='Líder de Operação'||u.cargo==='Gerente'?'checked':'')+'>'+esc(u.nome)+' <small style="color:var(--ink-soft);">('+esc(u.cargo)+')</small></label>'; }).join('')+'</div>');
-  } else {
-    var p = ab.pauta, ind = p.indicadores||{};
-    var taxa = ind.examesAgendados? Math.round(ind.examesRealizados/ind.examesAgendados*100) : 0;
-    var corpo = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
-      + '<span class="pill teal">'+(ab.tipo==='estrategica'?'Estratégica':'Tática')+'</span><span class="pill gray">'+esc(ab.semanaRef)+'</span>'
-      + '<span style="font-size:12px;color:var(--ink-soft);">Pauta gerada em '+esc(p.geradaEm)+' · '+(ab.participantes||[]).map(function(x){return esc(x.nome);}).join(', ')+'</span>'
-      + '<button class="btn btn-ghost" style="margin-left:auto;" onclick="window.__g3RegerarPauta()">🔄 Atualizar pauta</button>'
-      + '<button class="btn btn-amber" onclick="window.__g3EncerrarReuniao()">✅ Encerrar reunião</button></div>';
-    corpo += '<div class="kpi-tatic-grid">'
-      + g3Kpi(p.cidadesVermelhas.length?'vermelho':'verde', p.cidadesVermelhas.length, 'Cidades em vermelho', p.cidadesVermelhas.join(', ')||'—')
-      + g3Kpi(p.cidadesAmarelas.length?'amarelo':'verde', p.cidadesAmarelas.length, 'Cidades em amarelo', p.cidadesAmarelas.slice(0,4).join(', ')||'—')
-      + g3Kpi(p.cidadesDescobertasProximaSemana.length?'vermelho':'verde', p.cidadesDescobertasProximaSemana.length, 'Descobertas na próxima semana', p.cidadesDescobertasProximaSemana.join(', ')||'—')
-      + g3Kpi(p.chamadosAtrasados.length?'amarelo':'verde', p.chamadosAtrasados.length, 'Chamados atrasados', ind.chamadosAbertos+' abertos · '+ind.chamadosFechadosSemana+' fechados na semana')
-      + g3Kpi(p.acoesVencidas.length?'vermelho':'verde', p.acoesVencidas.length, 'Ações vencidas', p.gargalosAbertos.length+' gargalos abertos')
-      + g3Kpi(taxa>=90?'verde':taxa>=60?'amarelo':'vermelho', taxa+'%', 'Realizados / agendados (7 dias)', ind.examesRealizados+' de '+ind.examesAgendados)
-      + g3Kpi(ind.veiculosIndisponiveis?'amarelo':'verde', ind.veiculosIndisponiveis, 'Veículos indisponíveis', ind.equipamentosComDefeito+' equip. com defeito')
-      + g3Kpi(ind.ocorrenciasSemana?'amarelo':'verde', ind.ocorrenciasSemana, 'Ocorrências de pessoas', ind.colaboradoresAtivos+' colaboradores ativos')
-      + '</div>';
-
-    /* Pauta: bloco 1 — cidades em alerta */
-    var alertas = p.cidadesVermelhas.concat(p.cidadesAmarelas);
-    corpo += '<div class="g3-pauta-h">1 · Cidades em alerta</div>';
-    if(!alertas.length) corpo += g3Vazio('Nenhuma cidade em alerta no momento da abertura.');
-    else corpo += g3Tabela(g3Th(['Cidade','👥','🚐','🧰','Motivos',''])+'<tbody>'+alertas.map(function(c){
-      var s=p.semaforo[c];
-      return '<tr><td><b>'+esc(c)+'</b></td><td>'+g3Bolinha(s.pessoas)+'</td><td>'+g3Bolinha(s.frota)+'</td><td>'+g3Bolinha(s.equipamentos)+'</td><td style="font-size:12px;">'+(s.motivos||[]).map(esc).join('<br>')+'</td>'
-        + '<td><button class="g3-mini" onclick="window.__g3NovaAcaoPre(\''+esc(c)+'\')">+ ação</button></td></tr>';
-    }).join('')+'</tbody>');
-
-    /* bloco 2 — ações vencidas */
-    corpo += '<div class="g3-pauta-h">2 · Ações vencidas (revisar primeiro)</div>';
-    var av = p.acoesVencidas.map(g3Acao).filter(Boolean);
-    corpo += av.length ? g3Tabela(g3Th(['Ação','Responsável','Prazo','Status'])+'<tbody>'+av.map(function(a){ return '<tr><td><b>'+esc(a.titulo)+'</b><div style="font-size:11px;color:var(--ink-soft);">'+g3PilarLabel(a.pilar)+(a.cidade?' · '+esc(a.cidade):'')+'</div></td><td>'+esc(a.responsavelNome)+'</td><td><span class="pill red">'+g3Disp(a.prazoISO)+'</span></td><td>'+g3SelStatusAcao(a)+'</td></tr>'; }).join('')+'</tbody>') : g3Vazio('Nenhuma ação vencida. 👏');
-
-    /* bloco 3 — chamados atrasados */
-    corpo += '<div class="g3-pauta-h">3 · Chamados atrasados</div>';
-    var ca = p.chamadosAtrasados.map(function(id){ return state.chamados.filter(function(c){return c.id===id;})[0]; }).filter(Boolean);
-    corpo += ca.length ? g3Tabela(g3Th(['Chamado','Cidade','Pilar','Prioridade','Prazo','Status atual'])+'<tbody>'+ca.map(function(c){ return '<tr><td><span class="mono" style="font-size:11px;">'+c.id+'</span> <b>'+esc(c.titulo)+'</b><div style="font-size:11px;color:var(--ink-soft);">'+esc(c.tipoProblema||'')+'</div></td><td>'+esc(c.cidade)+'</td><td>'+g3PilarLabel(g3ChamadoPilar(c))+'</td><td><span class="pill '+prioridadePillClass(c.prioridade)+'">'+esc(c.prioridade)+'</span></td><td>'+g3Disp(g3ChamadoPrazo(c))+'</td><td>'+esc(c.status)+'</td></tr>'; }).join('')+'</tbody>') : g3Vazio('Nenhum chamado atrasado.');
-
-    /* bloco 4 — gargalos */
-    corpo += '<div class="g3-pauta-h">4 · Gargalos em acompanhamento</div>';
-    var ga = p.gargalosAbertos.map(g3Gargalo).filter(Boolean);
-    corpo += ga.length ? g3Tabela(g3Th(['Gargalo','Pilar / cidade','Impacto','Recorrências','Status','Ações'])+'<tbody>'+ga.map(function(g){ var na=state.acoes.filter(function(a){return a.gargaloId===g.id;}); var ab2=na.filter(function(a){return a.status==='Aberta'||a.status==='Em andamento';}).length; return '<tr><td><b>'+esc(g.titulo)+'</b></td><td>'+g3PilarLabel(g.pilar)+(g.cidade?' · '+esc(g.cidade):' · geral')+'</td><td><span class="pill '+(g.impacto==='Alto'?'red':g.impacto==='Médio'?'amber':'gray')+'">'+esc(g.impacto)+'</span></td><td style="text-align:center;">'+(g.recorrencias||1)+'</td><td>'+g3SelStatusGargalo(g)+'</td><td>'+ab2+' aberta(s) de '+na.length+' <button class="g3-mini" onclick="window.__g3NovaAcaoPre(\''+esc(g.cidade||'')+'\',\''+g.id+'\')">+ ação</button></td></tr>'; }).join('')+'</tbody>') : g3Vazio('Nenhum gargalo aberto.');
-
-    /* decisões */
-    corpo += '<div class="g3-pauta-h">5 · Decisões desta reunião</div>';
-    corpo += (ab.decisoes||[]).length ? '<ul class="g3-decisoes">'+ab.decisoes.map(function(d,i){ return '<li><span>'+esc(d.texto)+'</span><small>'+g3PilarLabel(d.pilar)+(d.cidade?' · '+esc(d.cidade):'')+'</small> <button class="g3-mini" onclick="window.__g3RmDecisao('+i+')">🗑</button></li>'; }).join('')+'</ul>' : '';
-    corpo += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;"><input id="g3r-dec" type="text" placeholder="Decisão tomada…" style="flex:1;min-width:240px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;"><select id="g3r-dec-pilar">'+g3Opts(G3_PILARES,'processo')+'</select>'+g3SelCidades('g3r-dec-cidade','', 'Geral')+'<button class="btn btn-ghost" onclick="window.__g3AddDecisao()">➕ Registrar decisão</button></div>';
-    corpo += '<div class="g3-pauta-h">6 · Ações criadas nesta reunião: '+(ab.acoesCriadas||[]).length+' · concluídas: '+(ab.acoesConcluidas||[]).length+'</div>';
-    html += g3Bloco('🟢 Reunião em andamento — '+g3Disp(ab.dataISO), corpo);
-  }
-
-  /* ---- Nova ação ---- */
-  var pre = state.g3.preAcao||{};
-  var gargAb = state.gargalos.filter(function(g){return g.status!=='Resolvido';});
-  var fa = '<div class="form-grid">'
-    + '<label style="grid-column:span 2;">Título<input id="g3ac-titulo" type="text" placeholder="O que será feito" value="'+esc(pre.titulo||'')+'"></label>'
-    + '<label>Pilar<select id="g3ac-pilar">'+g3Opts(G3_PILARES, pre.pilar||'frota')+'</select></label>'
-    + '<label>Cidade'+g3SelCidades('g3ac-cidade', pre.cidade||'', 'Geral / polo')+'</label>'
-    + '<label>Gargalo relacionado<select id="g3ac-gargalo">'+g3Opts(gargAb.map(function(g){return [g.id,g.titulo.slice(0,50)];}), pre.gargaloId||'', '— nenhum —')+'</select></label>'
-    + '<label>Responsável<select id="g3ac-resp">'+g3Opts(usuarios.map(function(u){return [u.id,u.nome];}), state.sessao?state.sessao.id:'')+'</select></label>'
-    + '<label>Prioridade<select id="g3ac-prio">'+g3Opts(['Alta','Média','Baixa'],'Média')+'</select></label>'
-    + '<label>Prazo<input id="g3ac-prazo" type="date" value="'+g3AddDias(hoje,7)+'"></label>'
-    + '</div><label style="display:block;font-size:12px;color:var(--ink-soft);font-weight:600;">Detalhes<textarea id="g3ac-desc" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:40px;margin-top:4px;"></textarea></label>'
-    + '<button class="btn btn-primary" style="margin-top:8px;" onclick="window.__g3AddAcao()">➕ Criar ação'+(ab?' (vinculada à reunião de hoje)':'')+'</button>';
-  html += '<div id="g3-nova-acao">'+g3Bloco('🎯 Nova ação', fa)+'</div>';
-
-  /* ---- Lista de ações ---- */
-  var f = state.g3.fAcao;
-  var acs = state.acoes.filter(function(a){ if(f==='abertas') return a.status==='Aberta'||a.status==='Em andamento'; if(f==='vencidas') return g3AcaoAtrasada(a,hoje); if(f==='concluidas') return a.status==='Concluída'||a.status==='Cancelada'; return true; })
-    .sort(function(a,b){ return (a.prazoISO||'9').localeCompare(b.prazoISO||'9'); });
-  var fsel = '<select onchange="state.g3.fAcao=this.value;renderGestaoTab()" class="g3-head-sel">'+g3Opts([['abertas','Abertas'],['vencidas','Vencidas'],['concluidas','Concluídas'],['todas','Todas']], f)+'</select>';
-  var arows = acs.map(function(a){
-    var venc = g3AcaoAtrasada(a,hoje); var g = a.gargaloId?g3Gargalo(a.gargaloId):null;
-    return '<tr><td><b>'+esc(a.titulo)+'</b><div style="font-size:11px;color:var(--ink-soft);">'+g3PilarLabel(a.pilar)+(a.cidade?' · '+esc(a.cidade):'')+(g?' · ↳ '+esc(g.titulo.slice(0,40)):'')+(a.descricao?'<br>'+esc(a.descricao):'')+(a.resultado?'<br><b>Resultado:</b> '+esc(a.resultado):'')+'</div></td>'
-      + '<td>'+esc(a.responsavelNome)+'</td><td><span class="pill '+prioridadePillClass(a.prioridade)+'">'+esc(a.prioridade)+'</span></td>'
-      + '<td><span class="pill '+(venc?'red':a.status==='Concluída'?'green':'gray')+'">'+g3Disp(a.prazoISO)+(venc?' · vencida':'')+'</span></td>'
-      + '<td>'+g3SelStatusAcao(a)+'</td>'
-      + '<td style="white-space:nowrap;"><button class="g3-mini" onclick="window.__g3AndamentoAcao(\''+a.id+'\')" title="Registrar andamento">✍️</button> <button class="g3-mini" onclick="window.__g3ExcluirAcao(\''+a.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  html += g3Bloco('📌 Plano de ação ('+acs.length+')', acs.length? g3Tabela(g3Th(['Ação','Responsável','Prioridade','Prazo','Status',''])+'<tbody>'+arows+'</tbody>') : g3Vazio('Nenhuma ação neste filtro.'), fsel);
-
-  /* ---- Gargalos ---- */
-  var fg = '<div class="form-grid">'
-    + '<label style="grid-column:span 2;">Título<input id="g3g-titulo" type="text" placeholder="Problema recorrente, do jeito que ele aparece"></label>'
-    + '<label>Pilar<select id="g3g-pilar">'+g3Opts(G3_PILARES,'frota')+'</select></label>'
-    + '<label>Cidade'+g3SelCidades('g3g-cidade','', 'Transversal')+'</label>'
-    + '<label>Impacto<select id="g3g-impacto">'+g3Opts(G3_IMPACTOS,'Médio')+'</select></label>'
-    + '<label>Dono (acompanha)<select id="g3g-dono">'+g3Opts(usuarios.map(function(u){return [u.id,u.nome];}), state.sessao?state.sessao.id:'')+'</select></label>'
-    + '</div><label style="display:block;font-size:12px;color:var(--ink-soft);font-weight:600;">Descrição / evidências<textarea id="g3g-desc" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:40px;margin-top:4px;"></textarea></label>'
-    + '<button class="btn btn-primary" style="margin-top:8px;" onclick="window.__g3AddGargalo()">➕ Registrar gargalo</button>';
-  var gs = state.gargalos.slice().sort(function(a,b){ return (a.status==='Resolvido'?1:0)-(b.status==='Resolvido'?1:0) || (b.criadoTs||0)-(a.criadoTs||0); });
-  var grows = gs.map(function(g){
-    var na = state.acoes.filter(function(a){return a.gargaloId===g.id;});
-    return '<tr'+(g.status==='Resolvido'?' style="opacity:.6"':'')+'><td><b>'+esc(g.titulo)+'</b><div style="font-size:11px;color:var(--ink-soft);">'+esc(g.descricao||'')+'<br>desde '+g3Disp(g.identificadoEm)+' · dono: '+esc(g.donoNome||'—')+'</div></td>'
-      + '<td>'+g3PilarLabel(g.pilar)+'<div style="font-size:11px;color:var(--ink-soft);">'+(g.cidade?esc(g.cidade):'geral')+'</div></td>'
-      + '<td><span class="pill '+(g.impacto==='Alto'?'red':g.impacto==='Médio'?'amber':'gray')+'">'+esc(g.impacto)+'</span></td>'
-      + '<td style="text-align:center;">'+(g.recorrencias||1)+' <button class="g3-mini" title="+1 recorrência" onclick="window.__g3Recorrencia(\''+g.id+'\')">+1</button></td>'
-      + '<td>'+g3SelStatusGargalo(g)+'</td>'
-      + '<td style="font-size:12px;">'+na.filter(function(a){return a.status==='Concluída';}).length+'/'+na.length+' <button class="g3-mini" onclick="window.__g3NovaAcaoPre(\''+esc(g.cidade||'')+'\',\''+g.id+'\')">+ ação</button></td>'
-      + '<td><button class="g3-mini" onclick="window.__g3ExcluirGargalo(\''+g.id+'\')">🗑</button></td></tr>';
-  }).join('');
-  html += g3Bloco('🚧 Gargalos ('+gs.filter(function(g){return g.status!=='Resolvido';}).length+' abertos)', fg + '<div style="height:12px"></div>' + (gs.length? g3Tabela(g3Th(['Gargalo','Pilar','Impacto','Recorr.','Status','Ações',''])+'<tbody>'+grows+'</tbody>') : g3Vazio('Nenhum gargalo registrado. Use "+ gargalo" nos alertas da Visão 3 pilares ou o formulário acima.')));
-
-  /* ---- Histórico de reuniões ---- */
-  var hist = state.reunioes.filter(function(r){return r.status==='Encerrada';}).sort(function(a,b){return b.dataISO.localeCompare(a.dataISO);}).slice(0,12);
-  var hrows = hist.map(function(r){
-    var exp = state.g3.reuniaoExpand===r.id;
-    var row = '<tr><td style="white-space:nowrap;">'+g3Disp(r.dataISO)+'<div style="font-size:11px;color:var(--ink-soft);">'+esc(r.semanaRef)+'</div></td><td><span class="pill '+(r.tipo==='estrategica'?'amber':'teal')+'">'+(r.tipo==='estrategica'?'Estratégica':'Tática')+'</span></td>'
-      + '<td style="text-align:center;">'+r.pauta.cidadesVermelhas.length+' / '+r.pauta.cidadesAmarelas.length+'</td><td style="text-align:center;">'+(r.decisoes||[]).length+'</td><td style="text-align:center;">'+(r.acoesCriadas||[]).length+' / '+(r.acoesConcluidas||[]).length+'</td>'
-      + '<td>'+(r.participantes||[]).map(function(x){return esc(x.nome.split(' ')[0]);}).join(', ')+'</td>'
-      + '<td><button class="g3-mini" onclick="state.g3.reuniaoExpand='+(exp?'null':'\''+r.id+'\'')+';renderGestaoTab()">'+(exp?'▲':'▼ ata')+'</button></td></tr>';
-    if(exp){
-      row += '<tr><td colspan="7" style="background:#f8faf9;font-size:12.5px;">'
-        + '<b>Cidades em alerta na abertura:</b> '+(r.pauta.cidadesVermelhas.map(function(c){return '🔴 '+esc(c);}).concat(r.pauta.cidadesAmarelas.map(function(c){return '🟡 '+esc(c);})).join(' · ')||'nenhuma')+'<br>'
-        + '<b>Descobertas:</b> '+(r.pauta.cidadesDescobertasProximaSemana.join(', ')||'nenhuma')+' · <b>Chamados atrasados:</b> '+r.pauta.chamadosAtrasados.length+' · <b>Ações vencidas:</b> '+r.pauta.acoesVencidas.length+'<br>'
-        + '<b>Indicadores:</b> '+r.pauta.indicadores.examesRealizados+'/'+r.pauta.indicadores.examesAgendados+' exames · '+r.pauta.indicadores.veiculosIndisponiveis+' veíc. indisp. · '+r.pauta.indicadores.equipamentosComDefeito+' equip. defeito · '+r.pauta.indicadores.ocorrenciasSemana+' ocorrências<br>'
-        + '<b>Decisões:</b>'+((r.decisoes||[]).length? '<ul style="margin:4px 0 4px 18px;">'+r.decisoes.map(function(d){return '<li>'+esc(d.texto)+' <small style="color:var(--ink-soft);">('+g3PilarLabel(d.pilar)+(d.cidade?' · '+esc(d.cidade):'')+')</small></li>';}).join('')+'</ul>' : ' nenhuma<br>')
-        + '<b>Ações criadas:</b> '+((r.acoesCriadas||[]).map(g3Acao).filter(Boolean).map(function(a){return esc(a.titulo)+' ('+esc(a.responsavelNome)+', '+g3Disp(a.prazoISO)+', '+esc(a.status)+')';}).join('; ')||'nenhuma')
-        + (r.observacoes?'<br><b>Obs.:</b> '+esc(r.observacoes):'')
-        + '<div style="margin-top:6px;color:var(--ink-soft);">Encerrada em '+esc(r.encerradaEm||'')+'</div></td></tr>';
-    }
-    return row;
-  }).join('');
-  html += g3Bloco('🗂️ Histórico de reuniões', hist.length? g3Tabela(g3Th(['Data','Tipo','🔴 / 🟡','Decisões','Ações criadas / concl.','Participantes',''])+'<tbody>'+hrows+'</tbody>') : g3Vazio('Nenhuma reunião encerrada ainda.'));
-  return html;
-}
-function g3SelStatusAcao(a){ return '<select class="status-select" style="font-size:11.5px;" onchange="window.__g3StatusAcao(\''+a.id+'\',this.value)">'+g3Opts(G3_STATUS_ACAO, a.status)+'</select>'; }
-function g3SelStatusGargalo(g){ return '<select class="status-select" style="font-size:11.5px;" onchange="window.__g3StatusGargalo(\''+g.id+'\',this.value)">'+g3Opts(G3_STATUS_GARGALO, g.status)+'</select>'; }
-
-window.__g3AbrirReuniao = async function(){
-  if(g3ReuniaoAberta()){ showToast('Já existe uma reunião aberta.'); return; }
-  var hoje = hojeLocal();
-  var parts = Array.from(document.querySelectorAll('.g3r-part:checked')).map(function(x){ var u=state.usuarios.filter(function(y){return y.id===x.value;})[0]; return u?{usuarioId:u.id, nome:u.nome, cargo:u.cargo}:null; }).filter(Boolean);
-  var r = { id:g3Id('RE'), tipo:g3Val('g3r-tipo')||'tatica', dataISO:hoje, semanaRef:g3SemanaISO(hoje), participantes:parts,
-    pauta:g3MontarPauta(hoje), decisoes:[], acoesCriadas:[], acoesConcluidas:[], observacoes:'', status:'Aberta',
-    criadoPor:g3Autor(), criadoEm:nowStr(), encerradaEm:null, criadoTs:Date.now() };
-  state.reunioes.unshift(r);
-  await g3Save('reunioes'); showToast('Reunião aberta. Pauta gerada.'); renderGestaoTab();
-};
-window.__g3RegerarPauta = async function(){
-  var ab=g3ReuniaoAberta(); if(!ab) return;
-  ab.pauta = g3MontarPauta(hojeLocal());
-  await g3Save('reunioes'); showToast('Pauta atualizada.'); renderGestaoTab();
-};
-window.__g3EncerrarReuniao = async function(){
-  var ab=g3ReuniaoAberta(); if(!ab) return;
-  var obs = prompt('Observações finais (opcional):', ab.observacoes||'');
-  if(obs===null) return;
-  ab.observacoes = obs; ab.status='Encerrada'; ab.encerradaEm=nowStr();
-  await g3Save('reunioes'); showToast('Reunião encerrada e ata registrada.'); renderGestaoTab();
-};
-window.__g3AddDecisao = async function(){
-  var ab=g3ReuniaoAberta(); if(!ab) return;
-  var t=g3Val('g3r-dec'); if(!t){ showToast('Escreva a decisão.'); return; }
-  ab.decisoes.push({texto:t, pilar:g3Val('g3r-dec-pilar'), cidade:g3Val('g3r-dec-cidade')||null, por:g3Autor(), em:nowStr()});
-  await g3Save('reunioes'); renderGestaoTab();
-};
-window.__g3RmDecisao = async function(i){ var ab=g3ReuniaoAberta(); if(!ab) return; ab.decisoes.splice(i,1); await g3Save('reunioes'); renderGestaoTab(); };
-window.__g3NovaAcaoPre = function(cidade, gargaloId){
-  var g = gargaloId?g3Gargalo(gargaloId):null;
-  state.g3.preAcao = {cidade:cidade||'', gargaloId:gargaloId||'', pilar:g?g.pilar:'', titulo:g?'Tratar: '+g.titulo:''};
-  renderGestaoTab();
-  var el=document.getElementById('g3-nova-acao'); if(el) el.scrollIntoView({behavior:'smooth'});
-  var t=document.getElementById('g3ac-titulo'); if(t) t.focus();
-};
-window.__g3AddAcao = async function(){
-  var titulo=g3Val('g3ac-titulo'); if(!titulo){ showToast('Dê um título à ação.'); return; }
-  state.g3.busy = true; try{ await _g3AddAcao(titulo); } finally { state.g3.busy = false; }
-  renderGestaoTab();
-};
-async function _g3AddAcao(titulo){
-  var rid=g3Val('g3ac-resp'); var u=state.usuarios.filter(function(x){return x.id===rid;})[0];
-  var ab=g3ReuniaoAberta(); var cidade=g3Val('g3ac-cidade')||null; var gid=g3Val('g3ac-gargalo')||null;
-  var a = { id:g3Id('AC'), titulo:titulo, descricao:g3Val('g3ac-desc'), pilar:g3Val('g3ac-pilar'), cidade:cidade, poloId:cidade?g3PoloId(cidade):null,
-    gargaloId:gid, reuniaoId:ab?ab.id:null, origem:ab?'reuniao':'avulsa', responsavelId:u?u.id:null, responsavelNome:u?u.nome:'—',
-    prioridade:g3Val('g3ac-prio'), prazoISO:g3Val('g3ac-prazo')||g3AddDias(hojeLocal(),7), status:'Aberta', concluidaEm:null, resultado:'',
-    criadoPor:g3Autor(), criadoEm:nowStr(), atualizadoEm:nowStr(), criadoTs:Date.now(), historico:[] };
-  state.acoes.unshift(a);
-  if(ab){ ab.acoesCriadas.push(a.id); await g3Save('reunioes'); }
-  if(gid){ var g=g3Gargalo(gid); if(g && g.status==='Identificado'){ g.status='Em tratamento'; g.historico=(g.historico||[]).concat([g3Hist('status','Identificado → Em tratamento (ação criada)',{reuniaoId:ab?ab.id:null})]); await g3Save('gargalos'); } }
-  state.g3.preAcao=null;
-  await g3Save('acoes'); showToast('Ação criada para '+(u?u.nome:'—')+'.');
-}
-window.__g3StatusAcao = async function(id, novo){
-  var a=g3Acao(id); if(!a||a.status===novo) return;
-  var antes=a.status; a.status=novo; a.atualizadoEm=nowStr();
-  if(novo==='Concluída'){ var r=prompt('O que mudou com essa ação? (resultado)', a.resultado||''); if(r===null){ a.status=antes; renderGestaoTab(); return; } a.resultado=r; a.concluidaEm=nowStr();
-    var ab=g3ReuniaoAberta(); if(ab && ab.acoesConcluidas.indexOf(id)<0){ ab.acoesConcluidas.push(id); await g3Save('reunioes'); } }
-  a.historico=(a.historico||[]).concat([g3Hist('status',antes+' → '+novo)]);
-  await g3Save('acoes'); renderGestaoTab();
-};
-window.__g3AndamentoAcao = async function(id){
-  var a=g3Acao(id); if(!a) return;
-  var t=prompt('Andamento de "'+a.titulo+'":',''); if(!t) return;
-  a.historico=(a.historico||[]).concat([g3Hist('andamento',t)]); a.atualizadoEm=nowStr();
-  if(a.status==='Aberta') a.status='Em andamento';
-  await g3Save('acoes'); showToast('Andamento registrado.'); renderGestaoTab();
-};
-window.__g3ExcluirAcao = async function(id){ if(!confirm('Excluir esta ação?')) return; state.acoes=state.acoes.filter(function(a){return a.id!==id;}); await g3Save('acoes'); renderGestaoTab(); };
-window.__g3AddGargalo = async function(){
-  var titulo=g3Val('g3g-titulo'); if(!titulo){ showToast('Dê um título ao gargalo.'); return; }
-  var did=g3Val('g3g-dono'); var u=state.usuarios.filter(function(x){return x.id===did;})[0]; var cidade=g3Val('g3g-cidade')||null;
-  state.gargalos.unshift({ id:g3Id('GA'), titulo:titulo, pilar:g3Val('g3g-pilar'), cidade:cidade, poloId:cidade?g3PoloId(cidade):null, descricao:g3Val('g3g-desc'),
-    impacto:g3Val('g3g-impacto'), status:'Identificado', recorrencias:1, vinculos:{chamadoIds:[],ocorrenciaIds:[],veiculoIds:[],equipamentoIds:[],colaboradorIds:[]},
-    donoId:u?u.id:null, donoNome:u?u.nome:'', identificadoEm:hojeLocal(), resolvidoEm:null, criadoPor:g3Autor(), criadoEm:nowStr(), criadoTs:Date.now(), historico:[g3Hist('status','Identificado')] });
-  await g3Save('gargalos'); showToast('Gargalo registrado.'); renderGestaoTab();
-};
-window.__g3StatusGargalo = async function(id, novo){
-  var g=g3Gargalo(id); if(!g||g.status===novo) return;
-  var antes=g.status; g.status=novo; g.resolvidoEm = novo==='Resolvido'?hojeLocal():null;
-  var ab=g3ReuniaoAberta(); g.historico=(g.historico||[]).concat([g3Hist('status',antes+' → '+novo,{reuniaoId:ab?ab.id:null})]);
-  await g3Save('gargalos'); renderGestaoTab();
-};
-window.__g3Recorrencia = async function(id){ var g=g3Gargalo(id); if(!g) return; g.recorrencias=(g.recorrencias||1)+1; g.historico=(g.historico||[]).concat([g3Hist('recorrencia','Nova ocorrência registrada')]); await g3Save('gargalos'); renderGestaoTab(); };
-window.__g3ExcluirGargalo = async function(id){ if(!confirm('Excluir este gargalo?')) return; state.gargalos=state.gargalos.filter(function(g){return g.id!==id;}); await g3Save('gargalos'); renderGestaoTab(); };
 
 init();
 })();
