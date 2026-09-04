@@ -1266,9 +1266,27 @@ function renderGestaoTab(){
   function avaliarPilares(cidade){
     var catsCDE = cdeSem[cidade]||[];
     var semVeic = catsCDE.filter(function(cat){
-      return !state.veiculos.some(function(v){
-        return v.ativo!==false&&v.status==='Disponível'&&v.categoria===cat&&(v.cidade===cidade||v.cidadeDestino===cidade);
+      /* 1. Veículo com cidade/destino = esta cidade, categoria certa, disponível */
+      var veicDireto = state.veiculos.some(function(v){
+        return v.ativo!==false && v.status==='Disponível' && v.categoria===cat
+          && (v.cidade===cidade || v.cidadeDestino===cidade);
       });
+      if(veicDireto) return false; /* tem cobertura */
+
+      /* 2. Veículo explicitamente vinculado na agenda (de outra cidade) e disponível */
+      var veicAgenda = state.semanas.some(function(w){
+        var wIni=dateToISO(w.inicio)||w.inicio, wFim=dateToISO(w.fim)||w.fim;
+        if(hoje<wIni||hoje>wFim) return false; /* só semana corrente */
+        return (w.entradas||[]).some(function(e){
+          if(e.cidade!==cidade) return false;
+          if((e.categorias||[]).indexOf(cat)===-1) return false;
+          var cd = ((e.veiculosCDE||{})[cat]) || {};
+          if(!cd.veiculoId) return false;
+          var veic = state.veiculos.find(function(v){return v.id===cd.veiculoId;});
+          return veic && veic.ativo!==false && veic.status==='Disponível';
+        });
+      });
+      return !veicAgenda; /* sem cobertura se nem agenda tem veículo */
     });
     var veicIndispCid = veicsAtivos.filter(function(v){return v.cidade===cidade&&v.status==='Indisponível';});
     var frota = semVeic.length>0?'vermelho':veicIndispCid.length>0?'amarelo':'verde';
@@ -2620,10 +2638,26 @@ function renderMapa(){
       /* veículos CDE sem cobertura na semana corrente */
       var catsCDE  = cdeCidadeSem[c] || [];
       var semVeic  = catsCDE.filter(function(cat){
-        return !state.veiculos.some(function(v){
+        /* check 1: veículo diretamente na cidade */
+        var direto = state.veiculos.some(function(v){
           return v.ativo!==false && v.status==='Disponível' && v.categoria===cat
             && (v.cidade===c || v.cidadeDestino===c);
         });
+        if(direto) return false;
+        /* check 2: veículo vinculado na agenda (de outra cidade) */
+        var agenda = state.semanas.some(function(w){
+          var wIni=dateToISO(w.inicio)||w.inicio, wFim=dateToISO(w.fim)||w.fim;
+          if(hoje<wIni||hoje>wFim) return false;
+          return (w.entradas||[]).some(function(e){
+            if(e.cidade!==c) return false;
+            if((e.categorias||[]).indexOf(cat)===-1) return false;
+            var cd=((e.veiculosCDE||{})[cat])||{};
+            if(!cd.veiculoId) return false;
+            var veic=state.veiculos.find(function(v){return v.id===cd.veiculoId;});
+            return veic&&veic.ativo!==false&&veic.status==='Disponível';
+          });
+        });
+        return !agenda;
       });
       var dotVeic  = catsCDE.length===0 ? '' : (semVeic.length===0 ? '🟢' : '🔴');
       html += '<button class="city-pin" onclick="window.__filtrarCidade(\''+c.replace(/'/g,"\\\'")+'\')";'
