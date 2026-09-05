@@ -422,6 +422,7 @@ var state = {
   ocorrencias: [],
   habilidades: [],
   filtroDiarioCidade: '',
+  filtroDiarioPatio: '',
   metaConfig: {},
   demandas: [],
   filtroPrioDemanda: 'Todas'
@@ -3031,12 +3032,27 @@ function renderPlanejamentoTab(){
   '</div>';
 
   /* --- formulário de lançamento --- */
+  /* pátios configurados por cidade */
+  var patiosCidade = (state.metaConfig && state.metaConfig.patiosCidade) || {};
+  /* monta lista de TODOS os pátios para o select global */
+  var todosPatiOpts = '<option value="">(Principal)</option>';
+  Object.keys(patiosCidade).forEach(function(c){
+    (patiosCidade[c]||[]).forEach(function(p){
+      todosPatiOpts += '<option value="'+esc(p)+'" data-cidade="'+esc(c)+'">'+esc(c)+' — '+esc(p)+'</option>';
+    });
+  });
+  var temPatiosConfig = Object.keys(patiosCidade).some(function(c){return (patiosCidade[c]||[]).length>0;});
+
   html += '<div class="card" style="margin-bottom:16px;">'+
     '<div class="section-title" style="font-size:13px;">Registrar exames do dia</div>'+
     '<div class="form-grid">'+
-      '<label>Cidade<select id="di-cidade"><option value="">Selecione</option>'+
+      '<label>Cidade<select id="di-cidade" onchange="window.__diCidadeChange(this.value)"><option value="">Selecione</option>'+
         TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+' ('+esc(CIDADE_POLO[c].nome)+')</option>';}).join('')+
       '</select></label>'+
+      (temPatiosConfig ?
+        '<label>Pátio<select id="di-patio">'+todosPatiOpts+'</select></label>' :
+        '<label id="di-patio-label" style="display:none;">Pátio<select id="di-patio"><option value="">(Principal)</option></select></label>'
+      )+
       '<label>Data<input id="di-data" type="date" value="'+hojeLocal()+'"></label>'+
       '<label>Categoria<select id="di-cat">'+
         CAT_KEYS.map(function(k){return '<option value="'+k+'">'+esc(catLabel(k))+'</option>';}).join('')+
@@ -3046,6 +3062,34 @@ function renderPlanejamentoTab(){
       '<label style="align-self:flex-end;"><button class="btn btn-primary" style="width:100%;" onclick="window.__addDiario()">+ Registrar</button></label>'+
     '</div>'+
   '</div>';
+
+  /* ── Configurar pátios por cidade ──────────────────────────── */
+  html += '<details style="margin-bottom:14px;background:#f8f8f8;border:1px solid var(--line);border-radius:10px;overflow:hidden;">';
+  html += '<summary style="cursor:pointer;padding:10px 14px;font-weight:700;font-size:13px;background:var(--teal-soft);color:var(--teal-dk);list-style:none;">⚙️ Configurar pátios por cidade</summary>';
+  html += '<div style="padding:12px 14px;">';
+  html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Cidades com mais de um pátio (ex.: Recife Moto1 / Moto2). Deixe sem pátio para cidades com operação única.</div>';
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">';
+  html += '<select id="patio-cfg-cidade" style="border:1px solid var(--teal);border-radius:7px;padding:5px 9px;font-size:12.5px;"><option value="">Selecione cidade</option>'+TODAS_CIDADES.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('')+'</select>';
+  html += '<input id="patio-cfg-nome" type="text" placeholder="Nome do pátio (ex.: Moto2, Pátio Norte…)" style="flex:1;min-width:180px;border:1px solid var(--teal);border-radius:7px;padding:5px 9px;font-size:12.5px;">';
+  html += '<button class="btn btn-primary" style="font-size:12px;" id="btn-add-patio">+ Adicionar pátio</button>';
+  html += '</div>';
+  /* lista atual */
+  var temPatios = Object.keys(patiosCidade).some(function(c){return (patiosCidade[c]||[]).length>0;});
+  if(temPatios){
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    Object.keys(patiosCidade).forEach(function(c){
+      (patiosCidade[c]||[]).forEach(function(p){
+        html += '<span style="background:#EEF4FF;border:1px solid #93B4F5;border-radius:7px;padding:3px 10px;font-size:12px;display:flex;align-items:center;gap:6px;">'
+          + '<b>'+esc(c)+'</b> · '+esc(p)
+          + '<button style="background:none;border:none;cursor:pointer;color:#999;font-size:12px;" id="rm-patio-'+encodeURIComponent(c)+'-'+encodeURIComponent(p)+'" data-cidade="'+esc(c)+'" data-patio="'+esc(p)+'">✕</button>'
+          + '</span>';
+      });
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="font-size:12px;color:var(--ink-soft);">Nenhum pátio adicional configurado.</div>';
+  }
+  html += '</div></details>';
 
   /* --- seletor de mês --- */
   html += '<div class="nav-mes">'+
@@ -3105,8 +3149,13 @@ function renderPlanejamentoTab(){
   /* --- tabela de lançamentos do mês --- */
   if(diariosMes.length){
     var filtroDiarioCidade = state.filtroDiarioCidade||'';
+    var filtroDiarioPatio  = state.filtroDiarioPatio||'';
     var ordenados = diariosMes.slice()
-      .filter(function(d){ return !filtroDiarioCidade || d.cidade===filtroDiarioCidade; })
+      .filter(function(d){
+        if(filtroDiarioCidade && d.cidade!==(filtroDiarioCidade)) return false;
+        if(filtroDiarioPatio  && (d.patio||'')!==filtroDiarioPatio) return false;
+        return true;
+      })
       .sort(function(a,b){ return b.dataISO.localeCompare(a.dataISO); });
     html += '<div class="section-title" style="font-size:13px;margin-top:18px;">Lançamentos de '+nomeMes(mes)+'</div>';
     /* filtro por cidade */
@@ -3121,13 +3170,14 @@ function renderPlanejamentoTab(){
       (filtroDiarioCidade?'<button class="btn btn-ghost" style="font-size:11.5px;padding:3px 10px;" id="di-filtro-limpar">✕ Limpar filtro</button>':'')+
     '</div>';
     html += '<div class="diario-table-wrap"><table><thead><tr>'+
-      '<th>Data</th><th>Cidade</th><th>Polo</th><th>Categoria</th><th>Agendados</th><th>Realizados</th><th>Registrado por</th><th></th>'+
+      '<th>Data</th><th>Cidade</th><th>Pátio</th><th>Polo</th><th>Categoria</th><th>Agendados</th><th>Realizados</th><th>Registrado por</th><th></th>'+
     '</tr></thead><tbody>'+
     ordenados.map(function(d){
       var taxa = d.agendados>0 ? Math.round(d.realizados/d.agendados*100) : 0;
       return '<tr>'+
         '<td>'+esc(dataParaDisplay(d.dataISO))+'</td>'+
         '<td><b>'+esc(d.cidade)+'</b></td>'+
+        '<td style="font-size:11.5px;color:var(--teal-dk);font-weight:600;">'+esc(d.patio||'—')+'</td>'+
         '<td class="polo-tag">'+esc(CIDADE_POLO[d.cidade].nome)+'</td>'+
         '<td><span class="pill teal">'+esc(catLabel(d.categoria))+'</span></td>'+
         '<td class="mono">'+d.agendados+'</td>'+
@@ -3139,7 +3189,7 @@ function renderPlanejamentoTab(){
         '</td>'+
       '</tr>'+
       (state.diarioEditando===d.id ?
-        '<tr><td colspan="8" style="padding:4px 0;">'+
+        '<tr><td colspan="9" style="padding:4px 0;">'+
           '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:9px;padding:10px 14px;">'+
             '<div style="font-size:12px;font-weight:700;color:var(--teal-dk);margin-bottom:8px;">✏️ Editar lançamento — '+esc(d.cidade)+'</div>'+
             '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">'+
@@ -3296,6 +3346,17 @@ function renderPlanejamentoTab(){
   var mInput = document.getElementById('plan-mes-input');
   if(mInput) mInput.addEventListener('change', function(){ if(this.value){ state.mesSelecionado = this.value; renderPlanejamentoTab(); } });
 
+  /* Configurar pátios */
+  var btnAddPatio = document.getElementById('btn-add-patio');
+  if(btnAddPatio) btnAddPatio.addEventListener('click', window.__addPatioCidade);
+  document.querySelectorAll('[id^="rm-patio-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__rmPatioCidade(this.dataset.cidade, this.dataset.patio); });
+  });
+
+  /* filtro pátio */
+  var dfPatio = document.getElementById('di-filtro-patio');
+  if(dfPatio) dfPatio.addEventListener('change', function(){ state.filtroDiarioPatio = this.value; renderPlanejamentoTab(); });
+
   /* filtro por cidade nos lançamentos */
   var dfCidade = document.getElementById('di-filtro-cidade');
   if(dfCidade) dfCidade.addEventListener('change', function(){ state.filtroDiarioCidade = this.value; renderPlanejamentoTab(); });
@@ -3317,18 +3378,55 @@ function renderPlanejamentoTab(){
 window.__mesAnterior = function(){ state.mesSelecionado = mesAnterior(state.mesSelecionado); renderPlanejamentoTab(); };
 window.__mesProximo  = function(){ state.mesSelecionado = mesProximo(state.mesSelecionado);  renderPlanejamentoTab(); };
 
+window.__diCidadeChange = function(cidade){
+  var patiosCidade = (state.metaConfig && state.metaConfig.patiosCidade) || {};
+  var patios = patiosCidade[cidade] || [];
+  /* mostra todos os pátios da cidade selecionada + opção principal */
+  var sel = document.getElementById('di-patio');
+  var label = document.getElementById('di-patio-label');
+  if(sel){
+    sel.innerHTML = '<option value="">(Principal)</option>'
+      + patios.map(function(p){return '<option value="'+esc(p)+'">'+esc(p)+'</option>';}).join('');
+  }
+  if(label){ label.style.display = patios.length > 0 ? '' : 'none'; }
+};
+
+window.__addPatioCidade = async function(){
+  var cidade = (document.getElementById('patio-cfg-cidade')||{}).value||'';
+  var nome   = ((document.getElementById('patio-cfg-nome')||{}).value||'').trim();
+  if(!cidade||!nome){showToast('Selecione cidade e informe o nome do pátio.');return;}
+  if(!state.metaConfig) state.metaConfig={};
+  if(!state.metaConfig.patiosCidade) state.metaConfig.patiosCidade={};
+  if(!state.metaConfig.patiosCidade[cidade]) state.metaConfig.patiosCidade[cidade]=[];
+  if(state.metaConfig.patiosCidade[cidade].indexOf(nome)>-1){showToast('Pátio já existe.');return;}
+  state.metaConfig.patiosCidade[cidade].push(nome);
+  await storageSet('meta-config',JSON.stringify(state.metaConfig),true);
+  showToast('✅ Pátio "'+nome+'" adicionado a '+cidade+'.');
+  renderPlanejamentoTab();
+};
+
+window.__rmPatioCidade = async function(cidade, patio){
+  if(!state.metaConfig||!state.metaConfig.patiosCidade) return;
+  state.metaConfig.patiosCidade[cidade]=(state.metaConfig.patiosCidade[cidade]||[]).filter(function(p){return p!==patio;});
+  await storageSet('meta-config',JSON.stringify(state.metaConfig),true);
+  showToast('Pátio removido.');renderPlanejamentoTab();
+};
+
 window.__addDiario = async function(){
   var cidade   = document.getElementById('di-cidade').value;
   var dataISO  = document.getElementById('di-data').value;
   var cat      = document.getElementById('di-cat').value;
   var agend    = parseInt(document.getElementById('di-agend').value,10) || 0;
   var real     = parseInt(document.getElementById('di-real').value,10)  || 0;
+  var patioEl  = document.getElementById('di-patio');
+  var patio    = patioEl ? patioEl.value.trim() : '';
   if(!cidade)  { showToast('Selecione a cidade.'); return; }
   if(!dataISO) { showToast('Informe a data.'); return; }
   if(real > agend){ showToast('Realizados não pode ser maior que Agendados.'); return; }
   var novo = {
     id: 'DI'+Date.now().toString(36).toUpperCase(),
     cidade: cidade,
+    patio: patio || '',
     dataISO: dataISO,
     mes: dataParaMes(dataISO),
     categoria: cat,
