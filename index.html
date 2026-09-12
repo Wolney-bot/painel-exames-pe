@@ -421,6 +421,8 @@ var state = {
   ausencias: [],
   ocorrencias: [],
   habilidades: [],
+  colabExpandido: null,
+  colabEditando: null,
   filtroDiarioCidade: '',
   filtroDiarioPatio: '',
   metaConfig: {},
@@ -1513,40 +1515,85 @@ function renderGestaoTab(){
       html+='<button class="btn btn-primary" id="btn-cad-colab" style="font-size:13px;padding:8px 18px;">+ Cadastrar colaborador</button>';
       html+='</div></details>';
 
-      /* tabela colaboradores */
-      if(!colabors.length){
-        html+='<div style="text-align:center;color:var(--ink-soft);padding:16px;">Nenhum colaborador cadastrado ainda.</div>';
+      /* tabela colaboradores — ordenada por polo e depois alfabeticamente */
+      var poloIdxMap = {};
+      POLOS.forEach(function(p,idx){ p.cidades.forEach(function(c){ poloIdxMap[c]=idx; }); });
+      var colaborsOrdenados = colabors.slice().sort(function(a,b){
+        var pa = poloIdxMap[a.cidade]!==undefined ? poloIdxMap[a.cidade] : 99;
+        var pb = poloIdxMap[b.cidade]!==undefined ? poloIdxMap[b.cidade] : 99;
+        if(pa!==pb) return pa-pb;
+        return a.nome.localeCompare(b.nome,'pt-BR');
+      });
+      if(!colaborsOrdenados.length){
+        html+='<div style="text-align:center;color:var(--ink-soft);padding:16px;margin-top:14px;">Nenhum colaborador cadastrado ainda.</div>';
       } else {
-        html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:600px;">';
+        html+='<div style="overflow-x:auto;margin-top:14px;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:600px;">';
         html+='<thead><tr style="background:var(--teal);color:#fff;">'
           +'<th style="padding:7px 10px;text-align:left;">Nome</th>'
           +'<th style="padding:7px 10px;">Função</th>'
-          +'<th style="padding:7px 10px;">Cidade</th>'
+          +'<th style="padding:7px 10px;">Cidade / Polo</th>'
           +'<th style="padding:7px 10px;text-align:center;">Status</th>'
-          +'<th style="padding:7px 10px;text-align:center;">Habilidades</th>'
-          
-          +'<th style="padding:7px 10px;"></th>'
+          +'<th style="padding:7px 10px;text-align:center;">Ações</th>'
           +'</tr></thead><tbody>';
-        colabors.forEach(function(col, idx){
+        var prevPolo = null;
+        colaborsOrdenados.forEach(function(col){
+          var poloIdx = poloIdxMap[col.cidade];
+          var polo = poloIdx!==undefined ? POLOS[poloIdx] : null;
           var ausente=(ausencias).some(function(a){return a.colaboradorId===col.id&&a.inicio<=hj&&a.fim>=hj;});
-          var nomeAus = ausente?' <span style="font-size:10px;background:#FFF3CD;color:#856404;border:1px solid #FFD700;border-radius:5px;padding:1px 5px;">ausente</span>':'';
-          var rowBg=ausente?'#FFFBF0':(idx%2===0?'#fafafa':'#fff');
-          var habNomes=(col.habilidades||[]).map(function(hid){var h=habilidades.find(function(x){return x.id===hid;});return h?esc(h.nome.split(' ').slice(-1)[0]+(h.critica?' ★':'')):hid;}).join(', ');
-          html+='<tr style="background:'+rowBg+';">'
-            +'<td style="padding:7px 10px;font-weight:600;">'+esc(col.nome)+nomeAus+'</td>'
-            +'<td style="padding:7px 10px;font-size:11.5px;">'+esc(col.funcao||'—')+'</td>'
-            +'<td style="padding:7px 10px;">'+esc(col.cidade||'—')+'</td>'
-            +'<td style="padding:7px 10px;text-align:center;"><span class="pill '+(col.status==='Ativo'?'green':'red')+'">'+esc(col.status)+'</span></td>'
-            +'<td style="padding:7px 10px;font-size:11px;color:var(--ink-soft);">'+esc(habNomes||'—')+'</td>'
-            
-            +'<td style="padding:7px 10px;text-align:center;"><button class="icon-btn" id="rm-colab-'+col.id+'" data-cid="'+col.id+'" style="font-size:11px;">excluir</button></td>'
-            +'</tr>';
+          var rowBg=ausente?'#FFFBF0':'#fff';
+          if(polo && polo.nome !== prevPolo){
+            html+='<tr><td colspan="5" style="background:var(--teal-soft);color:var(--teal-dk);font-weight:700;font-size:12px;padding:4px 10px;">'+esc(polo.nome)+' — '+esc(polo.regiao)+'</td></tr>';
+            prevPolo = polo.nome;
+          }
+          html+='<tr style="background:'+rowBg+';border-bottom:1px solid var(--line);">';
+          html+='<td style="padding:7px 10px;font-weight:600;">'+esc(col.nome)+(ausente?' <span style="font-size:10px;background:#FFF3CD;color:#856404;border:1px solid #FFD700;border-radius:4px;padding:1px 5px;">ausente</span>':'')+'</td>';
+          html+='<td style="padding:7px 10px;font-size:11.5px;">'+esc(col.funcao||'—')+'</td>';
+          html+='<td style="padding:7px 10px;font-size:11.5px;">'+esc(col.cidade||'—')+(polo?'<br><span style="font-size:10px;color:var(--ink-soft);">'+esc(polo.nome)+'</span>':'')+'</td>';
+          html+='<td style="padding:7px 10px;text-align:center;"><span class="pill '+(col.status==='Ativo'?'green':'red')+'">'+esc(col.status)+'</span></td>';
+          html+='<td style="padding:7px 10px;text-align:center;white-space:nowrap;">'
+            +'<button class="icon-btn" style="color:var(--teal-dk);border-color:var(--teal);" id="ver-colab-'+col.id+'" data-cid="'+col.id+'" title="Ver detalhes">👁</button> '
+            +'<button class="icon-btn" style="color:#856404;border-color:#FFD700;" id="edit-colab-'+col.id+'" data-cid="'+col.id+'" title="Editar">✏️</button> '
+            +'<button class="icon-btn" id="rm-colab-'+col.id+'" data-cid="'+col.id+'" title="Excluir" style="color:var(--red);">🗑</button>'
+            +'</td></tr>';
+          /* painel ver detalhes */
+          if(state.colabExpandido===col.id && state.colabEditando!==col.id){
+            var habNomes=(col.habilidades||[]).map(function(hid){var h=habilidades.find(function(x){return x.id===hid;});return h?h.nome+(h.critica?' ★':''):'?';});
+            var backupNome=col.backupId?((colabors.find(function(c){return c.id===col.backupId;})||{}).nome||'—'):'—';
+            html+='<tr style="background:#EEF4FF;"><td colspan="5" style="padding:10px 14px;">';
+            html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;font-size:12.5px;">';
+            [['📞 Telefone',col.telefone||'—'],['🏢 Setor',col.setor||'—'],['👥 Backup',backupNome]].forEach(function(r){
+              html+='<div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;"><div style="font-size:11px;color:var(--ink-soft);font-weight:600;">'+r[0]+'</div><div style="font-weight:600;margin-top:2px;">'+esc(r[1])+'</div></div>';
+            });
+            html+='</div>';
+            if(habNomes.length) html+='<div style="margin-top:8px;font-size:12px;"><b>Habilidades:</b> '+habNomes.map(esc).join(' · ')+'</div>';
+            if((col.cidadesBackup||[]).length) html+='<div style="font-size:12px;margin-top:4px;"><b>Cobre também:</b> '+col.cidadesBackup.map(esc).join(', ')+'</div>';
+            if(col.obs) html+='<div style="font-size:12px;margin-top:4px;"><b>Obs:</b> '+esc(col.obs)+'</div>';
+            html+='</td></tr>';
+          }
+          /* painel editar */
+          if(state.colabEditando===col.id){
+            var FUNCOES_ED=['Assistente de Operação','Líder de Operação','Supervisor de Operações','Coordenador de Operações','Motorista','Suporte de TI','Administrativo','Outro'];
+            html+='<tr style="background:#FFFBF0;"><td colspan="5" style="padding:12px 14px;border:2px solid #FFD700;">';
+            html+='<div style="font-weight:700;color:#856404;margin-bottom:8px;">✏️ Editar — '+esc(col.nome)+'</div>';
+            html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:8px;">';
+            html+='<label style="font-size:12px;font-weight:600;">Nome<input id="ce-nome" type="text" value="'+esc(col.nome)+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+            html+='<label style="font-size:12px;font-weight:600;">Função<select id="ce-funcao" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;">'+FUNCOES_ED.map(function(f){return '<option'+(f===col.funcao?' selected':'')+'>'+esc(f)+'</option>';}).join('')+'</select></label>';
+            html+='<label style="font-size:12px;font-weight:600;">Cidade<select id="ce-cidade" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">—</option>'+TODAS_CIDADES.map(function(c){return '<option'+(c===col.cidade?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select></label>';
+            html+='<label style="font-size:12px;font-weight:600;">Setor<input id="ce-setor" type="text" value="'+esc(col.setor||'')+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+            html+='<label style="font-size:12px;font-weight:600;">Telefone<input id="ce-tel" type="tel" value="'+esc(col.telefone||'')+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+            html+='<label style="font-size:12px;font-weight:600;">Status<select id="ce-status" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option'+(col.status==='Ativo'?' selected':'')+'>Ativo</option><option'+(col.status==='Inativo'?' selected':'')+'>Inativo</option><option'+(col.status==='Afastado'?' selected':'')+'>Afastado</option></select></label>';
+            html+='</div>';
+            html+='<label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;">Obs.<textarea id="ce-obs" rows="2" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;margin-top:2px;resize:vertical;">'+esc(col.obs||'')+'</textarea></label>';
+            html+='<div style="display:flex;gap:8px;">'
+              +'<button class="btn btn-primary" id="save-colab-'+col.id+'" data-cid="'+col.id+'" style="font-size:12.5px;">💾 Salvar</button>'
+              +'<button class="btn btn-ghost" id="cancel-edit-colab-'+col.id+'" style="font-size:12.5px;">Cancelar</button>'
+              +'</div></td></tr>';
+          }
         });
         html+='</tbody></table></div>';
       }
     }
 
-    /* ════════ SUB-SUB: AUSÊNCIAS ════════ */
     else if(ppView==='ausencias'){
       /* form */
       html+='<div style="background:#f8f8f8;border:1px solid #6FCF97;border-radius:12px;margin-bottom:14px;overflow:hidden;">'
@@ -1693,50 +1740,70 @@ function renderGestaoTab(){
         html += '<div style="margin-top:14px;">';
         html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">';
         html += '<div style="font-size:13px;font-weight:700;">👷 Escala de força tarefa — '+nomeMes(mesFT)+'</div>';
-        html += '<div style="font-size:11.5px;color:var(--ink-soft);">Informe os funcionários de cada cidade antes do fim de semana com exame</div>';
+        html += '<div style="font-size:11.5px;color:var(--ink-soft);">Informe os funcionários de cada cidade. O turno pode variar por cidade.</div>';
         html += '</div>';
         ftMes.forEach(function(fs){
           var isSab=fs.tipo==='Sábado';
           var cor=isSab?'#856404':'#5c3d8f'; var bg=isSab?'#FFF3CD':'#f3e8ff'; var brd=isSab?'#FFD700':'#c4a0e8';
           var key=fs.data;
-          var turno=escala[key+'_turno']||'Manhã e tarde';
           var cidades=[...new Set(fs.cidades)];
           var totalFdia=cidades.reduce(function(s,c){return s+((escala[key+'_c_'+c]||[]).length);},0);
 
           html+='<div style="background:'+bg+';border:1px solid '+brd+';border-radius:12px;padding:12px 14px;margin-bottom:10px;">';
-          /* cabeçalho dia */
           html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">';
           html+='<span style="font-weight:700;color:'+cor+';font-size:14px;">'+(isSab?'🟡':'🟠')+' '+fs.tipo+' · '+esc(dataParaDisplay(fs.data))+'</span>';
           html+='<span style="font-size:12px;color:var(--ink-soft);">'+cidades.map(esc).join(' · ')+'</span>';
           html+='<span style="margin-left:auto;font-size:12px;font-weight:700;color:'+cor+';">'+totalFdia+' funcionário(s) escalado(s)</span>';
           html+='</div>';
-          /* turno */
-          html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">';
-          html+='<span style="font-size:12px;font-weight:600;color:'+cor+';">⏰ Turno:</span>';
-          TURNOS.forEach(function(t){
-            var at=turno===t;
-            html+='<button id="turno-'+esc(key)+'-'+esc(t)+'" data-key="'+esc(key)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mesFT)+'" style="font-size:12px;padding:4px 10px;border-radius:7px;cursor:pointer;font-weight:600;background:'+(at?cor:'#fff')+';color:'+(at?'#fff':cor)+';border:1.5px solid '+brd+';">'+(t==='Manhã e tarde'?'🌅🌇 ':t==='Apenas manhã'?'🌅 ':'🌇 ')+esc(t)+'</button>';
-          });
-          html+='</div>';
-          /* cidades */
-          html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;">';
+
+          html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;">';
           cidades.forEach(function(cidade){
-            var ckeyC=key+'_c_'+cidade;
-            var funcsC=escala[ckeyC]?escala[ckeyC].slice():[];
+            var ckeyC    = key+'_c_'+cidade;
+            var turnoKey = ckeyC+'_turno';
+            var turno    = escala[turnoKey] || 'Manhã e tarde';
+            var funcsC   = escala[ckeyC] ? escala[ckeyC].slice() : [];
+
+            /* sugestão: colaboradores da cidade primeiro, depois todos */
+            var colabCidade  = colabors.filter(function(c){return c.cidade===cidade&&c.status==='Ativo';});
+            var colabOutros  = colabors.filter(function(c){return c.cidade!==cidade&&c.status==='Ativo';});
+            var colabOrdenados = colabCidade.concat(colabOutros);
+            var datalistId = 'dl-'+esc(ckeyC);
+
             html+='<div style="background:#fff;border:1px solid '+brd+';border-radius:8px;padding:9px 11px;">';
+            /* header cidade */
             html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">';
             html+='<span style="font-size:12.5px;font-weight:700;color:'+cor+';">📍 '+esc(cidade)+'</span>';
-            html+='<span style="font-size:11px;color:var(--ink-soft);">'+funcsC.length+' funcionário(s)</span>';
+            html+='<span style="font-size:11px;color:var(--ink-soft);">'+funcsC.length+' func.</span>';
             html+='</div>';
+            /* turno POR CIDADE */
+            html+='<div style="display:flex;gap:4px;margin-bottom:7px;flex-wrap:wrap;">';
+            TURNOS.forEach(function(t){
+              var at=turno===t;
+              var icon=t==='Manhã e tarde'?'🌅🌇':t==='Apenas manhã'?'🌅':'🌇';
+              html+='<button id="turno-'+esc(turnoKey)+'-'+esc(t)+'" data-key="'+esc(turnoKey)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mesFT)+'" style="font-size:11px;padding:2px 7px;border-radius:6px;cursor:pointer;font-weight:600;background:'+(at?cor:'#f5f5f5')+';color:'+(at?'#fff':cor)+';border:1.5px solid '+(at?cor:brd)+';white-space:nowrap;">'+icon+' '+esc(t)+'</button>';
+            });
+            html+='</div>';
+            /* lista de funcionários */
             if(funcsC.length){
               html+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">';
               funcsC.forEach(function(nome,idx){
-                html+='<span style="background:'+bg+';border:1px solid '+brd+';border-radius:6px;padding:2px 7px;font-size:12px;display:flex;align-items:center;gap:4px;">'+esc(nome)+'<button style="background:none;border:none;cursor:pointer;color:#999;font-size:11px;line-height:1;padding:0;" id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mesFT)+'">✕</button></span>';
+                /* destaca se é de outra cidade */
+                var colab = colabors.find(function(c){return c.nome===nome;});
+                var eDaCidade = colab && colab.cidade===cidade;
+                html+='<span style="background:'+(eDaCidade?bg:'#fff')+';border:1px solid '+brd+';border-radius:6px;padding:2px 7px;font-size:12px;display:flex;align-items:center;gap:4px;">'
+                  +esc(nome)+((!eDaCidade&&colab)?'<span style="font-size:10px;color:var(--ink-soft);" title="'+esc(colab.cidade)+'"> ('+esc(colab.cidade)+')</span>':'')
+                  +'<button style="background:none;border:none;cursor:pointer;color:#999;font-size:11px;line-height:1;padding:0;" id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mesFT)+'">✕</button></span>';
               });
               html+='</div>';
             }
+            /* input com datalist (sugestão por cidade) */
+            html+='<datalist id="'+esc(datalistId)+'">';
+            if(colabCidade.length) html+='<option disabled value="── '+esc(cidade)+' ──">';
+            colabCidade.forEach(function(c){html+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' ('+esc(cidade)+')</option>';});
+            if(colabOutros.length){ html+='<option disabled value="── Outras cidades ──">'; colabOutros.forEach(function(c){html+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' — '+esc(c.cidade)+'</option>';}); }
+            html+='</datalist>';
             html+='<div style="display:flex;gap:5px;align-items:center;">';
-            html+='<input type="text" id="escala-input-'+esc(ckeyC)+'" placeholder="Nome do funcionário…" style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
+            html+='<input type="text" id="escala-input-'+esc(ckeyC)+'" list="'+esc(datalistId)+'" placeholder="Nome ou selecione…" style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
             html+='<button class="btn" style="font-size:11.5px;padding:3px 9px;background:'+cor+';color:#fff;border:none;white-space:nowrap;" id="add-escala-'+esc(ckeyC)+'" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mesFT)+'">+ Add</button>';
             html+='</div></div>';
           });
@@ -1940,6 +2007,29 @@ function renderGestaoTab(){
   /* pessoas sub-sub tabs */
   document.querySelectorAll('[id^="pp-sub-"]').forEach(function(btn){
     btn.addEventListener('click',function(){state.pessoasSubView=this.dataset.sub;renderGestaoTab();});
+  });
+  /* ver / editar / salvar colaborador */
+  document.querySelectorAll('[id^="ver-colab-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var cid=this.dataset.cid;
+      state.colabExpandido = state.colabExpandido===cid ? null : cid;
+      state.colabEditando  = null;
+      renderGestaoTab();
+    });
+  });
+  document.querySelectorAll('[id^="edit-colab-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      state.colabEditando  = this.dataset.cid;
+      state.colabExpandido = this.dataset.cid;
+      state.pessoasSubView = 'catalogo';
+      renderGestaoTab();
+    });
+  });
+  document.querySelectorAll('[id^="cancel-edit-colab-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){state.colabEditando=null;state.colabExpandido=null;renderGestaoTab();});
+  });
+  document.querySelectorAll('[id^="save-colab-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){window.__salvarColaborador(this.dataset.cid);});
   });
   var btnCad=document.getElementById('btn-cad-colab');
   if(btnCad) btnCad.addEventListener('click',window.__cadColaborador);
@@ -3597,9 +3687,10 @@ window.__removerFotoLocavel = async function(id){
 
 /* ── Gestão: escala fins de semana ─────────────────────────────── */
 window.__setTurnoFds = async function(key, turno, mes){
+  /* key already contains cidade: data_c_cidade_turno */
   if(!state.gestaoEscala) state.gestaoEscala = {};
   if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
-  state.gestaoEscala[mes][key+'_turno'] = turno;
+  state.gestaoEscala[mes][key] = turno;
   await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
   renderGestaoTab();
 };
@@ -5111,6 +5202,26 @@ window.__rmFotoApoio = async function(id){
 };
 
 /* ── Pessoas: CRUD colaboradores, ausências, ocorrências, habilidades ── */
+window.__salvarColaborador = async function(id){
+  var col = (state.colaboradores||[]).find(function(c){return c.id===id;});
+  if(!col) return;
+  var nome = (document.getElementById('ce-nome')||{}).value||'';
+  if(!nome.trim()){showToast('O nome não pode ficar vazio.');return;}
+  col.nome    = nome.trim();
+  col.funcao  = (document.getElementById('ce-funcao')||{}).value||col.funcao;
+  col.cidade  = (document.getElementById('ce-cidade')||{}).value||col.cidade;
+  col.setor   = (document.getElementById('ce-setor')||{}).value||'';
+  col.telefone= (document.getElementById('ce-tel')||{}).value||'';
+  col.status  = (document.getElementById('ce-status')||{}).value||col.status;
+  col.obs     = (document.getElementById('ce-obs')||{}).value||'';
+  col.atualizadoEm = nowStr();
+  await storageSet('colaboradores-lista',JSON.stringify(state.colaboradores),true);
+  state.colabEditando  = null;
+  state.colabExpandido = id; /* mantém aberto pra ver as alterações */
+  showToast('✅ Colaborador atualizado.');
+  renderGestaoTab();
+};
+
 window.__cadColaborador = async function(){
   var nome = (document.getElementById('cb-nome')||{}).value||'';
   if(!nome.trim()){showToast('Informe o nome do colaborador.');return;}
