@@ -704,7 +704,7 @@ async function init(){
     {id:'hab_exA',  nome:'Aplicar exame cat. A',        slug:'exame_A',         critica:true},
     {id:'hab_exB',  nome:'Aplicar exame cat. B',        slug:'exame_B',         critica:true},
     {id:'hab_exCD', nome:'Aplicar exame cat. C/D/E',    slug:'exame_CD',        critica:false},
-    {id:'hab_det',  nome:'Operar sistema do Detran',    slug:'sistema_detran',  critica:true},
+    {id:'hab_det',  nome:'Operar sistema TechPratico',  slug:'sistema_tech',    critica:true},
     {id:'hab_ci',   nome:'Check-in no painel',          slug:'checkin_painel',  critica:true},
     {id:'hab_moto', nome:'Manutenção básica da moto',   slug:'manut_basica',    critica:false},
     {id:'hab_ch',   nome:'Abrir chamado',               slug:'abrir_chamado',   critica:false},
@@ -1454,7 +1454,7 @@ function renderGestaoTab(){
   ══════════════════════════════════════════════════════════ */
   else if(subView==='pessoas'){
     var hj = hojeLocal();
-    var FUNCOES = ['Examinador','Examinador CDE','Suporte de TI','Coordenador de polo','Motorista','Administrativo','Outro'];
+    var FUNCOES = ['Assistente de Operação','Líder de Operação','Supervisor de Operações','Coordenador de Operações','Motorista','Suporte de TI','Administrativo','Outro'];
     var TIPOS_AUS = ['Férias','Folga','Atestado','Treinamento','Licença','Outro'];
     var TIPOS_OC  = ['Atraso','Falta','Comportamento','Desempenho','Acidente','Outro'];
     var GRAVIDADES= ['Baixa','Média','Alta','Crítica'];
@@ -1492,8 +1492,6 @@ function renderGestaoTab(){
       html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px;">';
       html+='<label style="font-size:12px;font-weight:600;">Usuário do painel<select id="cb-usuario" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option value="">— não tem login —</option>'+(state.usuarios||[]).map(function(u){return '<option value="'+u.id+'">'+esc(u.nome)+'</option>';}).join('')+'</select></label>';
       html+='<label style="font-size:12px;font-weight:600;">Telefone<input id="cb-tel" type="tel" placeholder="(81) 9…" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;margin-top:2px;"></label>';
-      html+='<label style="font-size:12px;font-weight:600;">Admissão<input id="cb-adm" type="date" value="'+hj+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
-      html+='<label style="font-size:12px;font-weight:600;">Trabalha sábado?<select id="cb-sabado" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"><option>Sim</option><option>Não</option></select></label>';
       html+='</div>';
       /* backup cidades */
       html+='<div style="font-size:12px;font-weight:600;margin-bottom:5px;">Cobre também (backup de outras cidades)</div>';
@@ -1525,7 +1523,7 @@ function renderGestaoTab(){
           +'<th style="padding:7px 10px;">Cidade</th>'
           +'<th style="padding:7px 10px;text-align:center;">Status</th>'
           +'<th style="padding:7px 10px;text-align:center;">Habilidades</th>'
-          +'<th style="padding:7px 10px;text-align:center;">Sáb?</th>'
+          
           +'<th style="padding:7px 10px;"></th>'
           +'</tr></thead><tbody>';
         colabors.forEach(function(col, idx){
@@ -1539,7 +1537,7 @@ function renderGestaoTab(){
             +'<td style="padding:7px 10px;">'+esc(col.cidade||'—')+'</td>'
             +'<td style="padding:7px 10px;text-align:center;"><span class="pill '+(col.status==='Ativo'?'green':'red')+'">'+esc(col.status)+'</span></td>'
             +'<td style="padding:7px 10px;font-size:11px;color:var(--ink-soft);">'+esc(habNomes||'—')+'</td>'
-            +'<td style="padding:7px 10px;text-align:center;">'+(col.trabalhaSabado==='Sim'?'✅':'—')+'</td>'
+            
             +'<td style="padding:7px 10px;text-align:center;"><button class="icon-btn" id="rm-colab-'+col.id+'" data-cid="'+col.id+'" style="font-size:11px;">excluir</button></td>'
             +'</tr>';
         });
@@ -1660,34 +1658,121 @@ function renderGestaoTab(){
         +'</div></div>';
     }
 
-    /* check-ins de hoje (resumo compacto abaixo em qualquer sub-view) */
+    /* ── Escala de força tarefa — fins de semana ──────────────────
+       Mostra TODOS os fins de semana do mês com exames agendados.
+       O coordenador lança os funcionários que irão trabalhar
+       em cada cidade, por dia.
+    ────────────────────────────────────────────────────────────── */
     if(ppView==='catalogo'){
-      var checkinsHj=state.checkins.filter(function(c){return c.data===hj;});
-      if(checkinsHj.length||true){
-        html+='<div style="margin-top:14px;"><div style="font-size:12.5px;font-weight:700;margin-bottom:8px;">✅ Check-ins de hoje</div>';
-        html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
-        POLOS.forEach(function(p){
-          var ci=checkinsHj.find(function(c){return c.polo===p.id;});
-          if(ci){
-            html+='<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:9px;padding:10px 12px;">'
-              +'<div style="font-weight:700;color:#276749;margin-bottom:4px;">'+esc(p.nome)+'</div>'
-              +'<div style="font-size:12px;"><b>Roda hoje:</b> '+esc(ci.queRoda||'—')+'</div>'
-              +(ci.riscoDia?'<div style="font-size:12px;"><b>Risco:</b> '+esc(ci.riscoDia)+'</div>':'')
-              +(ci.bloqueios&&ci.bloqueios.toLowerCase()!=='nenhum'?'<div style="font-size:12px;color:var(--red);"><b>Bloqueio:</b> '+esc(ci.bloqueios)+'</div>':'')
-              +'<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">por '+esc(ci.responsavel||'—')+'</div>'
-              +'</div>';
-          } else {
-            html+='<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:9px;padding:10px 12px;">'
-              +'<div style="font-weight:700;color:#856404;margin-bottom:4px;">'+esc(p.nome)+'</div>'
-              +'<div style="font-size:12px;color:var(--ink-soft);">⏳ Check-in não realizado</div>'
-              +'</div>';
-          }
+      /* Fins de semana com exames agendados (do mês atual) */
+      var mesFT = state.relMes || mesRelAtual();
+      var ftMes = [];
+      state.semanas.forEach(function(w){
+        (w.entradas||[]).forEach(function(e){
+          var dias = (e.diasSelecionados||[]).concat(
+            Object.values(e.datasExatas||{}).reduce(function(a,v){
+              return a.concat(Array.isArray(v)?v:(v?[v]:[]));
+            },[])
+          );
+          dias.forEach(function(d){
+            if(!d||!d.startsWith(mesFT)) return;
+            var dow=new Date(d+'T12:00:00').getDay();
+            if(dow!==6&&dow!==0) return;
+            if(!ftMes.find(function(x){return x.data===d;}))
+              ftMes.push({data:d, tipo:dow===6?'Sábado':'Domingo', cidades:[]});
+            ftMes.find(function(x){return x.data===d;}).cidades.push(e.cidade);
+          });
         });
-        html+='</div></div>';
+      });
+      ftMes.sort(function(a,b){return a.data.localeCompare(b.data);});
+
+      if(ftMes.length){
+        var escala = state.gestaoEscala&&state.gestaoEscala[mesFT] ? state.gestaoEscala[mesFT] : {};
+        var TURNOS = ['Manhã e tarde','Apenas manhã','Apenas tarde'];
+        html += '<div style="margin-top:14px;">';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">';
+        html += '<div style="font-size:13px;font-weight:700;">👷 Escala de força tarefa — '+nomeMes(mesFT)+'</div>';
+        html += '<div style="font-size:11.5px;color:var(--ink-soft);">Informe os funcionários de cada cidade antes do fim de semana com exame</div>';
+        html += '</div>';
+        ftMes.forEach(function(fs){
+          var isSab=fs.tipo==='Sábado';
+          var cor=isSab?'#856404':'#5c3d8f'; var bg=isSab?'#FFF3CD':'#f3e8ff'; var brd=isSab?'#FFD700':'#c4a0e8';
+          var key=fs.data;
+          var turno=escala[key+'_turno']||'Manhã e tarde';
+          var cidades=[...new Set(fs.cidades)];
+          var totalFdia=cidades.reduce(function(s,c){return s+((escala[key+'_c_'+c]||[]).length);},0);
+
+          html+='<div style="background:'+bg+';border:1px solid '+brd+';border-radius:12px;padding:12px 14px;margin-bottom:10px;">';
+          /* cabeçalho dia */
+          html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">';
+          html+='<span style="font-weight:700;color:'+cor+';font-size:14px;">'+(isSab?'🟡':'🟠')+' '+fs.tipo+' · '+esc(dataParaDisplay(fs.data))+'</span>';
+          html+='<span style="font-size:12px;color:var(--ink-soft);">'+cidades.map(esc).join(' · ')+'</span>';
+          html+='<span style="margin-left:auto;font-size:12px;font-weight:700;color:'+cor+';">'+totalFdia+' funcionário(s) escalado(s)</span>';
+          html+='</div>';
+          /* turno */
+          html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">';
+          html+='<span style="font-size:12px;font-weight:600;color:'+cor+';">⏰ Turno:</span>';
+          TURNOS.forEach(function(t){
+            var at=turno===t;
+            html+='<button id="turno-'+esc(key)+'-'+esc(t)+'" data-key="'+esc(key)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mesFT)+'" style="font-size:12px;padding:4px 10px;border-radius:7px;cursor:pointer;font-weight:600;background:'+(at?cor:'#fff')+';color:'+(at?'#fff':cor)+';border:1.5px solid '+brd+';">'+(t==='Manhã e tarde'?'🌅🌇 ':t==='Apenas manhã'?'🌅 ':'🌇 ')+esc(t)+'</button>';
+          });
+          html+='</div>';
+          /* cidades */
+          html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;">';
+          cidades.forEach(function(cidade){
+            var ckeyC=key+'_c_'+cidade;
+            var funcsC=escala[ckeyC]?escala[ckeyC].slice():[];
+            html+='<div style="background:#fff;border:1px solid '+brd+';border-radius:8px;padding:9px 11px;">';
+            html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">';
+            html+='<span style="font-size:12.5px;font-weight:700;color:'+cor+';">📍 '+esc(cidade)+'</span>';
+            html+='<span style="font-size:11px;color:var(--ink-soft);">'+funcsC.length+' funcionário(s)</span>';
+            html+='</div>';
+            if(funcsC.length){
+              html+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">';
+              funcsC.forEach(function(nome,idx){
+                html+='<span style="background:'+bg+';border:1px solid '+brd+';border-radius:6px;padding:2px 7px;font-size:12px;display:flex;align-items:center;gap:4px;">'+esc(nome)+'<button style="background:none;border:none;cursor:pointer;color:#999;font-size:11px;line-height:1;padding:0;" id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mesFT)+'">✕</button></span>';
+              });
+              html+='</div>';
+            }
+            html+='<div style="display:flex;gap:5px;align-items:center;">';
+            html+='<input type="text" id="escala-input-'+esc(ckeyC)+'" placeholder="Nome do funcionário…" style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
+            html+='<button class="btn" style="font-size:11.5px;padding:3px 9px;background:'+cor+';color:#fff;border:none;white-space:nowrap;" id="add-escala-'+esc(ckeyC)+'" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mesFT)+'">+ Add</button>';
+            html+='</div></div>';
+          });
+          html+='</div></div>';
+        });
+
+        /* resumo consolidado do mês */
+        var porFunc={};
+        ftMes.forEach(function(fs){
+          [...new Set(fs.cidades)].forEach(function(c){
+            (escala[fs.data+'_c_'+c]||[]).forEach(function(nome){
+              if(!porFunc[nome])porFunc[nome]=[];
+              porFunc[nome].push({data:fs.data,tipo:fs.tipo,cidade:c,display:dataParaDisplay(fs.data)});
+            });
+          });
+        });
+        if(Object.keys(porFunc).length){
+          html+='<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:4px;">';
+          html+='<div style="font-weight:700;font-size:13px;margin-bottom:8px;">📋 Resumo da escala — '+nomeMes(mesFT)+'</div>';
+          html+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">';
+          html+='<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:6px 10px;text-align:left;">Funcionário</th><th style="padding:6px 10px;text-align:center;">Fins de semana</th><th style="padding:6px 10px;text-align:left;">Cidades · Datas</th></tr></thead><tbody>';
+          Object.entries(porFunc).sort(function(a,b){return a[0].localeCompare(b[0],'pt-BR');}).forEach(function(e,idx){
+            var nome=e[0],dias=e[1];
+            html+='<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
+              +'<td style="padding:6px 10px;font-weight:600;">'+esc(nome)+'</td>'
+              +'<td style="padding:6px 10px;text-align:center;font-weight:700;font-size:15px;color:var(--teal-dk);">'+dias.length+'</td>'
+              +'<td style="padding:6px 10px;font-size:11.5px;color:var(--ink-soft);">'+dias.map(function(d){return (d.tipo==='Sábado'?'🟡':'🟠')+' '+esc(d.display)+' ('+esc(d.cidade)+')';}).join(' · ')+'</td>'
+              +'</tr>';
+          });
+          html+='</tbody></table></div></div>';
+        }
+        html+='</div>';
+      } else {
+        html += '<div style="margin-top:14px;background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--ink-soft);font-size:13px;">Nenhum fim de semana com exame agendado para '+nomeMes(mesFT)+'. Agende na aba <b>Agenda Semanal</b> para poder escalar funcionários.</div>';
       }
     }
   }
-
 
   else if(subView==='frota'){
     /* KPIs frota */
@@ -5040,8 +5125,7 @@ window.__cadColaborador = async function(){
     backupId:(document.getElementById('cb-backup')||{}).value||'',
     usuarioId:(document.getElementById('cb-usuario')||{}).value||'',
     telefone:(document.getElementById('cb-tel')||{}).value||'',
-    admissao:(document.getElementById('cb-adm')||{}).value||'',
-    trabalhaSabado:(document.getElementById('cb-sabado')||{}).value||'Não',
+
     cidadesBackup:cidadesBackup,
     habilidades:habilidades,
     obs:(document.getElementById('cb-obs')||{}).value||'',
