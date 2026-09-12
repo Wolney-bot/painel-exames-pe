@@ -1760,52 +1760,85 @@ function renderGestaoTab(){
           cidades.forEach(function(cidade){
             var ckeyC    = key+'_c_'+cidade;
             var turnoKey = ckeyC+'_turno';
+            var lockKey  = ckeyC+'_locked';
             var turno    = escala[turnoKey] || 'Manhã e tarde';
             var funcsC   = escala[ckeyC] ? escala[ckeyC].slice() : [];
+            var bloqueado= !!escala[lockKey];
 
             /* sugestão: colaboradores da cidade primeiro, depois todos */
             var colabCidade  = colabors.filter(function(c){return c.cidade===cidade&&c.status==='Ativo';});
             var colabOutros  = colabors.filter(function(c){return c.cidade!==cidade&&c.status==='Ativo';});
-            var colabOrdenados = colabCidade.concat(colabOutros);
             var datalistId = 'dl-'+esc(ckeyC);
 
-            html+='<div style="background:#fff;border:1px solid '+brd+';border-radius:8px;padding:9px 11px;">';
+            /* borda reforçada quando bloqueado */
+            var brdCard = bloqueado ? '#2E6B49' : brd;
+            var bgCard  = bloqueado ? '#EBF7F0' : '#fff';
+
+            html+='<div style="background:'+bgCard+';border:2px solid '+brdCard+';border-radius:8px;padding:9px 11px;">';
             /* header cidade */
             html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">';
             html+='<span style="font-size:12.5px;font-weight:700;color:'+cor+';">📍 '+esc(cidade)+'</span>';
             html+='<span style="font-size:11px;color:var(--ink-soft);">'+funcsC.length+' func.</span>';
+            /* botão de bloqueio — alinhado à direita */
+            html+='<span style="margin-left:auto;">';
+            if(bloqueado){
+              html+='<span style="font-size:11px;color:#276749;font-weight:700;margin-right:6px;">🔒 Bloqueado</span>'
+                  +'<button style="font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer;background:#fff;border:1.5px solid #C44536;color:#C44536;font-weight:700;" '
+                  +'id="unlock-escala-'+esc(ckeyC)+'" data-key="'+esc(lockKey)+'" data-mes="'+esc(mesFT)+'" title="Desbloquear (somente coordenador)">🔓 Desbloquear</button>';
+            } else {
+              html+='<button style="font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer;background:#f5f5f5;border:1.5px solid #6FCF97;color:#276749;font-weight:700;" '
+                  +'id="lock-escala-'+esc(ckeyC)+'" data-key="'+esc(lockKey)+'" data-mes="'+esc(mesFT)+'" title="Bloquear escala desta cidade">🔒 Bloquear</button>';
+            }
+            html+='</span>';
             html+='</div>';
-            /* turno POR CIDADE */
-            html+='<div style="display:flex;gap:4px;margin-bottom:7px;flex-wrap:wrap;">';
-            TURNOS.forEach(function(t){
-              var at=turno===t;
-              var icon=t==='Manhã e tarde'?'🌅🌇':t==='Apenas manhã'?'🌅':'🌇';
-              html+='<button id="turno-'+esc(turnoKey)+'-'+esc(t)+'" data-key="'+esc(turnoKey)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mesFT)+'" style="font-size:11px;padding:2px 7px;border-radius:6px;cursor:pointer;font-weight:600;background:'+(at?cor:'#f5f5f5')+';color:'+(at?'#fff':cor)+';border:1.5px solid '+(at?cor:brd)+';white-space:nowrap;">'+icon+' '+esc(t)+'</button>';
-            });
-            html+='</div>';
-            /* lista de funcionários */
-            if(funcsC.length){
-              html+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">';
-              funcsC.forEach(function(nome,idx){
-                /* destaca se é de outra cidade */
-                var colab = colabors.find(function(c){return c.nome===nome;});
-                var eDaCidade = colab && colab.cidade===cidade;
-                html+='<span style="background:'+(eDaCidade?bg:'#fff')+';border:1px solid '+brd+';border-radius:6px;padding:2px 7px;font-size:12px;display:flex;align-items:center;gap:4px;">'
-                  +esc(nome)+((!eDaCidade&&colab)?'<span style="font-size:10px;color:var(--ink-soft);" title="'+esc(colab.cidade)+'"> ('+esc(colab.cidade)+')</span>':'')
-                  +'<button style="background:none;border:none;cursor:pointer;color:#999;font-size:11px;line-height:1;padding:0;" id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mesFT)+'">✕</button></span>';
+
+            if(bloqueado){
+              /* ── modo bloqueado: só exibe, sem edição ── */
+              var turnoIcon=turno==='Apenas manhã'?'🌅':turno==='Apenas tarde'?'🌇':'🌅🌇';
+              html+='<div style="font-size:11.5px;color:#276749;margin-bottom:6px;">'+turnoIcon+' '+esc(turno)+'</div>';
+              if(funcsC.length){
+                html+='<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+                funcsC.forEach(function(nome){
+                  var colab=colabors.find(function(c){return c.nome===nome;});
+                  var eDaCidade=colab&&colab.cidade===cidade;
+                  html+='<span style="background:'+bg+';border:1px solid '+brd+';border-radius:6px;padding:2px 8px;font-size:12px;">'+esc(nome)+((!eDaCidade&&colab)?'<span style="font-size:10px;color:var(--ink-soft);"> ('+esc(colab.cidade)+')</span>':'')+'</span>';
+                });
+                html+='</div>';
+              } else {
+                html+='<div style="font-size:12px;color:var(--ink-soft);">Nenhum funcionário escalado.</div>';
+              }
+            } else {
+              /* ── modo desbloqueado: edição normal ── */
+              /* turno POR CIDADE */
+              html+='<div style="display:flex;gap:4px;margin-bottom:7px;flex-wrap:wrap;">';
+              TURNOS.forEach(function(t){
+                var at=turno===t;
+                var icon=t==='Manhã e tarde'?'🌅🌇':t==='Apenas manhã'?'🌅':'🌇';
+                html+='<button id="turno-'+esc(turnoKey)+'-'+esc(t)+'" data-key="'+esc(turnoKey)+'" data-turno="'+esc(t)+'" data-mes="'+esc(mesFT)+'" style="font-size:11px;padding:2px 7px;border-radius:6px;cursor:pointer;font-weight:600;background:'+(at?cor:'#f5f5f5')+';color:'+(at?'#fff':cor)+';border:1.5px solid '+(at?cor:brd)+';white-space:nowrap;">'+icon+' '+esc(t)+'</button>';
               });
               html+='</div>';
+              /* lista de funcionários */
+              if(funcsC.length){
+                html+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">';
+                funcsC.forEach(function(nome,idx){
+                  var colab=colabors.find(function(c){return c.nome===nome;});
+                  var eDaCidade=colab&&colab.cidade===cidade;
+                  html+='<span style="background:'+(eDaCidade?bg:'#fff')+';border:1px solid '+brd+';border-radius:6px;padding:2px 7px;font-size:12px;display:flex;align-items:center;gap:4px;">'+esc(nome)+((!eDaCidade&&colab)?'<span style="font-size:10px;color:var(--ink-soft);" title="'+esc(colab.cidade)+'"> ('+esc(colab.cidade)+')</span>':'')+'<button style="background:none;border:none;cursor:pointer;color:#999;font-size:11px;line-height:1;padding:0;" id="rm-escala-'+esc(ckeyC)+'-'+idx+'" data-key="'+esc(ckeyC)+'" data-idx="'+idx+'" data-mes="'+esc(mesFT)+'">✕</button></span>';
+                });
+                html+='</div>';
+              }
+              /* input com datalist */
+              html+='<datalist id="'+esc(datalistId)+'">';
+              if(colabCidade.length) html+='<option disabled value="── '+esc(cidade)+' ──">';
+              colabCidade.forEach(function(c){html+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' ('+esc(cidade)+')</option>';});
+              if(colabOutros.length){ html+='<option disabled value="── Outras cidades ──">'; colabOutros.forEach(function(c){html+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' — '+esc(c.cidade)+'</option>';}); }
+              html+='</datalist>';
+              html+='<div style="display:flex;gap:5px;align-items:center;">';
+              html+='<input type="text" id="escala-input-'+esc(ckeyC)+'" list="'+esc(datalistId)+'" placeholder="Nome ou selecione…" style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
+              html+='<button class="btn" style="font-size:11.5px;padding:3px 9px;background:'+cor+';color:#fff;border:none;white-space:nowrap;" id="add-escala-'+esc(ckeyC)+'" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mesFT)+'">+ Add</button>';
+              html+='</div>';
             }
-            /* input com datalist (sugestão por cidade) */
-            html+='<datalist id="'+esc(datalistId)+'">';
-            if(colabCidade.length) html+='<option disabled value="── '+esc(cidade)+' ──">';
-            colabCidade.forEach(function(c){html+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' ('+esc(cidade)+')</option>';});
-            if(colabOutros.length){ html+='<option disabled value="── Outras cidades ──">'; colabOutros.forEach(function(c){html+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' — '+esc(c.cidade)+'</option>';}); }
-            html+='</datalist>';
-            html+='<div style="display:flex;gap:5px;align-items:center;">';
-            html+='<input type="text" id="escala-input-'+esc(ckeyC)+'" list="'+esc(datalistId)+'" placeholder="Nome ou selecione…" style="flex:1;border:1px solid '+brd+';border-radius:7px;padding:4px 8px;font-size:12px;">';
-            html+='<button class="btn" style="font-size:11.5px;padding:3px 9px;background:'+cor+';color:#fff;border:none;white-space:nowrap;" id="add-escala-'+esc(ckeyC)+'" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mesFT)+'">+ Add</button>';
-            html+='</div></div>';
+            html+='</div>';
           });
           html+='</div></div>';
         });
@@ -2073,6 +2106,13 @@ function renderGestaoTab(){
       showToast('📌 Gargalo registrado para '+cidade+'.');
       renderGestaoTab();
     });
+  });
+  /* escala: lock / unlock por cidade */
+  document.querySelectorAll('[id^="lock-escala-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__lockEscala(this.dataset.key, this.dataset.mes); });
+  });
+  document.querySelectorAll('[id^="unlock-escala-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__unlockEscala(this.dataset.key, this.dataset.mes); });
   });
   /* escala listeners */
   document.querySelectorAll('[id^="turno-"]').forEach(function(btn){
@@ -3686,6 +3726,31 @@ window.__removerFotoLocavel = async function(id){
 };
 
 /* ── Gestão: escala fins de semana ─────────────────────────────── */
+window.__lockEscala = async function(lockKey, mes){
+  /* lockKey = data_c_cidade_locked */
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
+  state.gestaoEscala[mes][lockKey] = true;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  showToast('🔒 Escala bloqueada. Somente o coordenador pode desbloquear.');
+  renderGestaoTab();
+};
+
+window.__unlockEscala = async function(lockKey, mes){
+  /* Somente admin pode desbloquear */
+  if(!state.sessao || !state.sessao.isAdmin){
+    showToast('❌ Somente o administrador/coordenador pode desbloquear a escala.');
+    return;
+  }
+  if(!confirm('Desbloquear a escala desta cidade? Os dados poderão ser alterados.')) return;
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
+  state.gestaoEscala[mes][lockKey] = false;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  showToast('🔓 Escala desbloqueada.');
+  renderGestaoTab();
+};
+
 window.__setTurnoFds = async function(key, turno, mes){
   /* key already contains cidade: data_c_cidade_turno */
   if(!state.gestaoEscala) state.gestaoEscala = {};
