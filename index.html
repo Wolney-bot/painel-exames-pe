@@ -424,6 +424,7 @@ var state = {
   colabExpandido: null,
   colabEditando: null,
   agendarFolgaId: null,
+  alterarPlanoId: null,
   filtroDiarioCidade: '',
   filtroDiarioPatio: '',
   metaConfig: {},
@@ -1745,33 +1746,66 @@ function renderGestaoTab(){
             pares.forEach(function(par, idx){
               var folgaRef  = folgasJa[idx] || null;
               var jaRegist  = !!folgaRef;
-              var inputId   = 'folga-data-'+esc(nome.replace(/\s+/g,'_'))+'-'+idx;
-              var obsId     = 'folga-obs-'+esc(nome.replace(/\s+/g,'_'))+'-'+idx;
-              var btnSalvId = 'salvar-folga2-'+esc(nome.replace(/\s+/g,'_'))+'-'+idx;
+              var nomeSlug  = nome.replace(/\s+/g,'_');
+              var planoKey  = 'fp_'+nomeSlug+'_'+idx; /* chave no gestaoEscala para a data planejada */
+              var plano     = escalaG[planoKey] || null; /* {data, obs} ou null */
+              var inputId   = 'folga-data-'+nomeSlug+'-'+idx;
+              var obsId     = 'folga-obs-'+nomeSlug+'-'+idx;
               var refText   = esc(par.displaySab)+' e '+esc(par.displayDom);
 
-              html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px dashed var(--line);">';
-              /* par de dias */
+              html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-top:1px dashed var(--line);">';
+              /* par de dias trabalhados */
               html += '<div style="display:flex;align-items:center;gap:4px;white-space:nowrap;">';
               html += '<span style="font-size:12.5px;">🟡 <b>'+esc(par.displaySab)+'</b></span>';
               html += '<span style="font-size:11px;color:var(--ink-soft);">+</span>';
               html += '<span style="font-size:12.5px;">🟠 <b>'+esc(par.displayDom)+'</b></span>';
               html += '</div>';
               html += '<span style="font-size:12px;color:var(--ink-soft);">→ folga:</span>';
+
               if(jaRegist){
-                html += '<span style="font-size:12.5px;background:#EBF7F0;border:1px solid #6FCF97;border-radius:7px;padding:3px 10px;font-weight:600;color:#276749;">✅ '+esc(dataParaDisplay(folgaRef.inicio))+'</span>';
-                html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(folgaRef.obs||'')+'</span>';
+                /* ── ESTADO 3: registrada ── somente leitura */
+                html += '<span style="font-size:12.5px;background:#EBF7F0;border:1px solid #6FCF97;border-radius:7px;padding:4px 12px;font-weight:700;color:#276749;">✅ '+esc(dataParaDisplay(folgaRef.inicio))+'</span>';
+                if(folgaRef.obs) html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(folgaRef.obs)+'</span>';
+
+              } else if(plano){
+                /* ── ESTADO 2: data planejada, não registrada ainda ── */
+                html += '<span style="font-size:12.5px;background:#EEF4FF;border:1.5px solid #93B4F5;border-radius:7px;padding:4px 12px;font-weight:700;color:#1E3A8A;">📅 '+esc(dataParaDisplay(plano.data))+'</span>';
+                if(plano.obs) html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(plano.obs)+'</span>';
+                html += '<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;" '
+                  +'id="alterar-plano-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'" data-mes="'+esc(mes)+'" title="Alterar data planejada">🖊 Alterar</button>';
+                html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;background:#276749;white-space:nowrap;" '
+                  +'id="salvar-folga2-'+nomeSlug+'-'+idx+'" data-cid="'+esc(cid)+'" data-nome="'+esc(nome)+'" '
+                  +'data-inputid="__plano__" data-obsid="__plano__" data-mes="'+esc(mes)+'" '
+                  +'data-ref="'+refText+'" data-planodata="'+esc(plano.data)+'" data-planoobs="'+esc(plano.obs||'')+'">✅ Registrar folga</button>';
+
               } else {
+                /* ── ESTADO 1: pendente — mostrar campo editável e botão salvar ── */
                 html += '<input type="date" id="'+inputId+'" value="'+par.sugestao+'" '
                   +'style="border:1.5px solid #FFD700;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#856404;background:#FFFBF0;">';
                 html += '<input type="text" id="'+obsId+'" placeholder="Obs. (opcional)" '
-                  +'style="min-width:150px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
-                html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;white-space:nowrap;" '
-                  +'id="'+btnSalvId+'" data-cid="'+esc(cid)+'" data-nome="'+esc(nome)+'" '
+                  +'style="min-width:140px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
+                html += '<button class="btn" style="font-size:11.5px;padding:4px 12px;white-space:nowrap;background:#856404;color:#fff;border:none;" '
+                  +'id="salvar-plano-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'" '
                   +'data-inputid="'+inputId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'" '
-                  +'data-ref="'+refText+'">💾 Registrar</button>';
+                  +'data-sug="'+par.sugestao+'">💾 Salvar data</button>';
               }
               html += '</div>';
+
+              /* ── sub-linha de alteração (estado 2 → editar) ── */
+              if(!jaRegist && plano && state.alterarPlanoId === nomeSlug+'-'+idx){
+                html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 0 6px 12px;border-left:3px solid #93B4F5;">';
+                html += '<input type="date" id="'+inputId+'" value="'+esc(plano.data)+'" '
+                  +'style="border:1.5px solid #93B4F5;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#1E3A8A;">';
+                html += '<input type="text" id="'+obsId+'" value="'+esc(plano.obs||'')+'" placeholder="Obs." '
+                  +'style="min-width:140px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
+                html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;background:#1E3A8A;white-space:nowrap;" '
+                  +'id="salvar-plano-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'" '
+                  +'data-inputid="'+inputId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'" '
+                  +'data-sug="'+par.sugestao+'">💾 Atualizar data</button>';
+                html += '<button class="btn btn-ghost" style="font-size:11px;" '
+                  +'id="cancelar-alterar-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'">Cancelar</button>';
+                html += '</div>';
+              }
             });
 
             if(folgasJa.length > totalPares){
@@ -2224,9 +2258,19 @@ function renderGestaoTab(){
   /* ── Event listeners ──────────────────────────────────────── */
   /* pessoas sub-sub tabs */
   /* folgas: registrar inline por dia trabalhado */
+  /* folgas: salvar data planejada / alterar / cancelar / registrar */
+  document.querySelectorAll('[id^="salvar-plano-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__salvarPlanoFolga(this.dataset.slug, this.dataset.idx, this.dataset.inputid, this.dataset.obsid, this.dataset.mes); });
+  });
+  document.querySelectorAll('[id^="alterar-plano-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ state.alterarPlanoId = this.dataset.slug+'-'+this.dataset.idx; renderGestaoTab(); });
+  });
+  document.querySelectorAll('[id^="cancelar-alterar-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ state.alterarPlanoId = null; renderGestaoTab(); });
+  });
   document.querySelectorAll('[id^="salvar-folga2-"]').forEach(function(btn){
     btn.addEventListener('click', function(){
-      window.__salvarFolga(this.dataset.cid, this.dataset.nome, this.dataset.inputid, this.dataset.obsid, this.dataset.mes, this.dataset.ref);
+      window.__salvarFolga(this.dataset.cid, this.dataset.nome, this.dataset.inputid, this.dataset.obsid, this.dataset.mes, this.dataset.ref, this.dataset.planodata, this.dataset.planoobs);
     });
   });
   /* folgas antigas (agendar/cancelar) — mantidos por retrocompat. */
@@ -5468,10 +5512,26 @@ window.__rmFotoApoio = async function(id){
 };
 
 /* ── Pessoas: CRUD colaboradores, ausências, ocorrências, habilidades ── */
-window.__salvarFolga = async function(cid, nome, inputId, obsId, mes, ref){
+window.__salvarPlanoFolga = async function(nomeSlug, idx, inputId, obsId, mes){
   var dataFolga = (document.getElementById(inputId)||{}).value || '';
   if(!dataFolga){ showToast('Informe a data da folga.'); return; }
   var obs = ((document.getElementById(obsId)||{}).value || '').trim();
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
+  state.gestaoEscala[mes]['fp_'+nomeSlug+'_'+idx] = {data: dataFolga, obs: obs};
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  state.alterarPlanoId = null;
+  showToast('📅 Data salva: '+dataParaDisplay(dataFolga)+'. Registre no dia.');
+  renderGestaoTab();
+};
+
+window.__salvarFolga = async function(cid, nome, inputId, obsId, mes, ref, planodata, planoobs){
+  /* Se vier do estado 2 (data planejada), usa planodata/planoobs */
+  var dataFolga = (planodata && planodata !== '__plano__') ? planodata
+                 : ((document.getElementById(inputId)||{}).value || '');
+  if(!dataFolga){ showToast('Informe a data da folga.'); return; }
+  var obs = (planoobs && planoobs !== '__plano__') ? planoobs
+            : ((document.getElementById(obsId)||{}).value || '').trim();
   if(!obs) obs = 'Folga compensatória ref. '+ref+' ('+nomeMes(mes)+')';
   var nova = {
     id: 'AUS'+Date.now().toString(36).toUpperCase(),
