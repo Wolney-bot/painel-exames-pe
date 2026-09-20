@@ -1643,163 +1643,182 @@ function renderGestaoTab(){
     /* ════════ SUB-SUB: ESCALA DE FOLGAS ════════ */
     else if(ppView==='folgas'){
       var mes = state.relMes || mesRelAtual();
+      var hj  = hojeLocal();
       var escalaG = state.gestaoEscala && state.gestaoEscala[mes] ? state.gestaoEscala[mes] : {};
 
-      /* ── Calcula fins de semana trabalhados por funcionário ── */
-      var diasFds = {};   /* nome → [{data, tipo, cidade}] */
+      /* ── helper: próximo dia útil a partir de uma data ─────────────
+         data = 'YYYY-MM-DD', offsetDias = 1|2
+         Retorna a data do próximo dia da semana (seg-sex)           */
+      function proximoDiaUtil(dataBase, offsetDias){
+        var d = new Date(dataBase+'T12:00:00');
+        d.setDate(d.getDate() + (offsetDias || 1));
+        /* pula fim de semana */
+        while(d.getDay()===0 || d.getDay()===6) d.setDate(d.getDate()+1);
+        return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      }
+
+      /* ── Coleta dias de fds por funcionário (só Recife) ──────────── */
+      /* Separa sábados e domingos; só pares completos geram folga */
+      var fdsBruto = {}; /* nome → {sab:{data→cidade}, dom:{data→cidade}} */
       Object.keys(escalaG).forEach(function(k){
-        /* chaves do tipo: data_c_cidade = array de nomes */
         if(k.includes('_c_') && !k.endsWith('_turno') && !k.endsWith('_locked') && Array.isArray(escalaG[k])){
-          var parts = k.split('_c_');
-          var data  = parts[0];
-          var cidade= parts[1];
-          var dow   = new Date(data+'T12:00:00').getDay();
-          var tipo  = dow===6?'Sábado':'Domingo';
+          var parts = k.split('_c_'); var data = parts[0]; var cidade = parts[1];
+          var dow = new Date(data+'T12:00:00').getDay();
+          if(dow!==6 && dow!==0) return;
+          var tipo = dow===6?'sab':'dom';
           escalaG[k].forEach(function(nome){
-            if(!diasFds[nome]) diasFds[nome] = [];
-            if(!diasFds[nome].find(function(x){return x.data===data&&x.cidade===cidade;}))
-              diasFds[nome].push({data:data, tipo:tipo, cidade:cidade, display:dataParaDisplay(data)});
+            /* Só funcionários com cidade-base Recife têm direito à folga compensatória */
+            /* Interior já tem dias vagos durante a semana quando não há exames */
+            var colab = colabors.find(function(c){return c.nome===nome;});
+            if(!colab || colab.cidade !== 'Recife') return;
+            if(!fdsBruto[nome]) fdsBruto[nome]={sab:{},dom:{}};
+            fdsBruto[nome][tipo][data] = cidade;
           });
         }
       });
 
-      /* ── Folgas compensatórias já lançadas no mês ── */
+      /* ── Pareamento Sábado + Domingo consecutivo ─────────────── */
+      /* Só tem direito à folga quem trabalhou os DOIS dias do fim de semana */
+      function somaData(dataISO, dias){
+        var d = new Date(dataISO+'T12:00:00'); d.setDate(d.getDate()+dias);
+        return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      }
+      var paresFds = {}; /* nome → [{sab, dom, cidSab, cidDom, sugestao, displaySab, displayDom}] */
+      Object.keys(fdsBruto).forEach(function(nome){
+        var brt = fdsBruto[nome];
+        paresFds[nome] = [];
+        Object.keys(brt.sab).sort().forEach(function(dataSab){
+          var dataDom = somaData(dataSab, 1); /* domingo = sábado + 1 dia */
+          if(brt.dom[dataDom]){
+            paresFds[nome].push({
+              sab: dataSab, dom: dataDom,
+              cidSab: brt.sab[dataSab], cidDom: brt.dom[dataDom],
+              sugestao: proximoDiaUtil(dataSab, 2), /* segunda-feira seguinte ao sábado */
+              displaySab: dataParaDisplay(dataSab),
+              displayDom: dataParaDisplay(dataDom)
+            });
+          }
+          /* sábado sem domingo correspondente → sem direito a folga */
+        });
+        if(!paresFds[nome].length) delete paresFds[nome];
+      });
+      /* ── Folgas compensatórias já lançadas no mês ─────────────── */
+      /* Folgas compensatórias já registradas (só tipo "Folga compensatória" — não conta folga comum) */
       var folgasReg = (state.ausencias||[]).filter(function(a){
-        return (a.tipo==='Folga compensatória'||a.tipo==='Folga')
-          && a.inicio && a.inicio.startsWith(mes);
+        return a.tipo==='Folga compensatória' && a.inicio && a.inicio.startsWith(mes);
       });
 
-      /* ── Feriados do mês ── */
+      /* ── Feriados ─────────────────────────────────────────────── */
       var feriadosMes = (state.ausencias||[]).filter(function(a){
         return a.tipo==='Feriado' && a.inicio && a.inicio.startsWith(mes);
       });
 
-      var hj = hojeLocal();
+      html += '<div class="section-title" style="margin-bottom:6px;">📋 Escala de folgas — Recife · '+nomeMes(mes)+'</div>';
+      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">Apenas funcionários de Recife (interior já tem dias vagos durante a semana). Quem trabalhou <b>Sábado E Domingo</b> do mesmo fim de semana tem direito a 1 folga compensatória. Folgas comuns não descontam deste saldo.</div>';
 
-      /* ══ Seção 1: Escala de folgas — Recife (domingo a domingo) ══ */
-      html += '<div class="section-title" style="margin-bottom:12px;">📋 Escala de folgas — Recife · '+nomeMes(mes)+'</div>';
-
-      if(Object.keys(diasFds).length === 0){
-        html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;color:#856404;">⏳ Nenhum funcionário na escala de força tarefa de '+nomeMes(mes)+' ainda. Preencha primeiro a escala na sub-aba <b>👥 Colaboradores</b>.</div>';
+      if(Object.keys(paresFds).length === 0){
+        html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;color:#856404;">⏳ Nenhum funcionário com par completo (Sáb+Dom) na escala de força tarefa de '+nomeMes(mes)+'. Preencha a escala na sub-aba <b>👥 Colaboradores</b>.</div>';
       } else {
-        html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Apenas funcionários com cidade-base <b>Recife</b> — que cumprem jornada completa seg-dom. O pessoal do interior não é incluído pois já tem dias vagos durante a semana.</div>';
-        html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:550px;">';
-        html += '<thead><tr style="background:var(--teal);color:#fff;">'
-          + '<th style="padding:8px 12px;text-align:left;">Funcionário</th>'
-          + '<th style="padding:8px 12px;text-align:left;">Cidade-base</th>'
-          + '<th style="padding:8px 12px;text-align:center;">Fins de semana trabalhados</th>'
-          + '<th style="padding:8px 12px;text-align:center;">Folgas lançadas</th>'
-          + '<th style="padding:8px 12px;text-align:center;">Saldo</th>'
-          + '<th style="padding:8px 12px;text-align:left;">Datas trabalhadas</th>'
-          + '<th style="padding:8px 12px;"></th>'
-          + '</tr></thead><tbody>';
-
-        Object.entries(diasFds)
-          /* Somente funcionários com cidade-base Recife */
-          .filter(function(entry){
-            var colab = colabors.find(function(c){return c.nome===entry[0];});
-            return colab && colab.cidade === 'Recife';
-          })
+        Object.entries(paresFds)
           .sort(function(a,b){return a[0].localeCompare(b[0],'pt-BR');})
-          .forEach(function(entry, idx){
-            var nome = entry[0], dias = entry[1];
-            var colab = colabors.find(function(c){return c.nome===nome;})||null;
-            var cidadeBase = colab ? colab.cidade : '—';
-            var totalFds = dias.length;
-            var folgasJa = folgasReg.filter(function(a){return a.colaboradorId === (colab&&colab.id);}).length;
-            /* saldo de folgas devidas */
-            var saldo = totalFds - folgasJa;
-            var saldoCor = saldo > 0 ? 'var(--red)' : saldo === 0 ? '#276749' : 'var(--amber-dk)';
-            var rowBg = idx%2===0 ? '#fafafa' : '#fff';
+          .forEach(function(entry){
+            var nome   = entry[0];
+            var pares  = entry[1]; /* lista de pares {sab, dom, cidSab, cidDom, sugestao, displaySab, displayDom} */
+            var colab  = colabors.find(function(c){return c.nome===nome;})||null;
+            var cid    = colab ? colab.id : '';
 
-            html += '<tr style="background:'+rowBg+';border-bottom:1px solid var(--line);">'
-              + '<td style="padding:8px 12px;font-weight:600;">'+esc(nome)+'</td>'
-              + '<td style="padding:8px 12px;font-size:12px;">'+esc(cidadeBase)+'</td>'
-              + '<td style="padding:8px 12px;text-align:center;font-weight:700;font-size:16px;font-family:Space Grotesk,sans-serif;">'+totalFds+'</td>'
-              + '<td style="padding:8px 12px;text-align:center;font-weight:700;font-size:16px;font-family:Space Grotesk,sans-serif;color:#276749;">'+folgasJa+'</td>'
-              + '<td style="padding:8px 12px;text-align:center;font-weight:700;font-size:16px;font-family:Space Grotesk,sans-serif;color:'+saldoCor+';">'
-                + (saldo > 0 ? '+'+saldo+' a dar' : saldo === 0 ? '✅' : Math.abs(saldo)+' a mais')
-              + '</td>'
-              + '<td style="padding:8px 12px;font-size:11.5px;color:var(--ink-soft);">'
-                + dias.sort(function(a,b){return a.data.localeCompare(b.data);})
-                     .map(function(d){return (d.tipo==='Sábado'?'🟡':'🟠')+' '+esc(d.display)+(d.cidade!==cidadeBase?' <span style="color:var(--ink-soft);font-size:10px;">('+esc(d.cidade)+')</span>':'');})
-                     .join(' · ')
-              + '</td>'
-              + '<td style="padding:8px 12px;">'
-                + (colab && saldo > 0
-                    ? '<button class="btn btn-primary" style="font-size:11px;padding:3px 10px;white-space:nowrap;" '
-                      + 'id="agendar-folga-'+colab.id+'" data-cid="'+colab.id+'" data-nome="'+esc(nome)+'" data-mes="'+esc(mes)+'">+ Folga</button>'
-                    : '')
-              + '</td>'
-              + '</tr>';
+            /* folgas compensatórias já registradas para este colaborador no mês */
+            var folgasJa = folgasReg.filter(function(a){return a.colaboradorId===(colab&&colab.id);});
+            var totalPares = pares.length;
+            var saldo      = totalPares - folgasJa.length;
 
-            /* form de agendar folga para este funcionário */
-            if(state.agendarFolgaId === (colab&&colab.id)){
-              html += '<tr style="background:#EEF4FF;"><td colspan="7" style="padding:10px 14px;">';
-              html += '<div style="font-weight:700;font-size:12.5px;color:#1E3A8A;margin-bottom:8px;">📅 Agendar folga compensatória — '+esc(nome)+'</div>';
-              html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
-              html += '<label style="font-size:12px;font-weight:600;">Data da folga<input id="folga-data-'+colab.id+'" type="date" value="'+hj+'" style="display:block;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
-              html += '<label style="font-size:12px;font-weight:600;">Obs.<input id="folga-obs-'+colab.id+'" type="text" placeholder="Ex.: compensatória 14/09" style="display:block;min-width:220px;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
-              html += '<button class="btn btn-primary" style="font-size:12px;margin-top:18px;" id="salvar-folga-'+colab.id+'" data-cid="'+colab.id+'" data-nome="'+esc(nome)+'" data-mes="'+esc(mes)+'">💾 Registrar folga</button>';
-              html += '<button class="btn btn-ghost" style="font-size:12px;margin-top:18px;" id="cancelar-folga-'+colab.id+'">Cancelar</button>';
-              html += '</div></td></tr>';
+            html += '<div style="background:#fff;border:1.5px solid '+(saldo>0?'#FFBBBB':'#6FCF97')+';border-radius:12px;padding:12px 14px;margin-bottom:10px;">';
+            /* header */
+            html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">';
+            html += '<span style="font-weight:700;font-size:13.5px;">'+esc(nome)+'</span>';
+            html += '<span style="font-size:12px;color:var(--ink-soft);">Recife · '+totalPares+' fim(ns) de semana completo(s)</span>';
+            html += '<span style="font-size:12px;font-weight:700;'+(saldo>0?'color:var(--red)':'color:#276749')+';margin-left:auto;">'
+              +(saldo>0 ? saldo+' folga(s) pendente(s)' : '✅ Em dia')+'</span>';
+            html += '</div>';
+
+            /* ── linha por par completo (Sáb+Dom) ── */
+            pares.forEach(function(par, idx){
+              var folgaRef  = folgasJa[idx] || null;
+              var jaRegist  = !!folgaRef;
+              var inputId   = 'folga-data-'+esc(nome.replace(/\s+/g,'_'))+'-'+idx;
+              var obsId     = 'folga-obs-'+esc(nome.replace(/\s+/g,'_'))+'-'+idx;
+              var btnSalvId = 'salvar-folga2-'+esc(nome.replace(/\s+/g,'_'))+'-'+idx;
+              var refText   = esc(par.displaySab)+' e '+esc(par.displayDom);
+
+              html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px dashed var(--line);">';
+              /* par de dias */
+              html += '<div style="display:flex;align-items:center;gap:4px;white-space:nowrap;">';
+              html += '<span style="font-size:12.5px;">🟡 <b>'+esc(par.displaySab)+'</b></span>';
+              html += '<span style="font-size:11px;color:var(--ink-soft);">+</span>';
+              html += '<span style="font-size:12.5px;">🟠 <b>'+esc(par.displayDom)+'</b></span>';
+              html += '</div>';
+              html += '<span style="font-size:12px;color:var(--ink-soft);">→ folga:</span>';
+              if(jaRegist){
+                html += '<span style="font-size:12.5px;background:#EBF7F0;border:1px solid #6FCF97;border-radius:7px;padding:3px 10px;font-weight:600;color:#276749;">✅ '+esc(dataParaDisplay(folgaRef.inicio))+'</span>';
+                html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(folgaRef.obs||'')+'</span>';
+              } else {
+                html += '<input type="date" id="'+inputId+'" value="'+par.sugestao+'" '
+                  +'style="border:1.5px solid #FFD700;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#856404;background:#FFFBF0;">';
+                html += '<input type="text" id="'+obsId+'" placeholder="Obs. (opcional)" '
+                  +'style="min-width:150px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
+                html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;white-space:nowrap;" '
+                  +'id="'+btnSalvId+'" data-cid="'+esc(cid)+'" data-nome="'+esc(nome)+'" '
+                  +'data-inputid="'+inputId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'" '
+                  +'data-ref="'+refText+'">💾 Registrar</button>';
+              }
+              html += '</div>';
+            });
+
+            if(folgasJa.length > totalPares){
+              html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">+ '+(folgasJa.length-totalPares)+' folga(s) extra(s) já registrada(s).</div>';
             }
+            html += '</div>';
           });
-
-        html += '</tbody></table></div>';
       }
 
-      /* ══ Seção 2: Feriados do mês ══ */
-      html += '<div style="margin-top:18px;">';
+      /* ── Feriados do mês ────────────────────────────────────── */
+      html += '<div style="margin-top:16px;">';
       html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">🎉 Feriados — '+nomeMes(mes)+'</div>';
       if(!feriadosMes.length){
-        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum feriado lançado para '+nomeMes(mes)+'. Use a aba <b>🌴 Ausências</b> com tipo <b>Feriado</b> para registrar.</div>';
+        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum feriado lançado. Use <b>🌴 Ausências</b> com tipo "Feriado" para registrar.</div>';
       } else {
-        /* agrupa por data */
         var ferGrupo = {};
-        feriadosMes.forEach(function(a){
-          var col = colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'Geral'};
-          if(!ferGrupo[a.inicio]) ferGrupo[a.inicio]=[];
-          ferGrupo[a.inicio].push(esc(col.nome));
-        });
+        feriadosMes.forEach(function(a){ var col=colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'Geral'}; if(!ferGrupo[a.inicio]) ferGrupo[a.inicio]=[]; ferGrupo[a.inicio].push(esc(col.nome)); });
         html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
         Object.keys(ferGrupo).sort().forEach(function(data){
-          html += '<div style="background:#EEF4FF;border:1px solid #93B4F5;border-radius:9px;padding:8px 14px;font-size:12.5px;">'
-            +'<b>🎉 '+esc(dataParaDisplay(data))+'</b>'
-            +(ferGrupo[data].length ? '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">'+ferGrupo[data].join(', ')+'</div>' : '')
-            +'</div>';
+          html += '<div style="background:#EEF4FF;border:1px solid #93B4F5;border-radius:9px;padding:8px 14px;font-size:12.5px;"><b>🎉 '+esc(dataParaDisplay(data))+'</b>'+(ferGrupo[data].length?'<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">'+ferGrupo[data].join(', ')+'</div>':'')+'</div>';
         });
         html += '</div>';
       }
       html += '</div>';
 
-      /* ══ Seção 3: Funcionários de interior (folgas durante a semana) ══ */
-      html += '<div style="margin-top:18px;background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:12px 14px;">';
-      html += '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">🏘️ Interior — folgas durante a semana</div>';
-      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Funcionários do interior têm folgas nos dias sem exame e não trabalham domingos. As folgas são controladas individualmente pela aba <b>🌴 Ausências</b>.</div>';
-      /* Lista folgas do interior no mês */
+      /* ── Interior (referência) ─────────────────────────────── */
       var folgasInterior = (state.ausencias||[]).filter(function(a){
         return (a.tipo==='Folga'||a.tipo==='Folga compensatória') && a.inicio && a.inicio.startsWith(mes);
       });
       if(folgasInterior.length){
+        html += '<div style="margin-top:16px;background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:12px 14px;">';
+        html += '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">🏘️ Interior — folgas da semana lançadas</div>';
         html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
-        html += '<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:5px 10px;text-align:left;">Colaborador</th><th style="padding:5px 10px;">Tipo</th><th style="padding:5px 10px;">Início</th><th style="padding:5px 10px;">Fim</th><th style="padding:5px 10px;">Obs.</th></tr></thead><tbody>';
+        html += '<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:5px 10px;text-align:left;">Colaborador</th><th>Tipo</th><th>Data</th><th>Obs.</th></tr></thead><tbody>';
         folgasInterior.sort(function(a,b){return a.inicio.localeCompare(b.inicio);}).forEach(function(a,idx){
-          var col = colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'—'};
+          var col=colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'—'};
           html += '<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
             +'<td style="padding:5px 10px;font-weight:600;">'+esc(col.nome)+'</td>'
             +'<td style="padding:5px 10px;">'+esc(a.tipo)+'</td>'
-            +'<td style="padding:5px 10px;">'+esc(a.inicio)+'</td>'
-            +'<td style="padding:5px 10px;">'+esc(a.fim)+'</td>'
-            +'<td style="padding:5px 10px;color:var(--ink-soft);font-size:11px;">'+esc(a.obs||'—')+'</td>'
+            +'<td style="padding:5px 10px;">'+esc(dataParaDisplay(a.inicio))+'</td>'
+            +'<td style="padding:5px 10px;color:var(--ink-soft);">'+esc(a.obs||'—')+'</td>'
             +'</tr>';
         });
-        html += '</tbody></table></div>';
-      } else {
-        html += '<div style="font-size:12px;color:var(--ink-soft);">Nenhuma folga lançada no mês ainda.</div>';
+        html += '</tbody></table></div></div>';
       }
-      html += '</div>';
     }
+
 
     /* ════════ SUB-SUB: OCORRÊNCIAS ════════ */
     else if(ppView==='ocorrencias'){
@@ -2204,15 +2223,18 @@ function renderGestaoTab(){
 
   /* ── Event listeners ──────────────────────────────────────── */
   /* pessoas sub-sub tabs */
-  /* folgas: agendar / salvar / cancelar */
+  /* folgas: registrar inline por dia trabalhado */
+  document.querySelectorAll('[id^="salvar-folga2-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      window.__salvarFolga(this.dataset.cid, this.dataset.nome, this.dataset.inputid, this.dataset.obsid, this.dataset.mes, this.dataset.ref);
+    });
+  });
+  /* folgas antigas (agendar/cancelar) — mantidos por retrocompat. */
   document.querySelectorAll('[id^="agendar-folga-"]').forEach(function(btn){
     btn.addEventListener('click', function(){
       state.agendarFolgaId = state.agendarFolgaId===this.dataset.cid ? null : this.dataset.cid;
       renderGestaoTab();
     });
-  });
-  document.querySelectorAll('[id^="salvar-folga-"]').forEach(function(btn){
-    btn.addEventListener('click', function(){ window.__salvarFolga(this.dataset.cid, this.dataset.nome, this.dataset.mes); });
   });
   document.querySelectorAll('[id^="cancelar-folga-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ state.agendarFolgaId=null; renderGestaoTab(); });
@@ -5446,10 +5468,11 @@ window.__rmFotoApoio = async function(id){
 };
 
 /* ── Pessoas: CRUD colaboradores, ausências, ocorrências, habilidades ── */
-window.__salvarFolga = async function(cid, nome, mes){
-  var dataFolga = (document.getElementById('folga-data-'+cid)||{}).value || '';
+window.__salvarFolga = async function(cid, nome, inputId, obsId, mes, ref){
+  var dataFolga = (document.getElementById(inputId)||{}).value || '';
   if(!dataFolga){ showToast('Informe a data da folga.'); return; }
-  var obs = (document.getElementById('folga-obs-'+cid)||{}).value || ('Folga compensatória ref. fins de semana de '+nomeMes(mes));
+  var obs = ((document.getElementById(obsId)||{}).value || '').trim();
+  if(!obs) obs = 'Folga compensatória ref. '+ref+' ('+nomeMes(mes)+')';
   var nova = {
     id: 'AUS'+Date.now().toString(36).toUpperCase(),
     colaboradorId: cid,
@@ -5464,8 +5487,7 @@ window.__salvarFolga = async function(cid, nome, mes){
   state.ausencias = state.ausencias||[];
   state.ausencias.push(nova);
   await storageSet('ausencias-lista', JSON.stringify(state.ausencias), true);
-  state.agendarFolgaId = null;
-  showToast('✅ Folga compensatória registrada para '+esc(nome)+' em '+esc(dataParaDisplay(dataFolga))+'.');
+  showToast('✅ Folga registrada para '+esc(nome)+' em '+esc(dataParaDisplay(dataFolga))+'.');
   renderGestaoTab();
 };
 
