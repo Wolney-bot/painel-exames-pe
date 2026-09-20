@@ -1677,12 +1677,12 @@ function renderGestaoTab(){
       var hj = hojeLocal();
 
       /* ══ Seção 1: Escala de folgas — Recife (domingo a domingo) ══ */
-      html += '<div class="section-title" style="margin-bottom:12px;">📋 Escala de folgas — '+nomeMes(mes)+'</div>';
+      html += '<div class="section-title" style="margin-bottom:12px;">📋 Escala de folgas — Recife · '+nomeMes(mes)+'</div>';
 
       if(Object.keys(diasFds).length === 0){
         html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;color:#856404;">⏳ Nenhum funcionário na escala de força tarefa de '+nomeMes(mes)+' ainda. Preencha primeiro a escala na sub-aba <b>👥 Colaboradores</b>.</div>';
       } else {
-        html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Baseado na escala de força tarefa. Cada fim de semana trabalhado gera direito a 1 folga compensatória.</div>';
+        html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Apenas funcionários com cidade-base <b>Recife</b> — que cumprem jornada completa seg-dom. O pessoal do interior não é incluído pois já tem dias vagos durante a semana.</div>';
         html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:550px;">';
         html += '<thead><tr style="background:var(--teal);color:#fff;">'
           + '<th style="padding:8px 12px;text-align:left;">Funcionário</th>'
@@ -1695,6 +1695,11 @@ function renderGestaoTab(){
           + '</tr></thead><tbody>';
 
         Object.entries(diasFds)
+          /* Somente funcionários com cidade-base Recife */
+          .filter(function(entry){
+            var colab = colabors.find(function(c){return c.nome===entry[0];});
+            return colab && colab.cidade === 'Recife';
+          })
           .sort(function(a,b){return a[0].localeCompare(b[0],'pt-BR');})
           .forEach(function(entry, idx){
             var nome = entry[0], dias = entry[1];
