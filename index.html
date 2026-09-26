@@ -425,6 +425,8 @@ var state = {
   colabEditando: null,
   agendarFolgaId: null,
   alterarPlanoId: null,
+  bateVoltas: [],
+  planFds: {},
   filtroDiarioCidade: '',
   filtroDiarioPatio: '',
   metaConfig: {},
@@ -617,7 +619,7 @@ window.__tentarReconectar = async function(){
     _ocultarBannerConexao();
     showToast('✅ Conexão restaurada! Sincronizando dados locais…');
     /* reenvia para Supabase qualquer dado salvo localmente durante a indisponibilidade */
-    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista','gestao-escala'];
+    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista','gestao-escala','bate-volta-lista'];
     var enviados = 0;
     for(var ki=0; ki<SK_ALL.length; ki++){
       var k = SK_ALL[ki];
@@ -697,6 +699,9 @@ async function init(){
   /* ── Escala de fins de semana (força tarefa) ── */
   var ge = await storageGet('gestao-escala', true);
   state.gestaoEscala = ge ? JSON.parse(ge) : {};
+  state.planFds = state.gestaoEscala['__planFds'] || {};
+  var bv = await storageGet('bate-volta-lista', true);
+  state.bateVoltas = bv ? JSON.parse(bv) : [];
 
   /* ── Pessoas: colaboradores, ausências, ocorrências, habilidades ── */
   var [cbr, aus, ocr, hab] = await Promise.all([
@@ -1456,6 +1461,56 @@ function renderGestaoTab(){
       if(gargalosAbertos.length>6) html+='<div style="color:var(--ink-soft);font-size:12px;padding:7px;">e mais '+(gargalosAbertos.length-6)+'…</div>';
       html+='</div></div></div>';
     }
+
+    /* ══ Calendário FDS — próximo mês ══ */
+    var proximoMesR = mesProximo(mes);
+    var planFdsR = state.planFds || {};
+    html += '<div style="margin-top:16px;">';
+    html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">📆 Planejamento fins de semana — '+nomeMes(proximoMesR)+'</div>';
+    html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Informe as cidades confirmadas para cada fim de semana. Alimenta a escala de força tarefa do próximo mês.</div>';
+    html += '<datalist id="dl-planfds-cidade">';
+    TODAS_CIDADES.forEach(function(c){html+='<option value="'+esc(c)+'">'+esc(c)+'</option>';});
+    html += '</datalist>';
+    var anoProxR = parseInt(proximoMesR.slice(0,4));
+    var mesProxNumR = parseInt(proximoMesR.slice(5,7))-1;
+    var dR = new Date(anoProxR, mesProxNumR, 1);
+    while(dR.getDay()!==6) dR.setDate(dR.getDate()+1);
+    while(dR.getMonth()===mesProxNumR){
+      var dSab = dR.getFullYear()+'-'+String(dR.getMonth()+1).padStart(2,'0')+'-'+String(dR.getDate()).padStart(2,'0');
+      var dDomR = new Date(dR); dDomR.setDate(dDomR.getDate()+1);
+      var dDom = dDomR.getFullYear()+'-'+String(dDomR.getMonth()+1).padStart(2,'0')+'-'+String(dDomR.getDate()).padStart(2,'0');
+      var planSem = planFdsR[dSab] || {cidades:[]};
+      /* mostra funcionários já escalados */
+      var mesEsc = dSab.slice(0,7);
+      var escSem = state.gestaoEscala && state.gestaoEscala[mesEsc] ? state.gestaoEscala[mesEsc] : {};
+      var inputIdPlan = 'planfds-inp-'+dSab.replace(/-/g,'');
+      html += '<div style="background:#fff;border:1.5px solid '+(planSem.cidades.length?'#6FCF97':'var(--line)')+';border-radius:10px;padding:10px 14px;margin-bottom:8px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
+      html += '<span style="font-weight:700;font-size:13px;">🟡 '+esc(dataParaDisplay(dSab))+'&nbsp;+&nbsp;🟠 '+esc(dataParaDisplay(dDom))+'</span>';
+      html += '<span style="font-size:12px;color:var(--ink-soft);">'+(planSem.cidades.length?planSem.cidades.length+' cidade(s) confirmada(s)':'Sem cidades confirmadas')+'</span>';
+      html += '</div>';
+      if(planSem.cidades.length){
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">';
+        planSem.cidades.forEach(function(c){
+          var funcsEsc = escSem[dSab+'_c_'+c] || [];
+          html += '<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:8px;padding:5px 10px;">';
+          html += '<span style="font-size:12.5px;font-weight:700;color:#276749;">📍 '+esc(c)+'</span>';
+          if(funcsEsc.length) html += ' <span style="font-size:11.5px;color:var(--ink-soft);">('+funcsEsc.map(esc).join(', ')+')</span>';
+          html += ' <button class="rm-planfds-btn" data-sab="'+esc(dSab)+'" data-cid="'+esc(c)+'" '
+            +'style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--red);padding:0;">✕</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+      html += '<div style="display:flex;gap:6px;align-items:center;">';
+      html += '<input type="text" id="'+inputIdPlan+'" list="dl-planfds-cidade" placeholder="Adicionar cidade confirmada…" '
+        +'style="flex:1;max-width:280px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12px;">';
+      html += '<button class="add-planfds-btn" data-sab="'+esc(dSab)+'" data-inp="'+inputIdPlan+'" data-mes="'+esc(proximoMesR)+'" '
+        +'class2="add-planfds-btn-real" style="font-size:11.5px;padding:4px 12px;border-radius:7px;cursor:pointer;background:var(--teal);color:#fff;border:none;white-space:nowrap;">+ Confirmar</button>';
+      html += '</div></div>';
+      dR.setDate(dR.getDate()+7);
+    }
+    html += '</div>';
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -2283,6 +2338,14 @@ function renderGestaoTab(){
   document.querySelectorAll('[id^="cancelar-folga-"]').forEach(function(btn){
     btn.addEventListener('click', function(){ state.agendarFolgaId=null; renderGestaoTab(); });
   });
+  /* Planfds + FT-Overview listeners */
+  document.querySelectorAll('.rm-planfds-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__rmCidadeFds(this.dataset.sab, this.dataset.cid); });
+  });
+  document.querySelectorAll('.add-planfds-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__addCidadeFds(this.dataset.sab, this.dataset.inp, this.dataset.mes); });
+  });
+
   document.querySelectorAll('[id^="pp-sub-"]').forEach(function(btn){
     btn.addEventListener('click',function(){state.pessoasSubView=this.dataset.sub;renderGestaoTab();});
   });
@@ -2907,7 +2970,47 @@ function renderOverview(){
       html += '<div style="font-weight:400;margin-top:2px;">'+examesDomingo.map(function(ex){ return '<b>'+esc(ex.cidade)+'</b> ('+ex.cats.map(function(k){return esc(catLabel(k));}).join('+')+')'; }).join(' · ')+'</div>';
       if(examesSabado.length) html += '</div>';
     }
-    html += '</div><button class="x" style="color:#856404;" onclick="window.__setTab(\'agenda\')">ver agenda</button></div>';
+
+
+    /* ── Força Tarefa inline: escalar na overview ── */
+    var mesFT2 = hojeLocal().slice(0,7);
+    var escFT2 = state.gestaoEscala && state.gestaoEscala[mesFT2] ? state.gestaoEscala[mesFT2] : {};
+    var colabsAtivos2 = (state.colaboradores||[]).filter(function(c){return c.status==='Ativo';});
+    function buildFTPanel(dataCidade, cidades){
+      if(!cidades||!cidades.length) return '';
+      var h = '<div style="margin-top:8px;border-top:1px dashed #FFD700;padding-top:8px;">';
+      h += '<div style="font-size:11.5px;font-weight:700;color:#856404;margin-bottom:5px;">👷 Escalar funcionários para o fim de semana:</div>';
+      cidades.forEach(function(ex){
+        var ckeyC = dataCidade+'_c_'+ex.cidade;
+        var arr   = escFT2[ckeyC] || [];
+        var dlId  = 'dl-ft-'+dataCidade.replace(/-/g,'')+ex.cidade.replace(/ /g,'_');
+        var cidCols  = colabsAtivos2.filter(function(c){return c.cidade===ex.cidade;});
+        var outrCols = colabsAtivos2.filter(function(c){return c.cidade!==ex.cidade;});
+        h += '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:4px;">';
+        h += '<span style="font-size:12px;font-weight:700;color:#856404;min-width:78px;">📍'+esc(ex.cidade)+'</span>';
+        arr.forEach(function(nome,i2){
+          h += '<span style="background:#FFF3CD;border:1px solid #FFD700;border-radius:6px;padding:2px 7px;font-size:11.5px;">'+esc(nome)
+            +'<button class="rm-ft-ov-btn" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mesFT2)+'" data-idx="'+i2
+            +'" style="background:none;border:none;cursor:pointer;color:#999;font-size:10px;padding:0 0 0 3px;">✕</button></span>';
+        });
+        h += '<datalist id="'+dlId+'">';
+        cidCols.forEach(function(c){h+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' ('+esc(c.cidade)+')</option>';});
+        outrCols.forEach(function(c){h+='<option value="'+esc(c.nome)+'">'+esc(c.nome)+' — '+esc(c.cidade)+'</option>';});
+        h += '</datalist>';
+        h += '<input type="text" id="ft-inp-'+esc(ckeyC)+'" list="'+dlId+'" placeholder="Funcionário…" '
+          +'style="min-width:140px;border:1px solid #FFD700;border-radius:7px;padding:3px 8px;font-size:12px;background:#FFFBF0;">';
+        h += '<button class="add-ft-ov-btn" data-key="'+esc(ckeyC)+'" data-mes="'+esc(mesFT2)+'" data-inp="ft-inp-'+esc(ckeyC)+'" '
+          +'style="font-size:11.5px;padding:3px 9px;border-radius:7px;cursor:pointer;background:#856404;color:#fff;border:none;font-weight:700;">+ Add</button>';
+        h += '</div>';
+      });
+      h += '</div>';
+      return h;
+    }
+    var dataSabOv = ehSabHoje ? hoje : proximoSab;
+    var dataDomOv = ehDomHoje ? hoje : proximoDom;
+    if(examesSabado.length) html += buildFTPanel(dataSabOv, examesSabado);
+    if(examesDomingo.length) html += buildFTPanel(dataDomOv, examesDomingo);
+        html += '</div><button class="x" style="color:#856404;" onclick="window.__setTab(\'agenda\')">ver agenda</button></div>';
   }
 
   /* 🗓️ Alerta C/D/E — exames amanhã */
@@ -3063,6 +3166,14 @@ function renderOverview(){
   '</div>';
 
   document.getElementById('tabContent').innerHTML = html;
+
+  /* FT overview listeners */
+  document.querySelectorAll('.add-ft-ov-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__addFTdeAgenda(this.dataset.key, this.dataset.mes, this.dataset.inp); });
+  });
+  document.querySelectorAll('.rm-ft-ov-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__rmFTdeAgenda(this.dataset.key, this.dataset.mes, parseInt(this.dataset.idx,10)); });
+  });
 }
 /* ===================================================================
    MAPA & POLOS
@@ -5261,6 +5372,17 @@ function renderVeiculosTab(){
 
   document.getElementById('tabContent').innerHTML = html;
 
+  /* Bate e Volta + hist-tab listeners */
+  document.querySelectorAll('[id^="add-bv-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__addBateVolta(this.dataset.vid); });
+  });
+  document.querySelectorAll('[id^="rm-bv-"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__rmBateVolta(this.dataset.tid); });
+  });
+  document.querySelectorAll('[class2="hist-tab-btn"]').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__expandVeiculo(this.dataset.vid, this.dataset.aba); });
+  });
+
   /* Apoio vehicle controls */
   document.querySelectorAll('[id^="apoio-toggle-"]').forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -5512,6 +5634,81 @@ window.__rmFotoApoio = async function(id){
 };
 
 /* ── Pessoas: CRUD colaboradores, ausências, ocorrências, habilidades ── */
+
+/* ── Veículos: Bate e Volta ─────────────────────────────────── */
+window.__addBateVolta = async function(vid){
+  var data    = (document.getElementById('bv-data-'+vid)||{}).value || hojeLocal();
+  var destino = ((document.getElementById('bv-dest-'+vid)||{}).value || '').trim();
+  var mot     = ((document.getElementById('bv-mot-'+vid)||{}).value || '').trim();
+  if(!mot){ showToast('Informe o motorista.'); return; }
+  var nova = {
+    id: 'BV'+Date.now().toString(36).toUpperCase(),
+    veiculoId: vid, data: data, destino: destino, motorista: mot,
+    saida:   (document.getElementById('bv-saida-'+vid)||{}).value || '',
+    retorno: (document.getElementById('bv-ret-'+vid)||{}).value || '',
+    obs:     ((document.getElementById('bv-obs-'+vid)||{}).value || '').trim(),
+    criadoEm: nowStr()
+  };
+  state.bateVoltas = state.bateVoltas||[];
+  state.bateVoltas.push(nova);
+  await storageSet('bate-volta-lista', JSON.stringify(state.bateVoltas), true);
+  showToast('✅ Bate e volta registrado para '+esc(destino)+' com '+esc(mot)+'.');
+  renderVeiculosTab();
+};
+window.__rmBateVolta = async function(tid){
+  if(!confirm('Remover este bate e volta?')) return;
+  state.bateVoltas = (state.bateVoltas||[]).filter(function(t){return t.id!==tid;});
+  await storageSet('bate-volta-lista', JSON.stringify(state.bateVoltas), true);
+  showToast('Bate e volta removido.');
+  renderVeiculosTab();
+};
+
+/* ── Calendário FDS próximo mês ─────────────────────────────── */
+window.__addCidadeFds = async function(dataSab, inputId, mes){
+  var cidade = ((document.getElementById(inputId)||{}).value || '').trim();
+  if(!cidade){ showToast('Selecione a cidade.'); return; }
+  if(!state.planFds) state.planFds = {};
+  if(!state.planFds[dataSab]) state.planFds[dataSab] = {cidades:[]};
+  if(state.planFds[dataSab].cidades.indexOf(cidade) < 0)
+    state.planFds[dataSab].cidades.push(cidade);
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  state.gestaoEscala['__planFds'] = state.planFds;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  renderGestaoTab();
+};
+window.__rmCidadeFds = async function(dataSab, cidade){
+  if(!state.planFds || !state.planFds[dataSab]) return;
+  state.planFds[dataSab].cidades = state.planFds[dataSab].cidades.filter(function(c){return c!==cidade;});
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  state.gestaoEscala['__planFds'] = state.planFds;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  renderGestaoTab();
+};
+
+/* ── Agenda → Força Tarefa inline (Overview) ────────────────── */
+window.__addFTdeAgenda = async function(ckeyC, mes, inputId){
+  var inp = document.getElementById(inputId);
+  if(!inp) return;
+  var nome = inp.value.trim();
+  if(!nome){ showToast('Informe o funcionário.'); return; }
+  if(!state.gestaoEscala) state.gestaoEscala = {};
+  if(!state.gestaoEscala[mes]) state.gestaoEscala[mes] = {};
+  var arr = state.gestaoEscala[mes][ckeyC] || [];
+  if(arr.indexOf(nome) < 0){ arr.push(nome); state.gestaoEscala[mes][ckeyC] = arr; }
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  inp.value = '';
+  showToast('✅ '+esc(nome)+' adicionado à força tarefa.');
+  renderOverview();
+};
+window.__rmFTdeAgenda = async function(ckeyC, mes, idx){
+  if(!state.gestaoEscala || !state.gestaoEscala[mes]) return;
+  var arr = state.gestaoEscala[mes][ckeyC] || [];
+  arr.splice(idx, 1);
+  state.gestaoEscala[mes][ckeyC] = arr;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  renderOverview();
+};
+
 window.__salvarPlanoFolga = async function(nomeSlug, idx, inputId, obsId, mes){
   var dataFolga = (document.getElementById(inputId)||{}).value || '';
   if(!dataFolga){ showToast('Informe a data da folga.'); return; }
@@ -5912,7 +6109,49 @@ function renderVeiculoDetail(v){
   html += '<div class="hist-tabs">'+
     '<button class="hist-tab '+(aba==='historico'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'historico\')">📋 Histórico</button>'+
     '<button class="hist-tab '+(aba==='checklist'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'checklist\')">✅ Equipamentos ('+okCount+'/'+todosItens.length+')</button>'+
+    '<button class="hist-tab '+(aba==='batevolta'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'batevolta\')">🔄 Bate e Volta</button>'+
   '</div>';
+
+  if(aba==='batevolta'){
+    var trips = (state.bateVoltas||[]).filter(function(t){return t.veiculoId===v.id;}).sort(function(a,b){return b.data.localeCompare(a.data);});
+    var colabAll = (state.colaboradores||[]).filter(function(c){return c.status==='Ativo';}).sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
+    var dlBvId = 'dl-bv-mot-'+v.id;
+    html += '<div style="padding:12px 14px;">';
+    html += '<datalist id="'+dlBvId+'">';
+    colabAll.forEach(function(c){ html += '<option value="'+esc(c.nome)+'">'+esc(c.nome)+' — '+esc(c.cidade)+'</option>'; });
+    html += '</datalist>';
+    html += '<div style="background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;">';
+    html += '<div style="font-weight:700;font-size:13px;margin-bottom:8px;">🔄 Registrar bate e volta</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px;margin-bottom:8px;">';
+    html += '<label style="font-size:12px;font-weight:600;">Data<input id="bv-data-'+v.id+'" type="date" value="'+hojeLocal()+'" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+    html += '<label style="font-size:12px;font-weight:600;">Destino<input id="bv-dest-'+v.id+'" type="text" placeholder="Ex: Caruaru" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+    html += '<label style="font-size:12px;font-weight:600;">Motorista<input id="bv-mot-'+v.id+'" type="text" list="'+dlBvId+'" placeholder="Nome do motorista" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+    html += '<label style="font-size:12px;font-weight:600;">Saída<input id="bv-saida-'+v.id+'" type="time" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+    html += '<label style="font-size:12px;font-weight:600;">Retorno prev.<input id="bv-ret-'+v.id+'" type="time" style="display:block;width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+    html += '</div>';
+    html += '<label style="font-size:12px;font-weight:600;display:block;margin-bottom:8px;">Obs.<input id="bv-obs-'+v.id+'" type="text" placeholder="Observação (opcional)" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;margin-top:2px;"></label>';
+    html += '<button class="btn btn-primary" id="add-bv-'+v.id+'" data-vid="'+v.id+'" style="font-size:12.5px;">+ Registrar</button>';
+    html += '</div>';
+    if(!trips.length){
+      html += '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:10px;">Nenhum bate e volta registrado.</div>';
+    } else {
+      html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:480px;">';
+      html += '<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:6px 10px;text-align:left;">Data</th><th>Destino</th><th>Motorista</th><th>Saída</th><th>Ret.prev.</th><th>Obs.</th><th></th></tr></thead><tbody>';
+      trips.forEach(function(t,ix){
+        html += '<tr style="background:'+(ix%2===0?'#fafafa':'#fff')+';border-bottom:1px solid var(--line);">'
+          +'<td style="padding:6px 10px;white-space:nowrap;">'+esc(dataParaDisplay(t.data))+'</td>'
+          +'<td style="padding:6px 10px;">'+esc(t.destino||'—')+'</td>'
+          +'<td style="padding:6px 10px;font-weight:600;">'+esc(t.motorista||'—')+'</td>'
+          +'<td style="padding:6px 10px;text-align:center;">'+esc(t.saida||'—')+'</td>'
+          +'<td style="padding:6px 10px;text-align:center;">'+esc(t.retorno||'—')+'</td>'
+          +'<td style="padding:6px 10px;font-size:11px;color:var(--ink-soft);">'+esc(t.obs||'—')+'</td>'
+          +'<td style="padding:6px 10px;"><button class="icon-btn" style="color:var(--red);" id="rm-bv-'+t.id+'" data-tid="'+t.id+'">🗑</button></td>'
+          +'</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+  }
 
   if(aba==='historico'){
     html += '<div style="display:flex;gap:8px;margin-bottom:12px;">'+
