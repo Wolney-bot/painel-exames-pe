@@ -1723,10 +1723,9 @@ function renderGestaoTab(){
           if(dow!==6 && dow!==0) return;
           var tipo = dow===6?'sab':'dom';
           escalaG[k].forEach(function(nome){
-            /* Só funcionários com cidade-base Recife têm direito à folga compensatória */
-            /* Interior já tem dias vagos durante a semana quando não há exames */
-            var colab = colabors.find(function(c){return c.nome===nome;});
-            if(!colab || colab.cidade !== 'Recife') return;
+            /* Regra 6x1: qualquer funcionário que trabalhou Sáb+Dom na força tarefa
+               trabalhou 7 dias seguidos (seg→dom) e tem direito a folga compensatória.
+               Interior com dias vagos durante a semana não acumula par Sáb+Dom → não aparece. */
             if(!fdsBruto[nome]) fdsBruto[nome]={sab:{},dom:{}};
             fdsBruto[nome][tipo][data] = cidade;
           });
@@ -1769,8 +1768,8 @@ function renderGestaoTab(){
         return a.tipo==='Feriado' && a.inicio && a.inicio.startsWith(mes);
       });
 
-      html += '<div class="section-title" style="margin-bottom:6px;">📋 Escala de folgas — Recife · '+nomeMes(mes)+'</div>';
-      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">Apenas funcionários de Recife (interior já tem dias vagos durante a semana). Quem trabalhou <b>Sábado E Domingo</b> do mesmo fim de semana tem direito a 1 folga compensatória. Folgas comuns não descontam deste saldo.</div>';
+      html += '<div class="section-title" style="margin-bottom:6px;">📋 Escala de folgas — Jornada 6x1 · '+nomeMes(mes)+'</div>';
+      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">Regra <b>6x1</b>: quem trabalhou <b>Sábado E Domingo</b> na força tarefa trabalhou 7 dias seguidos (seg→dom) e tem direito a 1 folga compensatória. Folgas comuns e folgas de interior (dias vagos) não descontam deste saldo.</div>';
 
       if(Object.keys(paresFds).length === 0){
         html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;color:#856404;">⏳ Nenhum funcionário com par completo (Sáb+Dom) na escala de força tarefa de '+nomeMes(mes)+'. Preencha a escala na sub-aba <b>👥 Colaboradores</b>.</div>';
