@@ -425,6 +425,7 @@ var state = {
   colabEditando: null,
   agendarFolgaId: null,
   alterarPlanoId: null,
+  alterarFolgaId: null,
   bateVoltas: [],
   planFds: {},
   filtroDiarioCidade: '',
@@ -1698,205 +1699,181 @@ function renderGestaoTab(){
 
     /* ════════ SUB-SUB: ESCALA DE FOLGAS ════════ */
     else if(ppView==='folgas'){
+      try{
+
+      /* ═══════════════════════════════════════════════════════
+         ESCALA DE FOLGAS — Regra 6x1
+         Recife: Sáb + Dom na força tarefa = 1 folga sugerida
+         A sugestão fica pendente de aprovação do gestor.
+         ═══════════════════════════════════════════════════════ */
       var mes = state.relMes || mesRelAtual();
-      var hj  = hojeLocal();
-      var escalaG = state.gestaoEscala && state.gestaoEscala[mes] ? state.gestaoEscala[mes] : {};
+      var escalaG = (state.gestaoEscala && state.gestaoEscala[mes]) ? state.gestaoEscala[mes] : {};
 
-      /* ── helper: próximo dia útil a partir de uma data ─────────────
-         data = 'YYYY-MM-DD', offsetDias = 1|2
-         Retorna a data do próximo dia da semana (seg-sex)           */
-      function proximoDiaUtil(dataBase, offsetDias){
-        var d = new Date(dataBase+'T12:00:00');
-        d.setDate(d.getDate() + (offsetDias || 1));
-        /* pula fim de semana */
-        while(d.getDay()===0 || d.getDay()===6) d.setDate(d.getDate()+1);
-        return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      }
+      /* helpers locais */
+      function _somaD(iso, n){ var d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+      function _proxUtil(iso){ var d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+1); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()+1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
-      /* ── Coleta dias de fds por funcionário (só Recife) ──────────── */
-      /* Separa sábados e domingos; só pares completos geram folga */
-      var fdsBruto = {}; /* nome → {sab:{data→cidade}, dom:{data→cidade}} */
+      /* 1. Coleta sábados e domingos por funcionário de Recife */
+      var bySab = {}, byDom = {};
       Object.keys(escalaG).forEach(function(k){
-        if(k.includes('_c_') && !k.endsWith('_turno') && !k.endsWith('_locked') && Array.isArray(escalaG[k])){
-          var parts = k.split('_c_'); var data = parts[0]; var cidade = parts[1];
-          var dow = new Date(data+'T12:00:00').getDay();
-          if(dow!==6 && dow!==0) return;
-          var tipo = dow===6?'sab':'dom';
-          escalaG[k].forEach(function(nome){
-            /* Regra 6x1: qualquer funcionário que trabalhou Sáb+Dom na força tarefa
-               trabalhou 7 dias seguidos (seg→dom) e tem direito a folga compensatória.
-               Interior com dias vagos durante a semana não acumula par Sáb+Dom → não aparece. */
-            if(!fdsBruto[nome]) fdsBruto[nome]={sab:{},dom:{}};
-            fdsBruto[nome][tipo][data] = cidade;
+        if(!k.includes('_c_') || k.endsWith('_turno') || k.endsWith('_locked')) return;
+        if(!Array.isArray(escalaG[k])) return;
+        var p = k.indexOf('_c_');
+        var data = k.slice(0, p);
+        var cidade = k.slice(p+3);
+        var dow = new Date(data+'T12:00:00').getDay();
+        if(dow===6){
+          (escalaG[k]||[]).forEach(function(nome){
+            var c = (state.colaboradores||[]).find(function(x){return x.nome===nome;});
+            if(c && c.cidade==='Recife'){ if(!bySab[nome]) bySab[nome]={}; bySab[nome][data]=cidade; }
+          });
+        } else if(dow===0){
+          (escalaG[k]||[]).forEach(function(nome){
+            var c = (state.colaboradores||[]).find(function(x){return x.nome===nome;});
+            if(c && c.cidade==='Recife'){ if(!byDom[nome]) byDom[nome]={}; byDom[nome][data]=cidade; }
           });
         }
       });
 
-      /* ── Pareamento Sábado + Domingo consecutivo ─────────────── */
-      /* Só tem direito à folga quem trabalhou os DOIS dias do fim de semana */
-      function somaData(dataISO, dias){
-        var d = new Date(dataISO+'T12:00:00'); d.setDate(d.getDate()+dias);
-        return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      }
-      var paresFds = {}; /* nome → [{sab, dom, cidSab, cidDom, sugestao, displaySab, displayDom}] */
-      Object.keys(fdsBruto).forEach(function(nome){
-        var brt = fdsBruto[nome];
-        paresFds[nome] = [];
-        Object.keys(brt.sab).sort().forEach(function(dataSab){
-          var dataDom = somaData(dataSab, 1); /* domingo = sábado + 1 dia */
-          if(brt.dom[dataDom]){
-            paresFds[nome].push({
-              sab: dataSab, dom: dataDom,
-              cidSab: brt.sab[dataSab], cidDom: brt.dom[dataDom],
-              sugestao: proximoDiaUtil(dataSab, 2), /* segunda-feira seguinte ao sábado */
-              displaySab: dataParaDisplay(dataSab),
-              displayDom: dataParaDisplay(dataDom)
+      /* 2. Pareamento: Sáb + Dom do dia seguinte = 1 folga */
+      var pares = {}; /* nome → [{dataSab, dataDom, sugestao, dSab, dDom}] */
+      Object.keys(bySab).forEach(function(nome){
+        Object.keys(bySab[nome]).sort().forEach(function(dataSab){
+          var dataDom = _somaD(dataSab, 1);
+          if(byDom[nome] && byDom[nome][dataDom]){
+            if(!pares[nome]) pares[nome]=[];
+            pares[nome].push({
+              dataSab: dataSab, dataDom: dataDom,
+              sugestao: _proxUtil(dataDom), /* primeira segunda após o dom */
+              dSab: dataParaDisplay(dataSab),
+              dDom: dataParaDisplay(dataDom)
             });
           }
-          /* sábado sem domingo correspondente → sem direito a folga */
         });
-        if(!paresFds[nome].length) delete paresFds[nome];
       });
-      /* ── Folgas compensatórias já lançadas no mês ─────────────── */
-      /* Folgas compensatórias já registradas (só tipo "Folga compensatória" — não conta folga comum) */
-      var folgasReg = (state.ausencias||[]).filter(function(a){
+
+      /* 3. Folgas compensatórias já registradas no mês */
+      var jaReg = (state.ausencias||[]).filter(function(a){
         return a.tipo==='Folga compensatória' && a.inicio && a.inicio.startsWith(mes);
       });
 
-      /* ── Feriados ─────────────────────────────────────────────── */
-      var feriadosMes = (state.ausencias||[]).filter(function(a){
-        return a.tipo==='Feriado' && a.inicio && a.inicio.startsWith(mes);
-      });
+      /* ── Seção Recife ── */
+      html += '<div class="section-title" style="margin-bottom:6px;">📋 Escala de Folgas — Recife · '+nomeMes(mes)+'</div>';
+      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">'
+        +'Funcionários de Recife que trabalharam <b>Sábado E Domingo</b> na força tarefa recebem sugestão de 1 folga compensatória. '
+        +'A sugestão fica pendente de <b>aprovação do gestor</b>.</div>';
 
-      html += '<div class="section-title" style="margin-bottom:6px;">📋 Escala de folgas — Jornada 6x1 · '+nomeMes(mes)+'</div>';
-      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">Regra <b>6x1</b>: quem trabalhou <b>Sábado E Domingo</b> na força tarefa trabalhou 7 dias seguidos (seg→dom) e tem direito a 1 folga compensatória. Folgas comuns e folgas de interior (dias vagos) não descontam deste saldo.</div>';
-
-      if(Object.keys(paresFds).length === 0){
-        html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;color:#856404;">⏳ Nenhum funcionário com par completo (Sáb+Dom) na escala de força tarefa de '+nomeMes(mes)+'. Preencha a escala na sub-aba <b>👥 Colaboradores</b>.</div>';
+      if(!Object.keys(pares).length){
+        html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;font-size:13px;color:#856404;">'
+          +'⏳ Nenhum par Sáb+Dom encontrado para funcionários de Recife em '+nomeMes(mes)+'.<br>'
+          +'<span style="font-size:12px;">Preencha a escala de força tarefa na sub-aba <b>👥 Colaboradores</b>.</span></div>';
       } else {
-        Object.entries(paresFds)
-          .sort(function(a,b){return a[0].localeCompare(b[0],'pt-BR');})
-          .forEach(function(entry){
-            var nome   = entry[0];
-            var pares  = entry[1]; /* lista de pares {sab, dom, cidSab, cidDom, sugestao, displaySab, displayDom} */
-            var colab  = colabors.find(function(c){return c.nome===nome;})||null;
-            var cid    = colab ? colab.id : '';
-
-            /* folgas compensatórias já registradas para este colaborador no mês */
-            var folgasJa = folgasReg.filter(function(a){return a.colaboradorId===(colab&&colab.id);});
-            var totalPares = pares.length;
-            var saldo      = totalPares - folgasJa.length;
-
-            html += '<div style="background:#fff;border:1.5px solid '+(saldo>0?'#FFBBBB':'#6FCF97')+';border-radius:12px;padding:12px 14px;margin-bottom:10px;">';
-            /* header */
-            html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">';
-            html += '<span style="font-weight:700;font-size:13.5px;">'+esc(nome)+'</span>';
-            html += '<span style="font-size:12px;color:var(--ink-soft);">Recife · '+totalPares+' fim(ns) de semana completo(s)</span>';
-            html += '<span style="font-size:12px;font-weight:700;'+(saldo>0?'color:var(--red)':'color:#276749')+';margin-left:auto;">'
-              +(saldo>0 ? saldo+' folga(s) pendente(s)' : '✅ Em dia')+'</span>';
-            html += '</div>';
-
-            /* ── linha por par completo (Sáb+Dom) ── */
-            pares.forEach(function(par, idx){
-              var folgaRef  = folgasJa[idx] || null;
-              var jaRegist  = !!folgaRef;
-              var nomeSlug  = nome.replace(/\s+/g,'_');
-              var planoKey  = 'fp_'+nomeSlug+'_'+idx; /* chave no gestaoEscala para a data planejada */
-              var plano     = escalaG[planoKey] || null; /* {data, obs} ou null */
-              var inputId   = 'folga-data-'+nomeSlug+'-'+idx;
-              var obsId     = 'folga-obs-'+nomeSlug+'-'+idx;
-              var refText   = esc(par.displaySab)+' e '+esc(par.displayDom);
-
-              html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-top:1px dashed var(--line);">';
-              /* par de dias trabalhados */
-              html += '<div style="display:flex;align-items:center;gap:4px;white-space:nowrap;">';
-              html += '<span style="font-size:12.5px;">🟡 <b>'+esc(par.displaySab)+'</b></span>';
-              html += '<span style="font-size:11px;color:var(--ink-soft);">+</span>';
-              html += '<span style="font-size:12.5px;">🟠 <b>'+esc(par.displayDom)+'</b></span>';
-              html += '</div>';
-              html += '<span style="font-size:12px;color:var(--ink-soft);">→ folga:</span>';
-
-              if(jaRegist){
-                /* ── ESTADO 3: registrada ── somente leitura */
-                html += '<span style="font-size:12.5px;background:#EBF7F0;border:1px solid #6FCF97;border-radius:7px;padding:4px 12px;font-weight:700;color:#276749;">✅ '+esc(dataParaDisplay(folgaRef.inicio))+'</span>';
-                if(folgaRef.obs) html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(folgaRef.obs)+'</span>';
-
-              } else if(plano){
-                /* ── ESTADO 2: data planejada, não registrada ainda ── */
-                html += '<span style="font-size:12.5px;background:#EEF4FF;border:1.5px solid #93B4F5;border-radius:7px;padding:4px 12px;font-weight:700;color:#1E3A8A;">📅 '+esc(dataParaDisplay(plano.data))+'</span>';
-                if(plano.obs) html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(plano.obs)+'</span>';
-                html += '<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;" '
-                  +'id="alterar-plano-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'" data-mes="'+esc(mes)+'" title="Alterar data planejada">🖊 Alterar</button>';
-                html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;background:#276749;white-space:nowrap;" '
-                  +'id="salvar-folga2-'+nomeSlug+'-'+idx+'" data-cid="'+esc(cid)+'" data-nome="'+esc(nome)+'" '
-                  +'data-inputid="__plano__" data-obsid="__plano__" data-mes="'+esc(mes)+'" '
-                  +'data-ref="'+refText+'" data-planodata="'+esc(plano.data)+'" data-planoobs="'+esc(plano.obs||'')+'">✅ Registrar folga</button>';
-
-              } else {
-                /* ── ESTADO 1: pendente — mostrar campo editável e botão salvar ── */
-                html += '<input type="date" id="'+inputId+'" value="'+par.sugestao+'" '
-                  +'style="border:1.5px solid #FFD700;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#856404;background:#FFFBF0;">';
-                html += '<input type="text" id="'+obsId+'" placeholder="Obs. (opcional)" '
-                  +'style="min-width:140px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
-                html += '<button class="btn" style="font-size:11.5px;padding:4px 12px;white-space:nowrap;background:#856404;color:#fff;border:none;" '
-                  +'id="salvar-plano-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'" '
-                  +'data-inputid="'+inputId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'" '
-                  +'data-sug="'+par.sugestao+'">💾 Salvar data</button>';
+        var colabors2 = state.colaboradores||[];
+        Object.keys(pares).sort().forEach(function(nome){
+          var lista  = pares[nome];
+          var colab  = colabors2.find(function(c){return c.nome===nome;})||{id:''};
+          /* Folgas compensatórias deste colaborador — só conta as tomadas
+               APÓS o sábado do par que as gerou (evita contar folgas
+               de fins de semana anteriores como cobertura de pares futuros) */
+          var regBrutos = jaReg.filter(function(a){return a.colaboradorId===colab.id;});
+          /* Ordena pares por dataSab e folgas por inicio — match greedy */
+          lista.sort(function(a,b){return a.dataSab.localeCompare(b.dataSab);});
+          var regOrdem = regBrutos.slice().sort(function(a,b){return a.inicio.localeCompare(b.inicio);});
+          /* Para cada par, tenta casar com a folga mais antiga que seja >= dataSab */
+          var matchedRegs = lista.map(function(par){
+            for(var ri=0;ri<regOrdem.length;ri++){
+              if(regOrdem[ri].inicio>=par.dataSab){
+                return regOrdem.splice(ri,1)[0]; /* consume a folga */
               }
-              html += '</div>';
+            }
+            return null; /* par sem folga correspondente */
+          });
+          var saldo = matchedRegs.filter(function(r){return !r;}).length;
 
-              /* ── sub-linha de alteração (estado 2 → editar) ── */
-              if(!jaRegist && plano && state.alterarPlanoId === nomeSlug+'-'+idx){
-                html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 0 6px 12px;border-left:3px solid #93B4F5;">';
-                html += '<input type="date" id="'+inputId+'" value="'+esc(plano.data)+'" '
-                  +'style="border:1.5px solid #93B4F5;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#1E3A8A;">';
-                html += '<input type="text" id="'+obsId+'" value="'+esc(plano.obs||'')+'" placeholder="Obs." '
-                  +'style="min-width:140px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
-                html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;background:#1E3A8A;white-space:nowrap;" '
-                  +'id="salvar-plano-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'" '
-                  +'data-inputid="'+inputId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'" '
-                  +'data-sug="'+par.sugestao+'">💾 Atualizar data</button>';
-                html += '<button class="btn btn-ghost" style="font-size:11px;" '
-                  +'id="cancelar-alterar-'+nomeSlug+'-'+idx+'" data-slug="'+nomeSlug+'" data-idx="'+idx+'">Cancelar</button>';
-                html += '</div>';
-              }
-            });
+          html += '<div style="background:#fff;border:1.5px solid '+(saldo>0?'#FFBBBB':'#6FCF97')+';border-radius:12px;padding:12px 14px;margin-bottom:10px;">';
+          html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">';
+          html += '<span style="font-weight:700;font-size:13.5px;">'+esc(nome)+'</span>';
+          html += '<span style="font-size:12px;color:var(--ink-soft);">Recife · '+lista.length+' fim(ns) de semana</span>';
+          html += '<span style="font-size:12px;font-weight:700;'+(saldo>0?'color:var(--red)':'color:#276749')+';margin-left:auto;">'+(saldo>0?saldo+' folga(s) pendente(s)':'✅ Em dia')+'</span>';
+          html += '</div>';
 
-            if(folgasJa.length > totalPares){
-              html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">+ '+(folgasJa.length-totalPares)+' folga(s) extra(s) já registrada(s).</div>';
+          lista.forEach(function(par, idx){
+            var reg       = matchedRegs[idx]||null;
+            var slug      = nome.replace(/\s+/g,'_');
+            var planoKey  = 'fp_'+slug+'_'+idx;
+            var plano     = escalaG[planoKey]||null;
+            var inpId     = 'fd-'+slug+'-'+idx;
+            var obsId     = 'fo-'+slug+'-'+idx;
+            var refTxt    = esc(par.dSab)+' e '+esc(par.dDom);
+
+            html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px dashed var(--line);">';
+            html += '<span style="font-size:12.5px;white-space:nowrap;">🟡 <b>'+esc(par.dSab)+'</b> + 🟠 <b>'+esc(par.dDom)+'</b></span>';
+            html += '<span style="font-size:12px;color:var(--ink-soft);">→ folga:</span>';
+
+            if(reg){
+              html += '<span style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:7px;padding:4px 12px;font-size:12.5px;font-weight:700;color:#276749;">✅ '+esc(dataParaDisplay(reg.inicio))+'</span>';
+              if(reg.obs) html += ' <span style="font-size:11px;color:var(--ink-soft);">'+esc(reg.obs)+'</span>';
+                html += ' <button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;" id="editar-folga-'+reg.id+'" data-aid="'+reg.id+'">✏️ Editar</button>';
+                if(state.alterarFolgaId===reg.id){
+                  var inpEd='fe-data-'+slug+'-'+idx, obsEd='fe-obs-'+slug+'-'+idx;
+                  html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 0 4px 12px;border-left:3px solid #6FCF97;margin-top:4px;">';
+                  html += '<input type="date" id="'+inpEd+'" value="'+esc(reg.inicio)+'" style="border:1.5px solid #6FCF97;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#276749;">';
+                  html += '<input type="text" id="'+obsEd+'" value="'+esc(reg.obs||'')+'" placeholder="Obs." style="min-width:130px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
+                  html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 10px;background:#276749;white-space:nowrap;" id="salvar-folga-edit-'+reg.id+'" data-aid="'+reg.id+'" data-inp="'+inpEd+'" data-obs="'+obsEd+'">💾 Salvar</button>';
+                  html += '<button class="btn btn-ghost" style="font-size:11px;" id="cancelar-folga-edit-'+reg.id+'" data-aid="'+reg.id+'">Cancelar</button>';
+                  html += '</div>';
+                }
+            } else if(plano){
+              html += '<span style="background:#EEF4FF;border:1.5px solid #93B4F5;border-radius:7px;padding:4px 12px;font-size:12.5px;font-weight:700;color:#1E3A8A;">📅 '+esc(dataParaDisplay(plano.data))+'</span>';
+              if(plano.obs) html += '<span style="font-size:11px;color:var(--ink-soft);">'+esc(plano.obs)+'</span>';
+              html += ' <button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;" id="alterar-plano-'+slug+'-'+idx+'" data-slug="'+slug+'" data-idx="'+idx+'" data-mes="'+esc(mes)+'">🖊 Alterar</button>';
+              html += ' <button class="btn btn-primary" style="font-size:11.5px;padding:4px 12px;background:#276749;white-space:nowrap;" id="salvar-folga2-'+slug+'-'+idx+'" data-cid="'+esc(colab.id)+'" data-nome="'+esc(nome)+'" data-inputid="__plano__" data-obsid="__plano__" data-mes="'+esc(mes)+'" data-ref="'+refTxt+'" data-planodata="'+esc(plano.data)+'" data-planoobs="'+esc(plano.obs||'')+'">✅ Registrar folga</button>';
+            } else {
+              html += '<input type="date" id="'+inpId+'" value="'+par.sugestao+'" style="border:1.5px solid #FFD700;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#856404;background:#FFFBF0;">';
+              html += ' <input type="text" id="'+obsId+'" placeholder="Obs." style="min-width:130px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
+              html += ' <button class="btn" style="font-size:11.5px;padding:4px 10px;background:#856404;color:#fff;border:none;white-space:nowrap;" id="salvar-plano-'+slug+'-'+idx+'" data-slug="'+slug+'" data-idx="'+idx+'" data-inputid="'+inpId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'">💾 Salvar data</button>';
             }
             html += '</div>';
-          });
+
+            if(!reg && plano && state.alterarPlanoId===slug+'-'+idx){
+              html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0 6px 12px;border-left:3px solid #93B4F5;">';
+              html += '<input type="date" id="'+inpId+'" value="'+esc(plano.data)+'" style="border:1.5px solid #93B4F5;border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:600;color:#1E3A8A;">';
+              html += '<input type="text" id="'+obsId+'" value="'+esc(plano.obs||'')+'" placeholder="Obs." style="min-width:130px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px;">';
+              html += '<button class="btn btn-primary" style="font-size:11.5px;padding:4px 10px;background:#1E3A8A;white-space:nowrap;" id="salvar-plano-'+slug+'-'+idx+'" data-slug="'+slug+'" data-idx="'+idx+'" data-inputid="'+inpId+'" data-obsid="'+obsId+'" data-mes="'+esc(mes)+'">💾 Atualizar</button>';
+              html += '<button class="btn btn-ghost" style="font-size:11px;" id="cancelar-alterar-'+slug+'-'+idx+'">Cancelar</button>';
+              html += '</div>';
+            }
+          }); /* fim lista.forEach */
+
+          if(regBrutos.length > lista.length)
+            html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">+ '+(regBrutos.length-lista.length)+' folga(s) extra já registrada(s).</div>';
+          html += '</div>'; /* fim card */
+        }); /* fim Object.keys(pares) */
       }
 
-      /* ── Feriados do mês ────────────────────────────────────── */
-      html += '<div style="margin-top:16px;">';
-      html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">🎉 Feriados — '+nomeMes(mes)+'</div>';
-      if(!feriadosMes.length){
-        html += '<div style="font-size:12.5px;color:var(--ink-soft);">Nenhum feriado lançado. Use <b>🌴 Ausências</b> com tipo "Feriado" para registrar.</div>';
-      } else {
-        var ferGrupo = {};
-        feriadosMes.forEach(function(a){ var col=colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'Geral'}; if(!ferGrupo[a.inicio]) ferGrupo[a.inicio]=[]; ferGrupo[a.inicio].push(esc(col.nome)); });
+      /* ── Feriados do mês ── */
+      var feriados = (state.ausencias||[]).filter(function(a){return a.tipo==='Feriado'&&a.inicio&&a.inicio.startsWith(mes);});
+      if(feriados.length){
+        html += '<div style="margin-top:14px;"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">🎉 Feriados — '+nomeMes(mes)+'</div>';
         html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-        Object.keys(ferGrupo).sort().forEach(function(data){
-          html += '<div style="background:#EEF4FF;border:1px solid #93B4F5;border-radius:9px;padding:8px 14px;font-size:12.5px;"><b>🎉 '+esc(dataParaDisplay(data))+'</b>'+(ferGrupo[data].length?'<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">'+ferGrupo[data].join(', ')+'</div>':'')+'</div>';
+        var ferGrp={};
+        feriados.forEach(function(a){var col=(state.colaboradores||[]).find(function(c){return c.id===a.colaboradorId;})||{nome:'Geral'};if(!ferGrp[a.inicio])ferGrp[a.inicio]=[];ferGrp[a.inicio].push(esc(col.nome));});
+        Object.keys(ferGrp).sort().forEach(function(dt){
+          html += '<div style="background:#EEF4FF;border:1px solid #93B4F5;border-radius:9px;padding:7px 12px;font-size:12.5px;"><b>🎉 '+esc(dataParaDisplay(dt))+'</b>'+(ferGrp[dt].length?'<div style="font-size:11.5px;color:var(--ink-soft);">'+ferGrp[dt].join(', ')+'</div>':'')+'</div>';
         });
-        html += '</div>';
+        html += '</div></div>';
       }
-      html += '</div>';
 
-      /* ── Interior (referência) ─────────────────────────────── */
-      var folgasInterior = (state.ausencias||[]).filter(function(a){
-        return (a.tipo==='Folga'||a.tipo==='Folga compensatória') && a.inicio && a.inicio.startsWith(mes);
-      });
-      if(folgasInterior.length){
-        html += '<div style="margin-top:16px;background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:12px 14px;">';
-        html += '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">🏘️ Interior — folgas da semana lançadas</div>';
+      /* ── Interior: folgas da semana já lançadas ── */
+      var folgasInt = (state.ausencias||[]).filter(function(a){return (a.tipo==='Folga'||a.tipo==='Folga compensatória')&&a.inicio&&a.inicio.startsWith(mes);});
+      if(folgasInt.length){
+        html += '<div style="margin-top:14px;background:#f8f8f8;border:1px solid var(--line);border-radius:10px;padding:12px 14px;">';
+        html += '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">🏘️ Interior — folgas lançadas no mês</div>';
         html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
         html += '<thead><tr style="background:var(--teal);color:#fff;"><th style="padding:5px 10px;text-align:left;">Colaborador</th><th>Tipo</th><th>Data</th><th>Obs.</th></tr></thead><tbody>';
-        folgasInterior.sort(function(a,b){return a.inicio.localeCompare(b.inicio);}).forEach(function(a,idx){
-          var col=colabors.find(function(c){return c.id===a.colaboradorId;})||{nome:'—'};
-          html += '<tr style="background:'+(idx%2===0?'#fafafa':'#fff')+'">'
+        folgasInt.sort(function(a,b){return a.inicio.localeCompare(b.inicio);}).forEach(function(a,ix){
+          var col=(state.colaboradores||[]).find(function(c){return c.id===a.colaboradorId;})||{nome:'—'};
+          html += '<tr style="background:'+(ix%2===0?'#fafafa':'#fff')+'">'
             +'<td style="padding:5px 10px;font-weight:600;">'+esc(col.nome)+'</td>'
             +'<td style="padding:5px 10px;">'+esc(a.tipo)+'</td>'
             +'<td style="padding:5px 10px;">'+esc(dataParaDisplay(a.inicio))+'</td>'
@@ -1905,10 +1882,18 @@ function renderGestaoTab(){
         });
         html += '</tbody></table></div></div>';
       }
+    
+      } catch(_fErr){
+        html += '<div style="background:#FFE0E0;border:2px solid #C00;border-radius:10px;padding:14px;font-size:13px;">'
+          +'<b>⚠️ Erro na Escala de Folgas:</b><br>'
+          +'<code style="font-size:12px;">'+esc(String(_fErr))+'</code><br><br>'
+          +'<span style="font-size:11.5px;color:#666;">'
+          +'gestaoEscala='+(state.gestaoEscala?JSON.stringify(Object.keys(state.gestaoEscala).slice(0,3)):'null')
+          +' | colaboradores='+(state.colaboradores||[]).length
+          +' | mes='+(state.relMes||'?')
+          +'</span></div>';
+      }
     }
-
-
-    /* ════════ SUB-SUB: OCORRÊNCIAS ════════ */
     else if(ppView==='ocorrencias'){
       html+='<div style="background:#f8f8f8;border:1px solid #FFBBBB;border-radius:12px;margin-bottom:14px;overflow:hidden;">'
         +'<div style="background:#C44536;color:#fff;padding:10px 14px;font-weight:700;font-size:13px;">📝 Ocorrências (últimos 60 dias)</div>'
@@ -2338,6 +2323,15 @@ function renderGestaoTab(){
     btn.addEventListener('click', function(){ state.agendarFolgaId=null; renderGestaoTab(); });
   });
   /* Planfds + FT-Overview listeners */
+  document.querySelectorAll('[id^="editar-folga-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){window.__editarFolga(this.dataset.aid);});
+  });
+  document.querySelectorAll('[id^="salvar-folga-edit-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){window.__salvarFolgaEditada(this.dataset.aid,this.dataset.inp,this.dataset.obs);});
+  });
+  document.querySelectorAll('[id^="cancelar-folga-edit-"]').forEach(function(btn){
+    btn.addEventListener('click',function(){state.alterarFolgaId=null;renderGestaoTab();});
+  });
   document.querySelectorAll('.rm-planfds-btn').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__rmCidadeFds(this.dataset.sab, this.dataset.cid); });
   });
@@ -5706,6 +5700,25 @@ window.__rmFTdeAgenda = async function(ckeyC, mes, idx){
   state.gestaoEscala[mes][ckeyC] = arr;
   await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
   renderOverview();
+};
+
+window.__editarFolga = function(ausId){
+  state.alterarFolgaId = (state.alterarFolgaId===ausId) ? null : ausId;
+  renderGestaoTab();
+};
+window.__salvarFolgaEditada = async function(ausId, inputId, obsId){
+  var novaData = ((document.getElementById(inputId)||{}).value||'').trim();
+  if(!novaData){ showToast('Informe a data da folga.'); return; }
+  var obs = ((document.getElementById(obsId)||{}).value||'').trim();
+  var aus = state.ausencias||[];
+  var i = aus.findIndex(function(a){return a.id===ausId;});
+  if(i<0){ showToast('Ausência não encontrada.'); return; }
+  aus[i].inicio = novaData; aus[i].fim = novaData;
+  if(obs) aus[i].obs = obs;
+  await storageSet('ausencias-lista', JSON.stringify(aus), true);
+  state.alterarFolgaId = null;
+  showToast('✅ Folga atualizada para '+dataParaDisplay(novaData)+'.');
+  renderGestaoTab();
 };
 
 window.__salvarPlanoFolga = async function(nomeSlug, idx, inputId, obsId, mes){
