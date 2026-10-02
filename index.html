@@ -1771,8 +1771,13 @@ function renderGestaoTab(){
       });
 
       /* 3. Folgas compensatórias já registradas no mês */
+      /* Sem filtro de mês: folgas compensatórias podem ser tomadas no mês
+         seguinte ao trabalho (ex: trabalhou 26+27/set, folga em out).
+         matchedRegs garante que só folgas >= dataSab do par são vinculadas. */
+      var mesNext = mesProximo(mes);
       var jaReg = (state.ausencias||[]).filter(function(a){
-        return a.tipo==='Folga compensatória' && a.inicio && a.inicio.startsWith(mes);
+        return a.tipo==='Folga compensatória' && a.inicio
+          && (a.inicio.startsWith(mes) || a.inicio.startsWith(mesNext));
       });
 
       /* ── Seção Recife ── */
