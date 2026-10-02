@@ -398,6 +398,8 @@ var state = {
   relMes: (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }()),
   relFiltCat: '',
   relFiltCidade: '',
+  relDataIni: '',
+  relDataFim: '',
   formOpen: false,
   alertasFechados: false,
   planAcesso: [],
@@ -1494,11 +1496,27 @@ function renderGestaoTab(){
         html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">';
         planSem.cidades.forEach(function(c){
           var funcsEsc = escSem[dSab+'_c_'+c] || [];
-          html += '<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:8px;padding:5px 10px;">';
+          var cidCats  = (planSem.cats && planSem.cats[c]) ? planSem.cats[c] : ['A','B','C','D','E'];
+          var cidKey   = dSab.replace(/-/g,'')+c.replace(/\s/g,'_');
+          html += '<div style="background:#EBF7F0;border:1px solid #6FCF97;border-radius:10px;padding:8px 12px;">';
+          /* linha 1: nome da cidade + remover */
+          html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">';
           html += '<span style="font-size:12.5px;font-weight:700;color:#276749;">📍 '+esc(c)+'</span>';
           if(funcsEsc.length) html += ' <span style="font-size:11.5px;color:var(--ink-soft);">('+funcsEsc.map(esc).join(', ')+')</span>';
-          html += ' <button class="rm-planfds-btn" data-sab="'+esc(dSab)+'" data-cid="'+esc(c)+'" '
-            +'style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--red);padding:0;">✕</button>';
+          html += '<button class="rm-planfds-btn" data-sab="'+esc(dSab)+'" data-cid="'+esc(c)+'" '
+            +'style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--red);padding:0;margin-left:auto;">✕</button>';
+          html += '</div>';
+          /* linha 2: botões de categoria por cidade */
+          html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+          ['A','B','C','D','E','X'].forEach(function(k){
+            var sel = cidCats.indexOf(k) >= 0;
+            html += '<button id="cfds-'+cidKey+'-'+k+'" data-sel="'+(sel?'1':'0')+'" data-cat="'+k+'" '
+              +'data-sab="'+esc(dSab)+'" data-cid="'+esc(c)+'" class="fds-cat-cidade-btn" '
+              +'style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;cursor:pointer;min-width:26px;'
+              +(sel?'background:#276749;color:#fff;border:1.5px solid #276749;':'background:#e8e8e8;color:#666;border:1.5px solid #ccc;')
+              +'">'+k+'</button>';
+          });
+          html += '</div>';
           html += '</div>';
         });
         html += '</div>';
@@ -2337,6 +2355,9 @@ function renderGestaoTab(){
   });
   document.querySelectorAll('.add-planfds-btn').forEach(function(btn){
     btn.addEventListener('click', function(){ window.__addCidadeFds(this.dataset.sab, this.dataset.inp, this.dataset.mes); });
+  });
+  document.querySelectorAll('.fds-cat-cidade-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ window.__toggleFdsCidadeCat(this); });
   });
 
   document.querySelectorAll('[id^="pp-sub-"]').forEach(function(btn){
@@ -5657,13 +5678,54 @@ window.__rmBateVolta = async function(tid){
 };
 
 /* ── Calendário FDS próximo mês ─────────────────────────────── */
+window.__toggleFdsCidadeCat = async function(btn){
+  var dataSab = btn.dataset.sab;
+  var cidade  = btn.dataset.cid;
+  var cat     = btn.dataset.cat;
+  if(!dataSab||!cidade||!cat) return;
+  /* toggle visual imediato */
+  var sel = btn.dataset.sel === '1';
+  sel = !sel;
+  btn.dataset.sel = sel ? '1' : '0';
+  btn.style.background = sel ? '#276749' : '#e8e8e8';
+  btn.style.color      = sel ? '#fff'    : '#666';
+  btn.style.border     = sel ? '1.5px solid #276749' : '1.5px solid #ccc';
+  /* atualizar state.planFds */
+  if(!state.planFds) state.planFds = {};
+  if(!state.planFds[dataSab]) state.planFds[dataSab] = {cidades:[], cats:{}};
+  if(!state.planFds[dataSab].cats) state.planFds[dataSab].cats = {};
+  var curCats = state.planFds[dataSab].cats[cidade] || ['A','B','C','D','E'];
+  if(sel){
+    if(curCats.indexOf(cat)<0) curCats.push(cat);
+  } else {
+    curCats = curCats.filter(function(k){return k!==cat;});
+  }
+  state.planFds[dataSab].cats[cidade] = curCats;
+  state.gestaoEscala = state.gestaoEscala||{};
+  state.gestaoEscala['__planFds'] = state.planFds;
+  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+};
+window.__toggleFdsCat = function(btn){
+  btn.dataset.sel = (btn.dataset.sel === '1') ? '0' : '1';
+  btn.style.background = btn.dataset.sel === '1' ? '#276749' : '#e8e8e8';
+  btn.style.color      = btn.dataset.sel === '1' ? '#fff'    : '#666';
+  btn.style.border     = btn.dataset.sel === '1' ? '1.5px solid #276749' : '1.5px solid #ccc';
+};
 window.__addCidadeFds = async function(dataSab, inputId, mes){
   var cidade = ((document.getElementById(inputId)||{}).value || '').trim();
   if(!cidade){ showToast('Selecione a cidade.'); return; }
+  /* cidade adicionada com todas as categorias por padrão —
+     o usuário ajusta via botões no badge da cidade */
+  var cats = ['A','B','C','D','E'];
   if(!state.planFds) state.planFds = {};
-  if(!state.planFds[dataSab]) state.planFds[dataSab] = {cidades:[]};
+  if(!state.planFds[dataSab]) state.planFds[dataSab] = {cidades:[], cats:{}};
+  if(!state.planFds[dataSab].cats) state.planFds[dataSab].cats = {};
   if(state.planFds[dataSab].cidades.indexOf(cidade) < 0)
     state.planFds[dataSab].cidades.push(cidade);
+  state.planFds[dataSab].cats[cidade] = cats;
+  /* limpar input após adicionar */
+  var inp = document.getElementById(inputId);
+  if(inp) inp.value = '';
   if(!state.gestaoEscala) state.gestaoEscala = {};
   state.gestaoEscala['__planFds'] = state.planFds;
   await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
@@ -5672,6 +5734,7 @@ window.__addCidadeFds = async function(dataSab, inputId, mes){
 window.__rmCidadeFds = async function(dataSab, cidade){
   if(!state.planFds || !state.planFds[dataSab]) return;
   state.planFds[dataSab].cidades = state.planFds[dataSab].cidades.filter(function(c){return c!==cidade;});
+  if(state.planFds[dataSab].cats) delete state.planFds[dataSab].cats[cidade];
   if(!state.gestaoEscala) state.gestaoEscala = {};
   state.gestaoEscala['__planFds'] = state.planFds;
   await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
@@ -6926,8 +6989,89 @@ function renderRelatorioTab(){
     }).join('')+
   '</div></div>';
 
-  document.getElementById('tabContent').innerHTML = html;
+  
+  /* ── MATRIZ DE CONFERÊNCIA ──────────────────────────────── */
+  var mIni = state.relDataIni || (mes+'-01');
+  var mFim = state.relDataFim || (mes+'-31');
+  var dMat = (state.diarios||[]).filter(function(d){ return d.dataISO>=mIni && d.dataISO<=mFim; });
+  var mCats = ['A','B','C','D','E','X'];
+  var mCids = TODAS_CIDADES.filter(function(c){ return dMat.some(function(d){return d.cidade===c;}); });
+
+  html += '<div class="rel-bloco" style="margin-top:18px;">';
+  html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+  html += '<span>📋 Matriz de conferência — Realizados (por período)</span>';
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
+  html += '<label style="font-size:12px;font-weight:600;">De<input type="date" id="m-ini" value="'+esc(mIni)+'" style="border:1px solid var(--teal);border-radius:6px;padding:3px 7px;font-size:12px;margin-left:4px;"></label>';
+  html += '<label style="font-size:12px;font-weight:600;">Até<input type="date" id="m-fim" value="'+esc(mFim)+'" style="border:1px solid var(--teal);border-radius:6px;padding:3px 7px;font-size:12px;margin-left:4px;"></label>';
+  html += '<button class="btn" id="btn-mf" style="font-size:11.5px;padding:4px 10px;background:var(--teal);color:#fff;border:none;border-radius:7px;">🔍 Filtrar</button>';
+  html += '<button class="btn btn-ghost" id="btn-mcsv" style="font-size:11.5px;padding:4px 10px;">⬇ CSV</button>';
+  html += '</div></div>';
+  html += '<div class="rel-body" style="padding:0;">';
+
+  if(!mCids.length){
+    html += '<div style="padding:14px;font-size:13px;color:var(--ink-soft);">Nenhum lançamento de '+esc(dataParaDisplay(mIni))+' a '+esc(dataParaDisplay(mFim))+'.</div>';
+  } else {
+    html += '<div style="overflow-x:auto;">';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px;">';
+    html += '<thead><tr style="background:var(--teal);color:#fff;">';
+    html += '<th style="padding:7px 10px;text-align:left;position:sticky;left:0;background:var(--teal);">Cat.</th>';
+    mCids.forEach(function(c){ html += '<th style="padding:7px 8px;text-align:right;white-space:nowrap;">'+esc(c)+'</th>'; });
+    html += '<th style="padding:7px 10px;text-align:right;background:#1a5c50;">TOTAL</th>';
+    html += '</tr></thead><tbody>';
+    var mGrand = 0;
+    mCats.forEach(function(cat, ri){
+      var vals = mCids.map(function(c){ return dMat.filter(function(d){return d.cidade===c&&d.categoria===cat;}).reduce(function(s,d){return s+d.realizados;},0); });
+      var rTot = vals.reduce(function(s,v){return s+v;},0);
+      if(!rTot) return;
+      mGrand += rTot;
+      html += '<tr style="background:'+(ri%2===0?'#fafafa':'#fff')+'">';
+      html += '<td style="padding:6px 10px;font-weight:700;position:sticky;left:0;background:'+(ri%2===0?'#fafafa':'#fff')+';">'+esc(catLabel(cat))+'</td>';
+      vals.forEach(function(v){ html += '<td style="padding:6px 8px;text-align:right;'+(v===0?'color:var(--ink-soft);':'')+'">'+(v===0?'—':v)+'</td>'; });
+      html += '<td style="padding:6px 10px;text-align:right;font-weight:700;background:#EBF7F0;">'+rTot+'</td>';
+      html += '</tr>';
+    });
+    html += '<tr style="background:var(--teal);color:#fff;font-weight:700;">';
+    html += '<td style="padding:7px 10px;position:sticky;left:0;background:var(--teal);">TOTAL</td>';
+    mCids.forEach(function(c){ html += '<td style="padding:7px 8px;text-align:right;">'+dMat.filter(function(d){return d.cidade===c;}).reduce(function(s,d){return s+d.realizados;},0)+'</td>'; });
+    html += '<td style="padding:7px 10px;text-align:right;font-size:13px;">'+dMat.reduce(function(s,d){return s+d.realizados;},0)+'</td>';
+    html += '</tr>';
+    html += '</tbody></table></div>';
+    html += '<div style="font-size:11.5px;color:var(--ink-soft);padding:8px 12px;">'+dMat.length+' lançamentos · '+dMat.reduce(function(s,d){return s+d.realizados;},0)+' realizados · '+dataParaDisplay(mIni)+' a '+dataParaDisplay(mFim)+'</div>';
+  }
+  html += '</div></div>';
+
+document.getElementById('tabContent').innerHTML = html;
   /* nav buttons via addEventListener — evita problemas de escaping em onclick */
+  var btnMF = document.getElementById('btn-mf');
+  if(btnMF) btnMF.addEventListener('click', function(){
+    var ini = (document.getElementById('m-ini')||{}).value||'';
+    var fim = (document.getElementById('m-fim')||{}).value||'';
+    if(ini) state.relDataIni = ini;
+    if(fim) state.relDataFim = fim;
+    renderRelatorioTab();
+  });
+  var btnMCSV = document.getElementById('btn-mcsv');
+  if(btnMCSV) btnMCSV.addEventListener('click', function(){
+    var ini2 = state.relDataIni||(mes+'-01'), fim2 = state.relDataFim||(mes+'-31');
+    var dExp = (state.diarios||[]).filter(function(d){return d.dataISO>=ini2&&d.dataISO<=fim2;});
+    var cExp = TODAS_CIDADES.filter(function(c){return dExp.some(function(d){return d.cidade===c;});});
+    var catExp = ['A','B','C','D','E','X'];
+    var lines = [['Categoria'].concat(cExp).concat(['TOTAL']).join(',')];
+    catExp.forEach(function(k){
+      var vs = cExp.map(function(c){return dExp.filter(function(d){return d.cidade===c&&d.categoria===k;}).reduce(function(s,d){return s+d.realizados;},0);});
+      var t = vs.reduce(function(a,b){return a+b;},0);
+      if(!t) return;
+      lines.push([catLabel(k)].concat(vs).concat([t]).join(','));
+    });
+    var tots = cExp.map(function(c){return dExp.filter(function(d){return d.cidade===c;}).reduce(function(s,d){return s+d.realizados;},0);});
+    lines.push(['TOTAL'].concat(tots).concat([tots.reduce(function(a,b){return a+b;},0)]).join(','));
+    lines.unshift('Periodo:'+ini2+' a '+fim2);
+    var blob = new Blob(['\uFEFF'+lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+    var a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='matriz-'+ini2+'-'+fim2+'.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    showToast('✅ CSV exportado!');
+  });
   var inputMes = document.getElementById('input-rel-mes');
   if(inputMes) inputMes.addEventListener('change', function(){ if(this.value){ state.relMes = this.value; renderRelatorioTab(); } });
   var rfCat = document.getElementById('rel-filt-cat');
