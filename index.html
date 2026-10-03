@@ -4825,11 +4825,16 @@ function renderWeekCard(w, numero){
             var dataExata = e.datasExatas && e.datasExatas[cat] ? (Array.isArray(e.datasExatas[cat])?e.datasExatas[cat].map(dataParaDisplay).join(', '):dataParaDisplay(e.datasExatas[cat])) : '(data não definida)';
             var cd = cdeData[cat] || {};
             /* veículos ATIVOS da categoria na cidade ou em deslocamento para ela */
-            var veicsDisponiveis = state.veiculos.filter(function(v){
+            /* Veículos da categoria: cidade atual primeiro, depois os demais
+               (usuário pode precisar de veículo de outra cidade — ex: oficina) */
+            var veicsNaCidade = state.veiculos.filter(function(v){
               return v.ativo !== false && v.categoria===cat && (v.cidade===e.cidade || v.cidadeDestino===e.cidade);
             });
-            var veicsTodos = state.veiculos.filter(function(v){ return v.ativo !== false && v.categoria===cat; });
-            var veicsLista = veicsDisponiveis.length ? veicsDisponiveis : veicsTodos;
+            var veicsOutros   = state.veiculos.filter(function(v){
+              return v.ativo !== false && v.categoria===cat && v.cidade!==e.cidade && v.cidadeDestino!==e.cidade;
+            });
+            var veicsLista = veicsNaCidade.concat(veicsOutros); /* TODOS, cidade primeiro */
+            var veicsDisponiveis = veicsNaCidade; /* mantido para auto-sugestão */
             /* ── Auto-sugestão: veículo disponível mas não selecionado ── */
             var semSelecao = !cd.veiculoId;
             var sugestao = '';
@@ -4856,7 +4861,18 @@ function renderWeekCard(w, numero){
             (sugestao ? '<div class="cde-veiculo-linha">'+sugestao+'</div>' : '')+
             '<div class="cde-veiculo-linha">'+
               '<label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Motorista:</label>'+
-              '<input type="text" value="'+esc(cd.motorista||'')+'" placeholder="Nome do motorista" style="flex:1;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12.5px;" onblur="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'motorista\',this.value)">'+
+              '<datalist id="dl-mot-'+w.id+'-'+e.id+'-'+cat+'">'+
+              (state.colaboradores||[])
+                .filter(function(c){ return c.status!=='Inativo'; })
+                .sort(function(a,b){
+                  /* motoristas e assistentes da cidade primeiro */
+                  var aC = a.cidade===e.cidade?0:1, bC = b.cidade===e.cidade?0:1;
+                  return aC-bC || a.nome.localeCompare(b.nome,'pt-BR');
+                })
+                .map(function(c){ return '<option value="'+esc(c.nome)+'">'+esc(c.nome)+' — '+esc(c.cidade)+'</option>'; })
+                .join('')+
+              '</datalist>'+
+              '<input type="text" list="dl-mot-'+w.id+'-'+e.id+'-'+cat+'" value="'+esc(cd.motorista||'')+'" placeholder="Nome do motorista" style="flex:1;border:1px solid #93B4F5;border-radius:7px;padding:5px 8px;font-size:12.5px;" onblur="window.__setVeiculoCDE(\''+w.id+'\',\''+e.id+'\',\''+cat+'\',\'motorista\',this.value)">'+
             '</div>'+
             '<div class="cde-veiculo-linha">'+
               '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer;">'+
