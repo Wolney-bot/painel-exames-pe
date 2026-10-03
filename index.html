@@ -5425,7 +5425,8 @@ function renderVeiculosTab(){
     html += '</div>';
   });
 
-  document.getElementById('tabContent').innerHTML = html;
+  
+  html += '<div style="text-align:right;margin-bottom:8px;"><button class="btn btn-ghost" onclick="window.__exportarFrota()" style="font-size:12px;">⬇ Exportar frota (.csv)</button></div>';document.getElementById('tabContent').innerHTML = html;
 
   /* Bate e Volta + hist-tab listeners */
   document.querySelectorAll('[id^="add-bv-"]').forEach(function(btn){
@@ -7210,6 +7211,80 @@ function downloadCSV(rows, filename){
   a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
+
+
+window.__exportarFrota = function(){
+  /* Gera CSV no formato FROTA PE: CIDADE | VEÍCULO | N°OP | PLACA | KM | ANO */
+  var polos = [
+    {label:'POLO 1', cidades:['Recife']},
+    {label:'POLO 2', cidades:['Vitória','Timbaúba','Surubim','Sta Cruz do Capibaribe','Limoeiro','Palmares']},
+    {label:'POLO 3', cidades:['Arcoverde','Afogados da Ingazeira','Caruaru','Garanhuns','Pesqueira','Belo Jardim']},
+    {label:'POLO 4', cidades:['Araripina','Ouricuri','Salgueiro','Serra Talhada','Petrolina']}
+  ];
+  function catToTipo(cat){
+    if(!cat) return 'VEÍCULO';
+    var c = cat.toUpperCase();
+    if(c==='A') return 'MOTO';
+    if(c==='B') return 'CARRO';
+    if(c==='C') return 'CAMINHÃO';
+    if(c==='D') return 'ÔNIBUS';
+    if(c==='E') return 'ÔNIBUS';
+    return 'VEÍCULO';
+  }
+  function parseNome(nome){
+    if(!nome) return {op:'S/N', placa:''};
+    var parts = nome.split('-');
+    if(parts.length>=2){ return {op:parts[0].trim(), placa:parts.slice(1).join('-').trim()}; }
+    return {op:'S/N', placa:nome.trim()};
+  }
+  var linhas = ['CIDADE;VEÍCULO;N° OP;PLACA;KM;ANO'];
+  polos.forEach(function(polo){
+    linhas.push(polo.label+';;;;;');
+        linhas.push(';;;;;');
+    polo.cidades.forEach(function(cidade){
+      var veics = (state.veiculos||[]).filter(function(v){
+        return v.ativo!==false && (v.cidade===cidade);
+      }).sort(function(a,b){
+        var catOrd = ['B','A','C','D','E'];
+        var ca=catOrd.indexOf(a.categoria), cb=catOrd.indexOf(b.categoria);
+        if(ca!==cb) return ca-cb;
+        var na=parseNome(a.nome).op||'', nb=parseNome(b.nome).op||'';
+        return na.localeCompare(nb,'pt-BR',{numeric:true});
+      });
+      if(!veics.length) return;
+      var addedBlank = false;
+      veics.forEach(function(v){
+        var p = parseNome(v.nome);
+        var tipo = catToTipo(v.categoria);
+        var stat = v.status==='Indisponível' ? ' (INDISPONÍVEL)' : '';
+        linhas.push(cidade.toUpperCase()+';'+tipo+stat+';'+p.op+';'+p.placa+';;');
+        addedBlank = true;
+      });
+      if(addedBlank){ linhas.push(';;;;;'); }
+    });
+  });
+  /* Veículos de cidades não mapeadas */
+  var cidadesMapeadas = [];
+  polos.forEach(function(p){ p.cidades.forEach(function(c){ cidadesMapeadas.push(c); }); });
+  var veicsOther = (state.veiculos||[]).filter(function(v){
+    return v.ativo!==false && cidadesMapeadas.indexOf(v.cidade)<0;
+  });
+  if(veicsOther.length){
+    linhas.push('OUTRAS;;;;;');
+    linhas.push(';;;;;');
+    veicsOther.forEach(function(v){
+      var p = parseNome(v.nome);
+      linhas.push((v.cidade||'?').toUpperCase()+';'+catToTipo(v.categoria)+';'+p.op+';'+p.placa+';;');
+    });
+  }
+  var csv = '\uFEFF'+linhas.join('\r\n');
+  var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Frota_PE_'+hojeLocal()+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('✅ Frota exportada! Abra no Excel.');
+};
 
 init();
 })();
