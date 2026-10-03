@@ -414,6 +414,7 @@ var state = {
   filtrosManut: null,
   diarioEditando: null,
   filtroTipoVeic: '',
+  filtroVeicSearch: '',
   polosRecolhidos: {},
   gestaoEscala: {},
   gestaoSubView: 'pilares',
@@ -5182,7 +5183,65 @@ function renderVeiculosTab(){
   '</div>';
 
   /* monta listagem por cidade — inclui veículos em trânsito para o destino */
-  var filtroTipo = state.filtroTipoVeic || '';
+  var filtroTipo   = state.filtroTipoVeic  || '';
+  var filtroSearch = (state.filtroVeicSearch || '').toLowerCase().trim();
+
+  /* ── BARRA DE PESQUISA ── */
+  html += '<div style="margin-bottom:14px;">';
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
+  html += '<div style="position:relative;flex:1;min-width:220px;max-width:420px;">';
+  html += '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none;">🔍</span>';
+  html += '<input type="text" id="veic-search" placeholder="N° op, placa, cidade, categoria…" value="'+esc(state.filtroVeicSearch||'')+'" style="width:100%;padding:8px 12px 8px 34px;border:1.5px solid '+(filtroSearch?'var(--teal)':'var(--line)')+';border-radius:9px;font-size:13px;box-sizing:border-box;">';
+  html += '</div>';
+  if(filtroSearch){
+    html += '<button id="veic-search-clear" style="font-size:12px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;color:var(--ink-soft);">✕ Limpar</button>';
+  }
+  html += '</div>';
+
+  /* ── RESULTADOS DA PESQUISA ── */
+  if(filtroSearch){
+    var resultados = state.veiculos.filter(function(v){
+      if(v.ativo===false) return false;
+      var nome  = (v.nome||'').toLowerCase();
+      var cid   = (v.cidade||'').toLowerCase();
+      var cat   = (v.categoria||'').toLowerCase();
+      var stat  = (v.status||'').toLowerCase();
+      var dest  = (v.cidadeDestino||'').toLowerCase();
+      return nome.indexOf(filtroSearch)>=0
+          || cid.indexOf(filtroSearch)>=0
+          || cat.indexOf(filtroSearch)>=0
+          || stat.indexOf(filtroSearch)>=0
+          || dest.indexOf(filtroSearch)>=0;
+    });
+    if(!resultados.length){
+      html += '<div style="background:#FFF3CD;border:1px solid #FFD700;border-radius:10px;padding:14px;font-size:13px;color:#856404;">Nenhum veículo encontrado para «'+esc(state.filtroVeicSearch)+'».</div>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">'+resultados.length+' veículo(s) encontrado(s)</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;">';
+      resultados.sort(function(a,b){return (a.cidade||'').localeCompare(b.cidade||'','pt-BR') || (a.nome||'').localeCompare(b.nome||'','pt-BR');}).forEach(function(v){
+        var disp   = v.status==='Disponível';
+        var catC   = {'A':'#8B5CF6','B':'#3B82F6','C':'#F59E0B','D':'#10B981','E':'#EF4444','X':'#6B7280'}[v.categoria]||'#888';
+        var border = disp ? '#6FCF97' : '#FFBBBB';
+        html += '<div style="background:#fff;border:1.5px solid '+border+';border-radius:10px;padding:10px 14px;">';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+        html += '<span style="background:'+catC+';color:#fff;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700;">'+esc(v.categoria||'?')+'</span>';
+        html += '<span style="font-weight:700;font-size:13.5px;">'+esc(v.nome||'—')+'</span>';
+        html += '<span style="margin-left:auto;font-size:11.5px;font-weight:600;color:'+(disp?'#276749':'var(--red)')+';">'+esc(v.status||'')+'</span>';
+        html += '</div>';
+        html += '<div style="font-size:12px;color:var(--ink-soft);">📍 '+esc(v.cidade||'—')+(v.cidadeDestino?' <span style="color:var(--teal);">→ '+esc(v.cidadeDestino)+'</span>':'')+'</div>';
+        if(v.motivo) html += '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">'+esc(v.motivo)+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    document.getElementById('tabContent').innerHTML = html;
+    var inpS = document.getElementById('veic-search');
+    if(inpS){ inpS.addEventListener('input', function(){ state.filtroVeicSearch=this.value; renderVeiculosTab(); }); inpS.focus(); inpS.setSelectionRange(inpS.value.length, inpS.value.length); }
+    var clrS = document.getElementById('veic-search-clear');
+    if(clrS) clrS.addEventListener('click', function(){ state.filtroVeicSearch=''; renderVeiculosTab(); });
+    return; /* skip the full city-grouped view when searching */
+  }
+
   var porCidade = {};
   TODAS_CIDADES.forEach(function(c){ porCidade[c] = {proprios:[], emTransito:[]}; });
   /* só agrupa veículos ATIVOS nos cards de cidade */
@@ -5427,6 +5486,16 @@ function renderVeiculosTab(){
 
   
   html += '<div style="text-align:right;margin-bottom:8px;"><button class="btn btn-ghost" onclick="window.__exportarFrota()" style="font-size:12px;">⬇ Exportar frota (.csv)</button></div>';document.getElementById('tabContent').innerHTML = html;
+
+  /* Search input listener */
+  var veicSearchInp = document.getElementById('veic-search');
+  if(veicSearchInp){
+    veicSearchInp.addEventListener('input', function(){ state.filtroVeicSearch=this.value; renderVeiculosTab(); });
+  }
+  var veicSearchClr = document.getElementById('veic-search-clear');
+  if(veicSearchClr){
+    veicSearchClr.addEventListener('click', function(){ state.filtroVeicSearch=''; renderVeiculosTab(); });
+  }
 
   /* Bate e Volta + hist-tab listeners */
   document.querySelectorAll('[id^="add-bv-"]').forEach(function(btn){
