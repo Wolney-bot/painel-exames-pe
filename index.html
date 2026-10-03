@@ -1000,7 +1000,27 @@ window.__sincronizar = async function(silent){
       else if(u && u.status!=='aprovado'){ clearSessao(); renderAuth(); return; }
     }
   }
-  if(!silent) showToast('Dados atualizados.');
+  /* ── chaves que faltavam (gestão, RH, escala) ── */
+  var [co2, au2, oc2, hb2, ge2, bv2, pa2] = await Promise.all([
+    storageGet('colaboradores-lista', true),
+    storageGet('ausencias-lista',     true),
+    storageGet('ocorrencias-lista',   true),
+    storageGet('habilidades-lista',   true),
+    storageGet('gestao-escala',       true),
+    storageGet('bate-volta-lista',    true),
+    storageGet('plan-acesso',         true)
+  ]);
+  if(co2){ state.colaboradores = JSON.parse(co2); }
+  if(au2){ state.ausencias     = JSON.parse(au2); }
+  if(oc2){ state.ocorrencias   = JSON.parse(oc2); }
+  if(hb2){ state.habilidades   = JSON.parse(hb2); }
+  if(ge2){
+    state.gestaoEscala = JSON.parse(ge2);
+    state.planFds = state.gestaoEscala['__planFds'] || {};
+  }
+  if(bv2){ state.bateVoltas    = JSON.parse(bv2); }
+  if(pa2){ state.planAcesso    = JSON.parse(pa2); }
+  if(!silent) showToast('✅ Dados atualizados com o banco.');
   if(state.sessao) setTab(state.activeTab);
 };
 
