@@ -5373,7 +5373,7 @@ function renderVeiculosTab(){
             '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">'+
             '<button class="btn" style="font-size:12px;padding:4px 12px;background:var(--amber-soft);color:#856404;border:1px solid #FFD700;" id="btn-loc-obs-'+v.id+'" data-vid="'+v.id+'">💾 Salvar observação e motorista</button>'+
             /* Foto da avaria */
-            '<button onclick="(function(){document.getElementById(\'loc-foto-input-'+v.id+'\'\').click();})()" style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;color:#3355aa;">📷 Carregar foto</button>'+
+            '<button class="loc-foto-trigger" data-vid="'+v.id+'" style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;color:#3355aa;">📷 Carregar foto</button>'+
             '<input type="file" accept="image/*" id="loc-foto-input-'+v.id+'" data-vid="'+v.id+'" style="display:none;" class="loc-foto-input">'+
             '</div>'+
             (v.locavelFoto && v.status!=='Disponível' ?
@@ -5513,6 +5513,14 @@ function renderVeiculosTab(){
   if(veicSearchClr){
     veicSearchClr.addEventListener('click', function(){ state.filtroVeicSearch=''; renderVeiculosTab(); });
   }
+
+  /* Foto locavel — trigger file input */
+  document.querySelectorAll('.loc-foto-trigger').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var inp = document.getElementById('loc-foto-input-'+this.dataset.vid);
+      if(inp) inp.click();
+    });
+  });
 
   /* Bate e Volta + hist-tab listeners */
   document.querySelectorAll('[id^="add-bv-"]').forEach(function(btn){
