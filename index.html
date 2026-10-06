@@ -4096,22 +4096,41 @@ window.__salvarMotivoOutro = async function(id){
 /* ── Veículo — foto na Locavel ────────────────────────────────────── */
 window.__uploadFotoLocavel = function(id){
   var inp = document.getElementById('loc-foto-input-'+id);
-  if(!inp || !inp.files || !inp.files[0]) return;
+  if(!inp || !inp.files || !inp.files[0]){ showToast('Selecione uma foto.'); return; }
   var file = inp.files[0];
+  if(file.size > 15*1024*1024){ showToast('Foto muito grande. Máx 15MB.'); return; }
   var reader = new FileReader();
-  reader.onload = async function(ev){
-    var v = state.veiculos.filter(function(x){return x.id===id;})[0];
-    if(!v) return;
-    v.locavelFoto = ev.target.result; /* base64 */
-    v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
-    v.atualizadoEm  = nowStr();
-    addHistorico(v,'manutencao','Foto registrada na Locavel',{cidade:v.cidade});
-    await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
-    showToast('📷 Foto salva.');
-    renderVeiculosTab();
+  reader.onerror = function(){ showToast('Erro ao ler o arquivo.'); };
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onerror = function(){ showToast('Erro ao processar imagem.'); };
+    img.onload = async function(){
+      var MAX_W=1200, MAX_H=900, w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+      if(w>MAX_W){ h=Math.round(h*MAX_W/w); w=MAX_W; }
+      if(h>MAX_H){ w=Math.round(w*MAX_H/h); h=MAX_H; }
+      var canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      var compressed=canvas.toDataURL('image/jpeg',0.72);
+      var kbSize=Math.round(compressed.length*0.75/1024);
+      var v=state.veiculos.filter(function(x){return x.id===id;})[0];
+      if(!v){ showToast('Veículo não encontrado.'); return; }
+      v.locavelFoto=compressed;
+      v.atualizadoPor=state.perfil.nome+' ('+state.perfil.papel+')';
+      v.atualizadoEm=nowStr();
+      /* Se já tinha foto anterior, arquiva no historico antes de sobrescrever */
+      if(v.locavelFoto && v.locavelFoto!==compressed){
+        addHistorico(v,'manutencao','Foto anterior arquivada',{cidade:v.cidade, foto:v.locavelFoto});
+      }
+      addHistorico(v,'manutencao','Foto registrada ('+kbSize+'KB)',{cidade:v.cidade, foto:compressed});
+      await storageSet('veiculos-lista',JSON.stringify(state.veiculos),true);
+      showToast('✅ Foto salva ('+kbSize+'KB).');
+      renderVeiculosTab();
+    };
+    img.src=ev.target.result;
   };
   reader.readAsDataURL(file);
-};
+}
 window.__removerFotoLocavel = async function(id){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   if(!v) return;
@@ -5354,12 +5373,10 @@ function renderVeiculosTab(){
             '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">'+
             '<button class="btn" style="font-size:12px;padding:4px 12px;background:var(--amber-soft);color:#856404;border:1px solid #FFD700;" id="btn-loc-obs-'+v.id+'" data-vid="'+v.id+'">💾 Salvar observação e motorista</button>'+
             /* Foto da avaria */
-            '<label style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;color:#3355aa;">'+
-              '📷 Carregar foto'+
-              '<input type="file" accept="image/*" id="loc-foto-input-'+v.id+'" data-vid="'+v.id+'" style="display:none;" class="loc-foto-input">'+
-            '</label>'+
+            '<button onclick="(function(){document.getElementById(\'loc-foto-input-'+v.id+'\'\').click();})()" style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;color:#3355aa;">📷 Carregar foto</button>'+
+            '<input type="file" accept="image/*" id="loc-foto-input-'+v.id+'" data-vid="'+v.id+'" style="display:none;" class="loc-foto-input">'+
             '</div>'+
-            (v.locavelFoto ?
+            (v.locavelFoto && v.status!=='Disponível' ?
               '<div style="margin-top:8px;">'+
                 '<img src="'+v.locavelFoto+'" alt="Foto da avaria" style="max-width:220px;max-height:160px;border-radius:8px;border:1px solid var(--line);">'+
                 '<br><button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;margin-top:4px;" id="btn-rm-foto-'+v.id+'" data-vid="'+v.id+'">🗑 Remover foto</button>'+
@@ -5634,7 +5651,7 @@ function histDotColor(tipo){
 window.__toggleVeiculo = async function(id){
   var v = state.veiculos.filter(function(x){return x.id===id;})[0];
   v.status = v.status==='Disponível' ? 'Indisponível' : 'Disponível';
-  if(v.status==='Disponível'){ v.motivo=''; v.cidadeDestino=''; }
+  if(v.status==='Disponível'){ v.motivo=''; v.cidadeDestino=''; /* locavelFoto kept in history */ }
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
   addHistorico(v, 'status', 'Status alterado para '+v.status, {cidade:v.cidade});
@@ -6146,6 +6163,7 @@ window.__sairLocavel = async function(id){
   v.cidadeDestino = '';
   v.motivo = '';
   v.status = 'Disponível';
+  /* locavelFoto preserved in historico, hidden from card */
   v.locavelObs = '';
   v.locavelMotoristaEntrada = '';
   v.locavelMotoristaSaida = '';
@@ -6200,7 +6218,7 @@ window.__marcarChegou = async function(id, cidadeDestino){
   if(!v || !cidadeDestino) return;
   var cidadeOrigem = v.cidade;
   addHistorico(v, 'deslocamento', 'Chegou em '+cidadeDestino+' (vindo de '+cidadeOrigem+')', {cidadeOrigem:cidadeOrigem, cidadeDestino:cidadeDestino});
-  v.cidade = cidadeDestino; v.cidadeDestino=''; v.motivo=''; v.status='Disponível';
+  v.cidade = cidadeDestino; v.cidadeDestino=''; v.motivo=''; v.status='Disponível'; /* locavelFoto preserved */
   v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
   v.atualizadoEm = nowStr();
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
@@ -6356,6 +6374,7 @@ function renderVeiculoDetail(v){
             '<div class="htitle">'+esc(h.descricao)+'</div>'+
             '<div class="hmeta">'+esc(h.por)+' · '+esc(h.em)+'</div>'+
             (h.cidadeOrigem && h.cidadeDestino ? '<div style="font-size:11px;margin-top:2px;color:var(--amber-dk);">'+esc(h.cidadeOrigem)+' → '+esc(h.cidadeDestino)+'</div>' : '')+
+            (h.foto ? '<div style="margin-top:4px;"><a href="'+h.foto+'" target="_blank" style="font-size:11px;color:var(--teal);font-weight:600;">📷 Ver foto do atendimento</a></div>' : '')+
             (h.observacoes ? '<div class="hobs">'+esc(h.observacoes)+'</div>' : '')+
           '</div>'+
         '</div>';
