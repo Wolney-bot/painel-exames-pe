@@ -435,7 +435,8 @@ var state = {
   filtroDiarioPatio: '',
   metaConfig: {},
   demandas: [],
-  filtroPrioDemanda: 'Todas'
+  filtroPrioDemanda: 'Todas',
+  checklistsTroca: []
 };
 window.state = state;
 
@@ -623,7 +624,7 @@ window.__tentarReconectar = async function(){
     _ocultarBannerConexao();
     showToast('✅ Conexão restaurada! Sincronizando dados locais…');
     /* reenvia para Supabase qualquer dado salvo localmente durante a indisponibilidade */
-    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista','gestao-escala','bate-volta-lista'];
+    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista','gestao-escala','bate-volta-lista','checklists-troca'];
     var enviados = 0;
     for(var ki=0; ki<SK_ALL.length; ki++){
       var k = SK_ALL[ki];
@@ -706,6 +707,8 @@ async function init(){
   state.planFds = state.gestaoEscala['__planFds'] || {};
   var bv = await storageGet('bate-volta-lista', true);
   state.bateVoltas = bv ? JSON.parse(bv) : [];
+  var ck = await storageGet('checklists-troca', true);
+  if(ck){ try{ state.checklistsTroca = JSON.parse(ck); }catch(_){} }
 
   /* ── Pessoas: colaboradores, ausências, ocorrências, habilidades ── */
   var [cbr, aus, ocr, hab] = await Promise.all([
@@ -1021,6 +1024,8 @@ window.__sincronizar = async function(silent){
   }
   if(bv2){ state.bateVoltas    = JSON.parse(bv2); }
   if(pa2){ state.planAcesso    = JSON.parse(pa2); }
+  var ck2 = await storageGet('checklists-troca', true);
+  if(ck2){ try{ state.checklistsTroca = JSON.parse(ck2); }catch(_){} }
   if(!silent) showToast('✅ Dados atualizados com o banco.');
   if(state.sessao) setTab(state.activeTab);
 };
@@ -5555,6 +5560,48 @@ function renderVeiculosTab(){
   });
 
   
+
+  /* ── Checklists de troca recebidos pelos colaboradores ─────── */
+  var cks = (state.checklistsTroca||[]).slice().reverse();
+  if(cks.length){
+    var ITEM_LBL = {cam_f:'Câmera frontal',cam_l:'Câmera lateral',cam_i:'Câmera interna',cam_t:'Câmera traseira',biom:'Leitor biométrico','case':'Case',chrod:'Chave de roda',mac:'Macaco',tri:'Triângulo',est:'Estepe',crlv:'CRLV',taco:'Tacógrafo',pneus:'Pneus',vidros:'Vidros/Retrovisores',lint:'Limpeza interna',lext:'Limpeza externa',avar:'Avarias'};
+    html += '<div class="rel-bloco" style="margin-top:18px;">';
+    html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+    html += '<span>📋 Checklists de troca — preenchidos pelos colaboradores</span>';
+    html += '<span style="font-size:12px;color:var(--ink-soft);">'+cks.length+' registro(s)</span>';
+    html += '</div><div class="rel-body" style="padding:0;"><div style="overflow-x:auto;">';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px;">';
+    html += '<thead><tr style="background:var(--teal);color:#fff;">';
+    ['Data','Placa','Cat.','Origem → Destino','Motorista','Responsável','Status','Obs.'].forEach(function(h){
+      html += '<th style="padding:7px 10px;text-align:left;white-space:nowrap;">'+h+'</th>';
+    });
+    html += '</tr></thead><tbody>';
+    cks.forEach(function(c,ri){
+      var nokN = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
+      var bg   = ri%2===0 ? '#fafafa' : '#fff';
+      var dDsp = c.data ? (function(s){var p=s.slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0];})(c.data) : '—';
+      var fuel = c.combustivel ? Math.round(parseInt(c.combustivel)/8*100)+'%' : '';
+      html += '<tr style="background:'+bg+';border-bottom:1px solid var(--line);">';
+      html += '<td style="padding:6px 10px;white-space:nowrap;">'+esc(dDsp)+'</td>';
+      html += '<td style="padding:6px 10px;font-weight:700;">'+esc(c.placa||'—')+'</td>';
+      html += '<td style="padding:6px 10px;">'+esc(c.cat||'—')+'</td>';
+      html += '<td style="padding:6px 10px;">'+esc(c.origem||'—')+' → '+esc(c.destino||'—')+'</td>';
+      html += '<td style="padding:6px 10px;">'+esc(c.motorista||'—')+'</td>';
+      html += '<td style="padding:6px 10px;">'+esc(c.responsavel||'—')+'</td>';
+      html += '<td style="padding:6px 10px;">';
+      if(nokN>0) html += '<span style="background:#FFF5F5;color:var(--red);border-radius:20px;padding:2px 8px;font-weight:700;font-size:11.5px;">⚠️ '+nokN+' NOK</span>';
+      else       html += '<span style="background:#EBF7F0;color:var(--green);border-radius:20px;padding:2px 8px;font-weight:700;font-size:11.5px;">✅ OK</span>';
+      html += '</td>';
+      html += '<td style="padding:6px 10px;font-size:12px;color:var(--ink-soft);">'+esc((c.obs||'').slice(0,50)+(c.obs&&c.obs.length>50?'…':''))+'</td>';
+      html += '</tr>';
+      if(nokN>0){
+        var nokItens=Object.entries(c.itens||{}).filter(function(kv){return kv[1]==='nok';}).map(function(kv){return esc(ITEM_LBL[kv[0]]||kv[0]);}).join(', ');
+        html += '<tr style="background:#FFF5F5;"><td colspan="8" style="padding:4px 10px 7px 20px;font-size:12px;color:var(--red);">⚠️ NOK: '+nokItens+'</td></tr>';
+      }
+    });
+    html += '</tbody></table></div></div></div>';
+  }
+  
   html += '<div style="text-align:right;margin-bottom:8px;"><button class="btn btn-ghost" onclick="window.__exportarFrota()" style="font-size:12px;">⬇ Exportar frota (.csv)</button></div>';document.getElementById('tabContent').innerHTML = html;
 
   /* Search input listener */
@@ -7363,36 +7410,75 @@ function downloadCSV(rows, filename){
 
 
 
-window.__enviarEmailAlimentacao = function(wid, eid, cat){
+window.__enviarEmailAlimentacao = async function(wid, eid, cat){
   var w  = (state.semanas||[]).find(function(x){return x.id===wid;});
   if(!w) return;
   var e  = (w.entradas||[]).find(function(x){return x.id===eid;});
   if(!e) return;
   var cd = ((e.veiculosCDE||{})[cat])||{};
+
+  /* E-mail destinatário configurado no Admin */
   var para = (state.metaConfig && state.metaConfig.emailAlimentacao) || '';
+  if(!para){
+    showToast('⚠️ Configure o e-mail do destinatário em 👥 Admin → E-mail alimentação.');
+    return;
+  }
+
+  /* Datas do agendamento */
   var datas = [];
   if(e.datasExatas && e.datasExatas[cat]){
     if(Array.isArray(e.datasExatas[cat])) datas = e.datasExatas[cat];
     else if(typeof e.datasExatas[cat]==='string') datas=[e.datasExatas[cat]];
   }
   var dataDisp = datas.map(dataParaDisplay).join(', ') || '—';
-  var assunto  = encodeURIComponent('Solicitação de Alimentação - '+e.cidade+' - '+dataDisp);
-  var nl = '%0D%0A';
+
+  var assunto = 'Solicitação de Alimentação - '+e.cidade+' - '+dataDisp;
+  var nl = '\r\n';
   var corpo = 'Prezados,'+nl+nl
     +'Seguem informações para solicitação de alimentação referente aos exames CNH:'+nl+nl
-    +'Data(s): '+dataDisp+nl
-    +'Cidade: '+e.cidade+nl
-    +'Categoria: '+cat+nl
-    +'Motorista: '+(cd.motorista||'—')+nl
-    +'Observações: '+(cd.obsAlimentacao||'—')+nl+nl
+    +'Data(s).....: '+dataDisp+nl
+    +'Cidade......: '+e.cidade+nl
+    +'Categoria...: Cat. '+cat+nl
+    +'Motorista...: '+(cd.motorista||'—')+nl
+    +'Observações.: '+(cd.obsAlimentacao||'—')+nl+nl
     +'Favor confirmar o recebimento e disponibilidade.'+nl+nl
     +'Atenciosamente,'+nl
     +(state.perfil&&state.perfil.nome ? state.perfil.nome : 'Coordenação')+nl
     +'Coordenação de Operações CNH — Pernambuco';
-  var link = 'mailto:'+para+'?subject='+assunto+'&body='+corpo; /* corpo já encoded */
-  window.open(link, '_blank');
-  showToast('📧 Cliente de e-mail aberto com o pedido.');
+
+  /* Tenta envio automático via API (Vercel Function) */
+  showToast('📧 Enviando e-mail...');
+  try {
+    var resp = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: para, subject: assunto, body: corpo })
+    });
+    var data = await resp.json();
+    if(resp.ok && data.ok){
+      showToast('✅ E-mail enviado para '+para+'!');
+      /* Registra no histórico da entrada */
+      addHistorico({id:e.id, historico:e.historico||[], cidade:e.cidade},
+        'checkin','E-mail alimentação enviado para '+para,{cidade:e.cidade});
+    } else {
+      /* Fallback: abre cliente de e-mail */
+      showToast('⚠️ Falha no envio automático. Abrindo cliente de e-mail...');
+      _abrirMailtoAlimentacao(para, assunto, corpo);
+    }
+  } catch(err){
+    /* Sem API (ex: desenvolvimento local) — fallback mailto */
+    showToast('📧 Abrindo cliente de e-mail...');
+    _abrirMailtoAlimentacao(para, assunto, corpo);
+  }
 };
+
+window._abrirMailtoAlimentacao = function(para, assunto, corpo){
+  var nl = '%0D%0A';
+  var corpoEnc = encodeURIComponent(corpo).replace(/%5Cr%5Cn/g, nl).replace(/%0A/g, nl);
+  var link = 'mailto:'+para+'?subject='+encodeURIComponent(assunto)+'&body='+corpoEnc;
+  window.open(link, '_blank');
+};
+
 
 window.__exportarFrota = function(){
   /* Gera CSV no formato FROTA PE: CIDADE | VEÍCULO | N°OP | PLACA | KM | ANO */
