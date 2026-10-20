@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Checklist — Troca de Veículo CNH PE</title>
+<style>
+:root{
+  --teal:#1B6B5E;--teal-dk:#134F46;--teal-lt:#EBF7F4;
+  --green:#276749;--green-lt:#EBF7F0;--green-bd:#6FCF97;
+  --red:#C53030;--red-lt:#FFF5F5;
+  --amber:#856404;--amber-lt:#FFFBF0;--amber-bd:#FFD700;
+  --ink:#1A202C;--ink-soft:#718096;
+  --bg:#F7FAFC;--white:#fff;--line:#E2E8F0;
+  --r:10px;--sh:0 2px 8px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:40px}
+.wrap{max-width:680px;margin:0 auto;padding:12px 14px}
+
+.hd{background:var(--teal);color:#fff;padding:14px 18px;border-radius:var(--r);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.hd h1{font-size:16px;font-weight:700}
+.hd p{font-size:12px;opacity:.8;margin-top:2px}
+
+.tabs{display:flex;gap:6px;background:var(--white);border-radius:var(--r);padding:4px;box-shadow:var(--sh);margin-bottom:14px}
+.tab{flex:1;padding:8px 4px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;background:none;color:var(--ink-soft)}
+.tab.on{background:var(--teal);color:#fff}
+
+.card{background:var(--white);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--sh)}
+.ctitle{font-size:13.5px;font-weight:700;color:var(--teal);margin-bottom:12px}
+
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:480px){.g2,.g3{grid-template-columns:1fr}}
+.f{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.f label{font-size:12px;font-weight:600;color:var(--ink-soft)}
+.f input,.f select,.f textarea{border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;color:var(--ink);background:var(--white);font-family:inherit}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:var(--teal)}
+.f textarea{resize:vertical;min-height:72px}
+
+.sh{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);margin:14px 0 8px;display:flex;align-items:center;gap:6px}
+.sh::after{content:'';flex:1;height:1px;background:var(--line)}
+
+/* Checklist rows */
+.ci{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);margin-bottom:6px;background:var(--white)}
+.ci.ok{border-color:var(--green-bd);background:var(--green-lt)}
+.ci.nok{border-color:#FC8181;background:var(--red-lt)}
+.ci.na{border-color:var(--amber-bd);background:var(--amber-lt)}
+.ci-name{flex:1;font-size:13px}
+.opts{display:flex;gap:4px}
+.opts label{display:flex;align-items:center;gap:3px;font-size:11.5px;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:6px;border:1.5px solid var(--line);white-space:nowrap;user-select:none}
+.opts input[type=radio]{display:none}
+.opts label.sel-ok{background:var(--green);border-color:var(--green);color:#fff}
+.opts label.sel-nok{background:var(--red);border-color:var(--red);color:#fff}
+.opts label.sel-na{background:var(--amber);border-color:var(--amber);color:#fff}
+
+/* Fuel */
+.fuel{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.fseg{width:30px;height:20px;border-radius:4px;border:2px solid var(--line);cursor:pointer;transition:all .1s}
+.fseg.on{background:var(--green);border-color:var(--green)}
+
+/* Signature */
+.sig-box{border:1.5px solid var(--line);border-radius:8px;overflow:hidden}
+canvas{display:block;width:100%;height:100px;cursor:crosshair;touch-action:none;background:#fff}
+.sig-toolbar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-top:1px solid var(--line)}
+.sig-toolbar span{flex:1;font-size:11.5px;color:var(--ink-soft)}
+
+/* Buttons */
+.btn{border:none;border-radius:8px;padding:10px 18px;font-size:13.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-p{background:var(--teal);color:#fff;width:100%;padding:13px}
+.btn-g{background:none;border:1.5px solid var(--line);color:var(--ink)}
+.btn-del{background:var(--red);color:#fff;font-size:12px;padding:5px 12px}
+
+/* List */
+.row{background:var(--white);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;box-shadow:var(--sh);cursor:pointer;border:1.5px solid transparent}
+.row:hover{border-color:var(--teal)}
+.row-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row-s{font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:700}
+.b-ok{background:var(--green-lt);color:var(--green)}
+.b-nok{background:var(--red-lt);color:var(--red)}
+.b-pend{background:var(--amber-lt);color:var(--amber)}
+
+/* View */
+.vi{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;margin-bottom:5px;background:var(--bg)}
+.vi-n{flex:1;font-size:13px}
+.v-ok{color:var(--green);font-weight:700;font-size:12px}
+.v-nok{color:var(--red);font-weight:700;font-size:12px}
+.v-na{color:var(--amber);font-weight:700;font-size:12px}
+.info-row{display:flex;gap:6px;flex-direction:column;font-size:13px}
+.info-row .kv{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.info-row .kv:last-child{border:none}
+.info-row .kv span:first-child{color:var(--ink-soft);font-size:12px;min-width:120px}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);background:#1A202C;color:#fff;padding:9px 18px;border-radius:999px;font-size:13px;font-weight:600;opacity:0;transition:all .25s;z-index:9999;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.loading{text-align:center;padding:50px;color:var(--ink-soft)}
+.empty{text-align:center;padding:50px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="loading">⏳ Carregando…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── Supabase config ─────────────────────────────────────────── */
+var SB_URL = 'https://dvypppchbsntnhnqttdq.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2eXBwcGNoYnNudG5obnF0dGRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTgzNDcsImV4cCI6MjA5ODQ3NDM0N30.QFjjTM8-g6w-nf_zuuEEn8bOo00l-ZBt6wlP5PxpfHE';
+var DB_KEY = 'checklists-troca';
+
+/* ── Dados de domínio ────────────────────────────────────────── */
+var CIDADES = ['Recife','Caruaru','Garanhuns','Petrolina','Arcoverde',
+  'Afogados da Ingazeira','Belo Jardim','Pesqueira','Araripina','Ouricuri',
+  'Salgueiro','Serra Talhada','Vitória de Santo Antão','Timbaúba',
+  'Limoeiro','Palmares','Surubim','Sta Cruz do Capibaribe'];
+
+var ITENS = [
+  {id:'cam_f',  g:'equip', l:'📷 Câmera frontal'},
+  {id:'cam_l',  g:'equip', l:'📷 Câmera lateral'},
+  {id:'cam_i',  g:'equip', l:'📷 Câmera interna'},
+  {id:'cam_t',  g:'equip', l:'📷 Câmera traseira'},
+  {id:'biom',   g:'equip', l:'👆 Leitor biométrico'},
+  {id:'case',   g:'equip', l:'💼 Case (equipamentos)'},
+  {id:'chrod',  g:'seg',   l:'🔧 Chave de roda'},
+  {id:'mac',    g:'seg',   l:'🔩 Macaco'},
+  {id:'tri',    g:'seg',   l:'⚠️ Triângulo'},
+  {id:'est',    g:'seg',   l:'🛞 Estepe'},
+  {id:'crlv',   g:'seg',   l:'📋 CRLV (documento)'},
+  {id:'taco',   g:'cde',   l:'🕐 Tacógrafo'},
+  {id:'pneus',  g:'cond',  l:'🛞 Pneus (estado geral)'},
+  {id:'vidros', g:'cond',  l:'🪟 Vidros / Retrovisores'},
+  {id:'lint',   g:'cond',  l:'🧹 Limpeza interna'},
+  {id:'lext',   g:'cond',  l:'🚗 Limpeza externa'},
+  {id:'avar',   g:'cond',  l:'🔍 Avarias visíveis'},
+];
+var MOTIVOS = ['Substituição planejada','Problema mecânico','Sinistro / Acidente','Apoio operacional','Outro'];
+var CATS    = ['B','C','D','E'];
+
+/* ── Estado local ────────────────────────────────────────────── */
+var checklists = [];
+var view = 'list'; // list | new | detail
+var viewId = null;
+var sigC, sigX, sigDraw = false, sigLx = 0, sigLy = 0, sigOk = false;
+var itensState = {}; // {id: 'ok'|'nok'|'na'}
+var fuelVal = 0;
+
+/* ── Supabase XHR helpers ────────────────────────────────────── */
+function sbGet(key) {
+  return new Promise(function(res) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', SB_URL+'/rest/v1/kv_store?key=eq.'+encodeURIComponent(key)+'&select=value&limit=1', true);
+    xhr.setRequestHeader('apikey', SB_KEY);
+    xhr.setRequestHeader('Authorization', 'Bearer '+SB_KEY);
+    xhr.timeout = 12000;
+    xhr.onload = function() {
+      try { var d = JSON.parse(xhr.responseText); res(d && d[0] ? d[0].value : null); }
+      catch(_) { res(null); }
+    };
+    xhr.onerror = xhr.ontimeout = function() { res(null); };
+    xhr.send();
+  });
+}
+function sbSet(key, value) {
+  return new Promise(function(res) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', SB_URL+'/rest/v1/kv_store', true);
+    xhr.setRequestHeader('apikey', SB_KEY);
+    xhr.setRequestHeader('Authorization', 'Bearer '+SB_KEY);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Prefer', 'resolution=merge-duplicates');
+    xhr.timeout = 12000;
+    xhr.onload = function() { res({ok: xhr.status >= 200 && xhr.status < 300}); };
+    xhr.onerror = xhr.ontimeout = function() { res({ok: false}); };
+    xhr.send(JSON.stringify({key: key, value: value}));
+  });
+}
+
+/* ── Init ────────────────────────────────────────────────────── */
+async function init() {
+  var raw = await sbGet(DB_KEY);
+  try { checklists = raw ? JSON.parse(raw) : []; } catch(_) { checklists = []; }
+  renderList();
+}
+
+/* ── LISTA ───────────────────────────────────────────────────── */
+function renderList() {
+  view = 'list';
+  var rows = checklists.length
+    ? checklists.slice().reverse().map(function(c,i) {
+        var nokCount = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
+        var badge = nokCount > 0
+          ? '<span class="badge b-nok">⚠️ '+nokCount+' NOK</span>'
+          : '<span class="badge b-ok">✅ OK</span>';
+        return '<div class="row" onclick="showDetail('+( checklists.length-1-i)+')">'
+          +'<div class="row-h">'
+          +'<b style="font-size:14px;">🚗 '+e(c.placa)+'</b>'
+          +'<span style="font-size:13px;">'+e(c.cidade)+'</span>'
+          +'<span style="font-size:12px;color:var(--ink-soft);">Cat.'+e(c.cat)+'</span>'
+          +badge
+          +'<span style="font-size:11.5px;color:var(--ink-soft);margin-left:auto;">'+e(fd(c.data))+'</span>'
+          +'</div>'
+          +'<div class="row-s">'+e(c.origem)+' → '+e(c.destino)
+          +' · 🚗 '+e(c.motorista)+' · '+e(c.responsavel)+'</div>'
+          +'</div>';
+      }).join('')
+    : '<div class="empty">📋<br><br>Nenhum checklist registrado ainda.<br><small>Clique em "Novo Checklist" para começar.</small></div>';
+
+  R('<div class="hd"><div style="font-size:28px">🚗</div>'
+    +'<div><h1>Checklist — Troca de Veículo</h1><p>CNH Pernambuco · Operações</p></div></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+    +'<span style="font-size:13px;color:var(--ink-soft);">'+checklists.length+' registro(s)</span>'
+    +'<button class="btn btn-p" style="width:auto;padding:8px 16px;" onclick="showNew()">✚ Novo Checklist</button>'
+    +'</div>'+rows);
+}
+
+/* ── NOVO FORMULÁRIO ─────────────────────────────────────────── */
+function showNew() {
+  view = 'new';
+  itensState = {};
+  fuelVal = 0;
+  var today = new Date().toISOString().slice(0,10);
+  var cOpts = '<option value="">Selecione…</option>'+CIDADES.map(function(c){return '<option>'+e(c)+'</option>';}).join('');
+  var catOpts = CATS.map(function(c){return '<option value="'+c+'">Categoria '+c+'</option>';}).join('');
+  var motOpts = MOTIVOS.map(function(m){return '<option>'+e(m)+'</option>';}).join('');
+
+  var itemsHtml = renderItemGroup('equip','📹 Câmeras e equipamentos','equip')
+    + renderItemGroup('seg','🔐 Segurança e documentação','seg')
+    + '<div id="cde-block" style="display:none">'
+    + renderItemGroup('cde','🕐 Cat. C / D / E','cde')+'</div>'
+    + renderItemGroup('cond','🚗 Condições do veículo','cond');
+
+  var fuelSegs = [1,2,3,4,5,6,7,8].map(function(n){
+    return '<div class="fseg" id="fs'+n+'" onclick="setFuel('+n+')" title="'+Math.round(n/8*100)+'%"></div>';
+  }).join('');
+
+  R('<div class="hd"><div style="font-size:28px">📋</div>'
+    +'<div><h1>Novo Checklist</h1><p>Troca / Transferência de Veículo</p></div></div>'
+
+    +'<div class="card"><div class="ctitle">📍 Dados da operação</div>'
+    +'<div class="g2"><div class="f"><label>Data</label><input type="date" id="fi-data" value="'+today+'"></div>'
+    +'<div class="f"><label>Categoria</label><select id="fi-cat" onchange="updCDE()">'+catOpts+'</select></div></div>'
+    +'<div class="g2"><div class="f"><label>Placa</label><input type="text" id="fi-placa" placeholder="AAA-0000" style="text-transform:uppercase"></div>'
+    +'<div class="f"><label>N° Operação</label><input type="text" id="fi-op" placeholder="Ex: 06"></div></div>'
+    +'<div class="g2"><div class="f"><label>Cidade de origem</label><select id="fi-orig">'+cOpts+'</select></div>'
+    +'<div class="f"><label>Cidade de destino</label><select id="fi-dest">'+cOpts+'</select></div></div>'
+    +'<div class="g2"><div class="f"><label>Cidade da operação</label><select id="fi-cid">'+cOpts+'</select></div>'
+    +'<div class="f"><label>Motivo</label><select id="fi-mot">'+motOpts+'</select></div></div>'
+    +'<div class="f"><label>Motorista</label><input type="text" id="fi-mot-nome" placeholder="Nome completo do motorista"></div>'
+    +'</div>'
+
+    +'<div class="card"><div class="ctitle">✅ Checklist de itens</div>'
+    +itemsHtml+'</div>'
+
+    +'<div class="card"><div class="ctitle">⛽ Nível de combustível</div>'
+    +'<div class="fuel">'+fuelSegs+'<span id="fuel-lbl" style="font-size:12px;color:var(--ink-soft);margin-left:6px;">— não informado</span></div>'
+    +'</div>'
+
+    +'<div class="card"><div class="ctitle">📝 Observações</div>'
+    +'<div class="f"><textarea id="fi-obs" placeholder="Avarias, itens faltantes, observações gerais…"></textarea></div></div>'
+
+    +'<div class="card"><div class="ctitle">✍️ Assinatura do responsável</div>'
+    +'<div class="f"><label>Seu nome (líder / auxiliar)</label><input type="text" id="fi-resp" placeholder="Nome completo"></div>'
+    +'<div class="sig-box"><canvas id="sig" width="640" height="100"></canvas>'
+    +'<div class="sig-toolbar"><span>Assine com o dedo ou mouse</span>'
+    +'<button class="btn btn-g" style="font-size:12px;padding:5px 10px;" onclick="clearSig()">🗑 Limpar</button></div></div>'
+    +'</div>'
+
+    +'<div style="display:flex;gap:10px;margin-bottom:24px;">'
+    +'<button class="btn btn-g" style="flex:1;" onclick="renderList()">← Voltar</button>'
+    +'<button class="btn btn-p" style="flex:2;" onclick="salvar()">💾 Salvar Checklist</button>'
+    +'</div>');
+
+  initSig();
+}
+
+function renderItemGroup(group, title, _) {
+  var items = ITENS.filter(function(i){return i.g===group;});
+  var rows = items.map(function(item){
+    return '<div class="ci" id="ci-'+item.id+'">'
+      +'<span class="ci-name">'+item.l+'</span>'
+      +'<div class="opts">'
+      +'<label id="lbl-'+item.id+'-ok"   onclick="setItem(\''+item.id+'\',\'ok\')">✓ OK</label>'
+      +'<label id="lbl-'+item.id+'-nok"  onclick="setItem(\''+item.id+'\',\'nok\')">✗ NOK</label>'
+      +'<label id="lbl-'+item.id+'-na"   onclick="setItem(\''+item.id+'\',\'na\')">— N/A</label>'
+      +'</div></div>';
+  }).join('');
+  return '<div class="sh">'+title+'</div>'+rows;
+}
+
+function setItem(id, val) {
+  itensState[id] = val;
+  var row = document.getElementById('ci-'+id);
+  if (row) { row.className = 'ci '+val; }
+  ['ok','nok','na'].forEach(function(v) {
+    var l = document.getElementById('lbl-'+id+'-'+v);
+    if (l) l.className = (v===val ? 'sel-'+v : '');
+  });
+}
+
+function updCDE() {
+  var cat = (document.getElementById('fi-cat')||{}).value;
+  var b = document.getElementById('cde-block');
+  if (b) b.style.display = ['C','D','E'].indexOf(cat) >= 0 ? 'block' : 'none';
+}
+
+function setFuel(n) {
+  fuelVal = n;
+  for (var i=1; i<=8; i++) {
+    var s = document.getElementById('fs'+i);
+    if (s) s.className = 'fseg'+(i<=n?' on':'');
+  }
+  var lbl = document.getElementById('fuel-lbl');
+  if (lbl) lbl.textContent = Math.round(n/8*100)+'%';
+}
+
+/* Signature */
+function initSig() {
+  var canvas = document.getElementById('sig');
+  if (!canvas) return;
+  sigC = canvas.getContext('2d');
+  sigC.strokeStyle = '#1A202C'; sigC.lineWidth = 2.2; sigC.lineCap = 'round';
+  sigOk = false;
+  function gp(ev) {
+    var r = canvas.getBoundingClientRect();
+    var sx = canvas.width/r.width, sy = canvas.height/r.height;
+    var src = ev.touches ? ev.touches[0] : ev;
+    return {x:(src.clientX-r.left)*sx, y:(src.clientY-r.top)*sy};
+  }
+  function start(ev) { sigDraw=true; var p=gp(ev); sigLx=p.x; sigLy=p.y; }
+  function move(ev)  { if(!sigDraw) return; var p=gp(ev); sigC.beginPath(); sigC.moveTo(sigLx,sigLy); sigC.lineTo(p.x,p.y); sigC.stroke(); sigLx=p.x; sigLy=p.y; sigOk=true; }
+  function end()     { sigDraw=false; }
+  canvas.addEventListener('mousedown',  start);
+  canvas.addEventListener('mousemove',  move);
+  canvas.addEventListener('mouseup',    end);
+  canvas.addEventListener('mouseleave', end);
+  canvas.addEventListener('touchstart', function(ev){ev.preventDefault();start(ev);},{passive:false});
+  canvas.addEventListener('touchmove',  function(ev){ev.preventDefault();move(ev);},{passive:false});
+  canvas.addEventListener('touchend',   end);
+}
+function clearSig() { if(sigC){var c=document.getElementById('sig');sigC.clearRect(0,0,c.width,c.height);sigOk=false;} }
+
+/* ── SALVAR ──────────────────────────────────────────────────── */
+async function salvar() {
+  var placa   = ((document.getElementById('fi-placa')||{}).value||'').trim().toUpperCase();
+  var orig    = (document.getElementById('fi-orig')||{}).value||'';
+  var dest    = (document.getElementById('fi-dest')||{}).value||'';
+  var mot     = ((document.getElementById('fi-mot-nome')||{}).value||'').trim();
+  var resp    = ((document.getElementById('fi-resp')||{}).value||'').trim();
+  var data    = (document.getElementById('fi-data')||{}).value||'';
+  var cid     = (document.getElementById('fi-cid')||{}).value || dest;
+  var cat     = (document.getElementById('fi-cat')||{}).value||'B';
+
+  if (!placa)  { toast('⚠️ Informe a placa.'); return; }
+  if (!orig)   { toast('⚠️ Selecione a cidade de origem.'); return; }
+  if (!dest)   { toast('⚠️ Selecione a cidade de destino.'); return; }
+  if (!mot)    { toast('⚠️ Informe o motorista.'); return; }
+  if (!resp)   { toast('⚠️ Informe o responsável.'); return; }
+
+  var sig = '';
+  if (sigOk) { var cv = document.getElementById('sig'); if(cv) sig = cv.toDataURL('image/jpeg',0.5); }
+
+  var doc = {
+    id: 'CK'+Date.now().toString(36).toUpperCase(),
+    data: data, placa: placa, cat: cat,
+    op: ((document.getElementById('fi-op')||{}).value||'').trim(),
+    cidade: cid, origem: orig, destino: dest,
+    motivo: (document.getElementById('fi-mot')||{}).value||'',
+    motorista: mot, responsavel: resp,
+    itens: Object.assign({}, itensState),
+    combustivel: fuelVal,
+    obs: ((document.getElementById('fi-obs')||{}).value||'').trim(),
+    assinatura: sig,
+    criadoEm: new Date().toISOString()
+  };
+
+  toast('💾 Salvando…');
+  checklists.push(doc);
+  var r = await sbSet(DB_KEY, JSON.stringify(checklists));
+  if (r.ok) {
+    toast('✅ Checklist salvo!');
+    setTimeout(renderList, 1000);
+  } else {
+    checklists.pop();
+    toast('❌ Erro ao salvar. Verifique a conexão.');
+  }
+}
+
+/* ── DETALHE ─────────────────────────────────────────────────── */
+function showDetail(idx) {
+  view = 'detail'; viewId = idx;
+  var c = checklists[idx];
+  if (!c) { renderList(); return; }
+
+  var nokN = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
+  var stBadge = nokN > 0
+    ? '<span class="badge b-nok">⚠️ '+nokN+' item(s) NOK</span>'
+    : '<span class="badge b-ok">✅ Todos OK</span>';
+
+  var iHtml = ITENS.map(function(item) {
+    var v = (c.itens||{})[item.id]; if (!v) return '';
+    var l = v==='ok'?'<span class="v-ok">✓ OK</span>':v==='nok'?'<span class="v-nok">✗ NOK</span>':'<span class="v-na">— N/A</span>';
+    return '<div class="vi"><span class="vi-n">'+item.l+'</span>'+l+'</div>';
+  }).join('');
+
+  var fuel = c.combustivel ? Math.round(c.combustivel/8*100)+'%' : '—';
+
+  R('<div class="hd"><div style="font-size:28px">📋</div>'
+    +'<div><h1>'+e(c.placa)+' — Cat. '+e(c.cat)+'</h1>'
+    +'<p>'+e(fd(c.data))+' · '+e(c.origem)+' → '+e(c.destino)+'</p></div></div>'
+
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'
+    +stBadge
+    +'<span style="font-size:12px;color:var(--ink-soft);">por '+e(c.responsavel)+'</span>'
+    +'<button class="btn btn-del" style="margin-left:auto;" onclick="excluir('+idx+')">🗑 Excluir</button>'
+    +'</div>'
+
+    +'<div class="card"><div class="ctitle">📍 Informações</div>'
+    +'<div class="info-row">'
+    +'<div class="kv"><span>Placa</span><b>'+e(c.placa)+'</b></div>'
+    +'<div class="kv"><span>N° Operação</span><span>'+e(c.op||'—')+'</span></div>'
+    +'<div class="kv"><span>Motorista</span><span>'+e(c.motorista)+'</span></div>'
+    +'<div class="kv"><span>Motivo</span><span>'+e(c.motivo)+'</span></div>'
+    +'<div class="kv"><span>Combustível</span><span>'+fuel+'</span></div>'
+    +'<div class="kv"><span>Responsável</span><span>'+e(c.responsavel)+'</span></div>'
+    +'</div></div>'
+
+    +'<div class="card"><div class="ctitle">✅ Checklist</div>'+(iHtml||'<p style="color:var(--ink-soft);font-size:13px;">Nenhum item registrado.</p>')+'</div>'
+
+    +(c.obs?'<div class="card"><div class="ctitle">📝 Observações</div><p style="font-size:13.5px;line-height:1.6;">'+e(c.obs)+'</p></div>':'')
+
+    +(c.assinatura?'<div class="card"><div class="ctitle">✍️ Assinatura</div>'
+      +'<img src="'+c.assinatura+'" style="max-width:100%;border-radius:8px;border:1px solid var(--line);">'
+      +'<p style="font-size:12px;color:var(--ink-soft);margin-top:6px;">'+e(c.responsavel)+'</p></div>':'')
+
+    +'<button class="btn" style="background:none;border:1.5px solid var(--line);width:100%;padding:12px;margin-bottom:24px;" onclick="renderList()">← Voltar à lista</button>');
+}
+
+async function excluir(idx) {
+  if (!confirm('Excluir este checklist permanentemente?')) return;
+  checklists.splice(idx, 1);
+  var r = await sbSet(DB_KEY, JSON.stringify(checklists));
+  if (r.ok) { toast('🗑 Excluído.'); renderList(); }
+  else { checklists.splice(idx, 0, checklists[idx]); toast('❌ Erro ao excluir.'); }
+}
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+function R(html) { document.getElementById('app').innerHTML = html; }
+function e(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fd(s){
+  if(!s) return '—';
+  if(s.includes('-')&&s.length>=10){var p=s.slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+  return s;
+}
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast on';
+  clearTimeout(t._t); t._t = setTimeout(function(){t.className='toast';}, 2800);
+}
+
+window.showNew = showNew;
+window.renderList = renderList;
+window.showDetail = showDetail;
+window.excluir = excluir;
+window.salvar = salvar;
+window.setItem = setItem;
+window.updCDE = updCDE;
+window.setFuel = setFuel;
+window.clearSig = clearSig;
+
+init();
+</script>
+</body>
+</html>
