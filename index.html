@@ -3355,7 +3355,9 @@ function renderOverview(){
     html += '</div>';
   })();
 
-  document.getElementById('tabContent').innerHTML = html;
+  try{
+    document.getElementById('tabContent').innerHTML = html;
+  }catch(e){ console.error('renderOverview error:',e); }
 
   /* FT overview listeners */
   document.querySelectorAll('.add-ft-ov-btn').forEach(function(btn){
@@ -6130,7 +6132,13 @@ window.__toggleFdsCidadeCat = async function(btn){
   state.planFds[dataSab].cats[cidade] = curCats;
   state.gestaoEscala = state.gestaoEscala||{};
   state.gestaoEscala['__planFds'] = state.planFds;
-  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  var tPayload = JSON.stringify(state.gestaoEscala);
+  try {
+    if(sb){ var tr=await sb.from('kv_store').upsert({key:'gestao-escala',value:tPayload},{onConflict:'key'});
+      if(!tr.error){ try{localStorage.setItem('painelpe_gestao-escala',tPayload);}catch(_){} _supaFalhas=0;_supaCircuitoAberto=false; }
+      else throw new Error(tr.error.message); }
+    else throw new Error('sb null');
+  } catch(_){ _supaFalhas=0;_supaCircuitoAberto=false; await storageSet('gestao-escala',tPayload,true); }
 };
 window.__toggleFdsCat = function(btn){
   btn.dataset.sel = (btn.dataset.sel === '1') ? '0' : '1';
@@ -6141,8 +6149,7 @@ window.__toggleFdsCat = function(btn){
 window.__addCidadeFds = async function(dataSab, inputId, mes){
   var cidade = ((document.getElementById(inputId)||{}).value || '').trim();
   if(!cidade){ showToast('Selecione a cidade.'); return; }
-  /* cidade adicionada com todas as categorias por padrão —
-     o usuário ajusta via botões no badge da cidade */
+
   var cats = ['A','B','C','D','E'];
   if(!state.planFds) state.planFds = {};
   if(!state.planFds[dataSab]) state.planFds[dataSab] = {cidades:[], cats:{}};
@@ -6150,21 +6157,69 @@ window.__addCidadeFds = async function(dataSab, inputId, mes){
   if(state.planFds[dataSab].cidades.indexOf(cidade) < 0)
     state.planFds[dataSab].cidades.push(cidade);
   state.planFds[dataSab].cats[cidade] = cats;
-  /* limpar input após adicionar */
+
   var inp = document.getElementById(inputId);
   if(inp) inp.value = '';
+
   if(!state.gestaoEscala) state.gestaoEscala = {};
   state.gestaoEscala['__planFds'] = state.planFds;
-  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  var gePayload = JSON.stringify(state.gestaoEscala);
+
+  /* Warmup + reset circuit antes de salvar */
+  _supaFalhas = 0; _supaCircuitoAberto = false;
+  try { await storageGet('meta-config', true); } catch(_){}
+  _supaFalhas = 0; _supaCircuitoAberto = false;
+
+  var salvo = false;
+  try {
+    if(sb){
+      var gr = await sb.from('kv_store').upsert(
+        {key:'gestao-escala', value:gePayload}, {onConflict:'key'});
+      if(!gr.error){
+        try{ localStorage.setItem('painelpe_gestao-escala', gePayload); }catch(_){}
+        _supaFalhas = 0; _supaCircuitoAberto = false;
+        salvo = true;
+      } else { throw new Error(gr.error.message); }
+    } else { throw new Error('sb null'); }
+  } catch(e1){
+    /* fallback XHR */
+    _supaFalhas = 0; _supaCircuitoAberto = false;
+    var r2 = await storageSet('gestao-escala', gePayload, true);
+    if(r2 && r2.ok) salvo = true;
+    else console.error('__addCidadeFds fallback falhou:', e1.message, r2);
+  }
+
+  if(salvo){
+    showToast('✅ ' + cidade + ' confirmada para ' + dataParaDisplay(dataSab) + '!');
+  } else {
+    showToast('⚠️ ' + cidade + ' adicionada localmente — clique 🔄 Sincronizar para salvar no banco.');
+  }
   renderGestaoTab();
 };
+
 window.__rmCidadeFds = async function(dataSab, cidade){
   if(!state.planFds || !state.planFds[dataSab]) return;
   state.planFds[dataSab].cidades = state.planFds[dataSab].cidades.filter(function(c){return c!==cidade;});
   if(state.planFds[dataSab].cats) delete state.planFds[dataSab].cats[cidade];
   if(!state.gestaoEscala) state.gestaoEscala = {};
   state.gestaoEscala['__planFds'] = state.planFds;
-  await storageSet('gestao-escala', JSON.stringify(state.gestaoEscala), true);
+  var gePayload = JSON.stringify(state.gestaoEscala);
+  try {
+    if(sb){
+      var gr = await sb.from('kv_store').upsert(
+        {key:'gestao-escala', value:gePayload}, {onConflict:'key'});
+      if(!gr.error){
+        try{ localStorage.setItem('painelpe_gestao-escala', gePayload); }catch(_){}
+        _supaFalhas=0; _supaCircuitoAberto=false;
+      } else { throw new Error(gr.error.message); }
+    } else { throw new Error('sb não inicializado'); }
+  } catch(_){
+    /* fallback XHR */
+    _supaFalhas=0; _supaCircuitoAberto=false;
+    await storageSet('gestao-escala', gePayload, true);
+  }
+  var inp2 = document.getElementById(inputId);
+  if(inp2) inp2.value = '';
   renderGestaoTab();
 };
 
@@ -7632,8 +7687,7 @@ window.__salvarTodasVagas = async function(mes){
     _supaFalhas = 0;
     _supaCircuitoAberto = false;
 
-    showToast('✅ ' + nomeMes(mes) + ': vagas e meta salvas!');
-    renderRelatorioTab();
+    showToast('✅ ' + nomeMes(mes) + ': vagas e meta de ' + nomeMes(mes) + ' salvas! Vá à Visão Geral para ver o alerta.');
 
   } catch(err) {
     console.error('salvarTodasVagas erro:', err.message,
@@ -7645,7 +7699,7 @@ window.__salvarTodasVagas = async function(mes){
       var r2 = await storageSet('metas-categoria', payload, true);
       if(r2 && r2.ok){
         showToast('✅ ' + nomeMes(mes) + ': vagas e meta salvas!');
-        renderRelatorioTab();
+        if(state.activeTab === 'relatorio') renderRelatorioTab();
         return;
       }
     } catch(_){}
