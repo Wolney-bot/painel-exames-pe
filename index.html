@@ -431,6 +431,7 @@ var state = {
   alterarFolgaId: null,
   bateVoltas: [],
   planFds: {},
+  planFdsMes: '',
   filtroDiarioCidade: '',
   filtroDiarioPatio: '',
   metaConfig: {},
@@ -1497,10 +1498,17 @@ function renderGestaoTab(){
     }
 
     /* ══ Calendário FDS — próximo mês ══ */
-    var proximoMesR = mesProximo(mes);
+    /* Mês do planejamento FDS: state.planFdsMes ou próximo mês automático */
+    var proximoMesR = state.planFdsMes || mesProximo(mes);
     var planFdsR = state.planFds || {};
     html += '<div style="margin-top:16px;">';
-    html += '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">📆 Planejamento fins de semana — '+nomeMes(proximoMesR)+'</div>';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">';
+    html += '<div style="font-size:13px;font-weight:700;">📆 Planejamento fins de semana</div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;">';
+    html += '<button onclick="window.__planFdsMesAnterior()" style="border:1px solid var(--line);border-radius:7px;padding:3px 10px;cursor:pointer;font-size:12.5px;background:var(--white);">◀</button>';
+    html += '<span style="font-size:13px;font-weight:700;color:var(--teal);min-width:110px;text-align:center;">'+nomeMes(proximoMesR)+'</span>';
+    html += '<button onclick="window.__planFdsMesProximo()" style="border:1px solid var(--line);border-radius:7px;padding:3px 10px;cursor:pointer;font-size:12.5px;background:var(--white);">▶</button>';
+    html += '</div></div>';
     html += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Informe as cidades confirmadas para cada fim de semana. Alimenta a escala de força tarefa do próximo mês.</div>';
     html += '<datalist id="dl-planfds-cidade">';
     TODAS_CIDADES.forEach(function(c){html+='<option value="'+esc(c)+'">'+esc(c)+'</option>';});
@@ -3716,12 +3724,18 @@ function nomeMes(anoMes){
   return meses[parseInt(partes[1],10)-1]+' / '+partes[0];
 }
 function mesAnterior(anoMes){
-  var d = new Date(anoMes+'-01'); d.setMonth(d.getMonth()-1);
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  var y = parseInt(anoMes.slice(0,4));
+  var m = parseInt(anoMes.slice(5,7));
+  if(m===1){ y--; m=12; } else { m--; }
+  return y+'-'+String(m).padStart(2,'0');
 }
 function mesProximo(anoMes){
-  var d = new Date(anoMes+'-01'); d.setMonth(d.getMonth()+1);
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  /* Aritmética pura — evita bug de fuso UTC no Safari/iOS onde
+     new Date('YYYY-MM-01') cria o dia anterior, corrompendo o mês */
+  var y = parseInt(anoMes.slice(0,4));
+  var m = parseInt(anoMes.slice(5,7));
+  if(m===12){ y++; m=1; } else { m++; }
+  return y+'-'+String(m).padStart(2,'0');
 }
 function dataParaMes(dataISO){ return dataISO ? dataISO.slice(0,7) : ''; }
 function dataParaDisplay(dataISO){
@@ -6146,6 +6160,21 @@ window.__toggleFdsCat = function(btn){
   btn.style.color      = btn.dataset.sel === '1' ? '#fff'    : '#666';
   btn.style.border     = btn.dataset.sel === '1' ? '1.5px solid #276749' : '1.5px solid #ccc';
 };
+
+window.__planFdsMesAnterior = function(){
+  var cur = state.planFdsMes || mesProximo(mesRelAtual());
+  var y = parseInt(cur.slice(0,4));
+  var m = parseInt(cur.slice(5,7));
+  if(m===1){ y--; m=12; } else { m--; }
+  state.planFdsMes = y+'-'+String(m).padStart(2,'0');
+  renderGestaoTab();
+};
+window.__planFdsMesProximo = function(){
+  var cur = state.planFdsMes || mesProximo(mesRelAtual());
+  state.planFdsMes = mesProximo(cur);
+  renderGestaoTab();
+};
+
 window.__addCidadeFds = async function(dataSab, inputId, mes){
   var cidade = ((document.getElementById(inputId)||{}).value || '').trim();
   if(!cidade){ showToast('Selecione a cidade.'); return; }
