@@ -7606,14 +7606,42 @@ window.__salvarTodasVagas = async function(mes){
   if(!state.metasCateg[mes]) state.metasCateg[mes] = {};
   state.metasCateg[mes].meta_global = metaG;
   state.metasCateg[mes].vagas = vagas;
-  var r = await storageSet('metas-categoria', JSON.stringify(state.metasCateg), true);
-  showToast('💾 Salvando...');
-  if(r&&r.ok){
-    showToast('✅ Vagas e meta salvas!');
+
+  /* Se o circuit breaker estiver aberto, tenta reabrir antes de salvar */
+  if(_supaCircuitoAberto){
+    showToast('⏳ Reconectando ao banco...');
+    var teste = await storageGet('meta-config', true);
+    if(teste !== null){
+      _supaCircuitoAberto = false;
+      _supaFalhas = 0;
+    } else {
+      showToast('❌ Banco offline. Clique em 🔄 Sincronizar e tente novamente.');
+      return;
+    }
+  }
+
+  showToast('💾 Salvando ' + nomeMes(mes) + '...');
+  var payload = JSON.stringify(state.metasCateg);
+  console.log('salvarTodasVagas: mes='+mes+', payload='+payload.length+'bytes');
+
+  var r = await storageSet('metas-categoria', payload, true);
+
+  if(r && r.ok){
+    showToast('✅ Vagas e meta de ' + nomeMes(mes) + ' salvas!');
     renderRelatorioTab();
   } else {
-    showToast('❌ Erro ao salvar. Verifique conexão com Supabase.');
-    console.error('salvarTodasVagas falhou:', r);
+    /* Diagnóstico detalhado */
+    var errMsg = '❌ Erro ao salvar';
+    if(r === false){
+      errMsg = '❌ Banco em modo offline. Clique 🔄 Sincronizar.';
+    } else if(r && r.status){
+      errMsg = '❌ Supabase HTTP ' + r.status + (r.msg ? ': ' + r.msg : '');
+    } else if(r && r.msg){
+      errMsg = '❌ ' + r.msg;
+    }
+    showToast(errMsg);
+    console.error('salvarTodasVagas falhou — mes:', mes, '| r:', JSON.stringify(r),
+      '| payload bytes:', payload.length, '| circuito:', _supaCircuitoAberto);
   }
 };
 
