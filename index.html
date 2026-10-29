@@ -1258,7 +1258,7 @@ window.__setManutTarefaStatus = async function(id, status){
 
 function renderGestaoTab(){
   var hoje = hojeLocal();
-  var mes  = state.relMes || mesRelAtual();
+  var mes  = mesRelAtual(); /* sempre mês atual — não usa state.relMes do Relatório */
   var sete = (function(){ var d=new Date(hoje+'T12:00:00'); d.setDate(d.getDate()-7); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
 
   /* ── dados base ──────────────────────────────────────────────── */
@@ -7609,43 +7609,49 @@ window.__salvarTodasVagas = async function(mes){
   state.metasCateg[mes].vagas = vagas;
 
   showToast('💾 Salvando ' + nomeMes(mes) + '...');
-
-  /* ── Warmup: GET antes do POST (igual ao Sincronizar) ────────
-     Sem isso, o primeiro POST frio ao Supabase pode falhar.
-     Um GET qualquer aquece a conexão e valida a sessão. ─────── */
-  _supaFalhas = 0;
-  _supaCircuitoAberto = false;
-  try { await storageGet('meta-config', true); } catch(_){}
-
-  /* ── Reset de proteção antes do save ────────────────────────── */
-  _supaFalhas = 0;
-  _supaCircuitoAberto = false;
-
   var payload = JSON.stringify(state.metasCateg);
-  var r = await storageSet('metas-categoria', payload, true);
 
-  /* ── Retry automático se a 1ª tentativa falhar ──────────────── */
-  if(!r || !r.ok){
-    showToast('⏳ Reconectando e tentando novamente...');
-    await new Promise(function(res){ setTimeout(res, 2000); });
-    try { await storageGet('meta-config', true); } catch(_){}
+  /* ── Usa o cliente Supabase JS diretamente (mesmo que o Sincronizar)
+     para contornar o circuit breaker e o _xhrSet ────────────────── */
+  try {
+    if(!sb) throw new Error('Cliente Supabase não inicializado');
+
+    var res = await sb.from('kv_store').upsert(
+      { key: 'metas-categoria', value: payload },
+      { onConflict: 'key' }
+    );
+
+    if(res.error){
+      throw new Error(res.error.message || JSON.stringify(res.error));
+    }
+
+    /* Atualiza localStorage também */
+    try { localStorage.setItem('painelpe_metas-categoria', payload); } catch(_){}
+
+    /* Reseta contadores de falha */
     _supaFalhas = 0;
     _supaCircuitoAberto = false;
-    r = await storageSet('metas-categoria', payload, true);
-  }
 
-  if(r && r.ok){
     showToast('✅ ' + nomeMes(mes) + ': vagas e meta salvas!');
     renderRelatorioTab();
-  } else {
-    var errMsg = r === false
-      ? '❌ Banco offline. Clique 🔄 Sincronizar.'
-      : (r && r.status)
-        ? '❌ Supabase HTTP ' + r.status + (r.msg ? ' — ' + r.msg : '')
-        : '❌ Erro ao salvar após 2 tentativas.';
-    showToast(errMsg);
-    console.error('salvarTodasVagas falhou:', JSON.stringify(r),
+
+  } catch(err) {
+    console.error('salvarTodasVagas erro:', err.message,
       '| mes:', mes, '| bytes:', payload.length);
+
+    /* Fallback: tenta via _xhrSet direto como segunda opção */
+    try {
+      _supaFalhas = 0; _supaCircuitoAberto = false;
+      var r2 = await storageSet('metas-categoria', payload, true);
+      if(r2 && r2.ok){
+        showToast('✅ ' + nomeMes(mes) + ': vagas e meta salvas!');
+        renderRelatorioTab();
+        return;
+      }
+    } catch(_){}
+
+    showToast('❌ Erro: ' + (err.message || 'falha ao salvar').slice(0,80)
+      + '. Tente clicar 🔄 Sincronizar primeiro.');
   }
 };
 
