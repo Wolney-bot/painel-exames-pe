@@ -3799,7 +3799,7 @@ function renderPlanejamentoTab(){
 
   htmlRel += '<div style="display:flex;justify-content:flex-end;margin-top:10px;gap:8px;">';
   htmlRel += '<span style="font-size:12px;color:var(--ink-soft);align-self:center;">Total de vagas: <b>'+totalVagas.toLocaleString('pt-BR')+'</b> · Meta PE: <b>'+((metaGlobal||37000).toLocaleString('pt-BR'))+'</b></span>';
-  htmlRel += '<button class="btn btn-primary" id="btn-salvar-vagas" data-mes="'+esc(mes)+'" style="font-size:12.5px;padding:7px 16px;">💾 Salvar vagas e meta</button>';
+  htmlRel += '<button class="btn btn-primary" id="btn-salvar-vagas" onclick="window.__salvarTodasVagas()" style="font-size:12.5px;padding:7px 16px;cursor:pointer;">💾 Salvar vagas e meta</button>';
   htmlRel += '</div>';
   htmlRel += '</div>';
 
@@ -4655,9 +4655,10 @@ function renderAgendaTab(){
   document.getElementById('tabContent').innerHTML = html;
 
   /* addEventListener para checkboxes de dias A/B */
-  document.querySelectorAll('.dia-input').forEach(function(cb){
+  /* dia-cat-input = A/B separate */
+  document.querySelectorAll('.dia-cat-input').forEach(function(cb){
     cb.addEventListener('change', function(){
-      window.__draftEntryDia(this.dataset.wid, this.dataset.date, this.checked);
+      window.__draftEntryDiaCat(this.dataset.wid, this.dataset.date, this.dataset.cat, this.checked);
     });
   });
   /* addEventListener para checkboxes de dias CDE (múltiplas datas por categoria) */
@@ -4898,11 +4899,12 @@ function renderWeekCard(w, numero){
       return html2;
     })() : '')+
     (function(){
-      /* A/B: opção de todos os dias ou dias específicos */
-      var temAB = draft.cats && draft.cats.some(function(c){return c==='A'||c==='B';});
-      if(!temAB) return '';
-      var todosOsDias = draft.todosOsDias !== false; /* default true */
-      var diasSel = draft.diasSelecionados || [];
+      /* A/B: seletores de dias SEPARADOS por categoria */
+      var temA = draft.cats && draft.cats.indexOf('A') > -1;
+      var temB = draft.cats && draft.cats.indexOf('B') > -1;
+      if(!temA && !temB) return '';
+      var diasSelA = draft.diasSelecionadosA || draft.diasSelecionados || [];
+      var diasSelB = draft.diasSelecionadosB || draft.diasSelecionados || [];
       /* gerar dias da semana a partir de w.inicio / w.fim */
       function parseDDMM(s){
         if(!s) return null;
@@ -4922,27 +4924,33 @@ function renderWeekCard(w, numero){
           cur.setDate(cur.getDate()+1);
         }
       }
-      var bloco = '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:8px;padding:8px 10px;margin-top:6px;">'+
-        '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--teal-dk);">📅 Marque os dias com exame A/B nesta semana</div>';
-      if(diasDaSemana.length){
-        bloco += '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
-        diasDaSemana.forEach(function(d){
-          var checked = diasSel.indexOf(d) > -1;
-          var diaSem = new Date(d+'T12:00:00').getDay();
-          var ehSab  = diaSem === 6;
-          var nome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][diaSem];
-          var partes = d.split('-');
-          var label = nome+' '+partes[2]+'/'+partes[1];
-          var bg = checked ? (ehSab ? '#FFF3CD' : 'var(--teal-soft)') : '#f5f5f5';
-          var border = checked ? (ehSab ? '#FFD700' : 'var(--teal)') : 'var(--line)';
-          bloco += '<label style="display:flex;align-items:center;gap:4px;background:'+bg+';border:1px solid '+border+';border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;">'+
-            '<input type="checkbox" '+(checked?'checked':'')+' data-wid="'+w.id+'" data-date="'+d+'" class="dia-input"> '+esc(label)+(ehSab?' 🟡':(diaSem===0?' 🟠':''))+'</label>';
-        });
-        bloco += '</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">🟡 Sábados e 🟠 Domingos marcados aparecem no alerta de Força Tarefa</div>';
-      } else {
-        bloco += '<div style="font-size:11.5px;color:var(--red);">⚠️ Informe início e fim da semana para ver os dias disponíveis.</div>';
+      var buildDaySelector = function(cat, diasSel) {
+        var b2 = '<div style="background:var(--teal-soft);border:1px solid var(--teal);border-radius:8px;padding:8px 10px;margin-top:6px;">';
+        b2 += '<div style="font-size:12px;font-weight:700;margin-bottom:5px;color:var(--teal-dk);">📅 Cat. '+cat+' — dias desta semana</div>';
+        if(diasDaSemana.length){
+          b2 += '<div style="display:flex;flex-wrap:wrap;gap:5px;">';
+          diasDaSemana.forEach(function(d){
+            var chk = diasSel.indexOf(d) > -1;
+            var ds  = new Date(d+'T12:00:00').getDay();
+            var ehs = ds===6;
+            var nm  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][ds];
+            var pr  = d.split('-');
+            var lb  = nm+' '+pr[2]+'/'+pr[1];
+            var bg2 = chk?(ehs?'#FFF3CD':'var(--teal-soft)'):'#f5f5f5';
+            var bd2 = chk?(ehs?'#FFD700':'var(--teal)'):'var(--line)';
+            b2 += '<label style="display:flex;align-items:center;gap:4px;background:'+bg2+';border:1px solid '+bd2+';border-radius:7px;padding:3px 8px;font-size:12px;cursor:pointer;">'+
+              '<input type="checkbox" '+(chk?'checked':'')+' data-wid="'+w.id+'" data-date="'+d+'" data-cat="'+cat+'" class="dia-cat-input">'+lb+'</label>';
+          });
+          b2 += '</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">Sem marcação = todos os dias · 🟡 Sáb 🟠 Dom = Força tarefa</div>';
+        } else {
+          b2 += '<div style="font-size:11.5px;color:var(--red);">⚠️ Informe início e fim da semana para ver os dias.</div>';
+        }
+        b2 += '</div>';
+        return b2;
       }
-      bloco += '</div>';
+      var bloco = '';
+      if(temA) bloco += buildDaySelector('A', diasSelA);
+      if(temB) bloco += buildDaySelector('B', diasSelB);
       return bloco;
     })()+
     '<button class="btn btn-primary" onclick="window.__addEntrada(\''+w.id+'\')">+ Agendar cidade</button>'+
@@ -4959,17 +4967,22 @@ function renderWeekCard(w, numero){
         '<div class="cat-tags">'+ e.categorias.map(function(k){return '<span class="cat-tag">'+esc(catLabel(k))+'</span>';}).join('') +'</div>'+
         (temFimSemanaEntrada(w,e) ? '<span class="sabado-badge">'+(temDomingoEntrada(w,e)?'🟠 Domingo':'🟡 Sábado')+' — Força tarefa</span>' : '')+
         (function(){
-          var temAB = e.categorias.some(function(c){return c==='A'||c==='B';});
-          if(!temAB) return '';
-          if(e.todosOsDias===false && e.diasSelecionados && e.diasSelecionados.length){
-            var nomes = e.diasSelecionados.map(function(d){
-              var partes = d.split('-');
-              var diaSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()];
-              return diaSem+' '+partes[2]+'/'+partes[1];
-            });
-            return '<div style="font-size:11px;color:var(--teal-dk);margin-top:3px;font-weight:600;">📅 Dias A/B: '+esc(nomes.join(' · '))+'</div>';
+          function fmtDias(arr){
+            if(!arr||!arr.length) return null;
+            return arr.map(function(d){
+              var p=d.split('-');
+              return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(d+'T12:00:00').getDay()]+' '+p[2]+'/'+p[1];
+            }).join(' · ');
           }
-          return '<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">📅 A/B todos os dias da semana</div>';
+          var temA2 = e.categorias.indexOf('A')>-1;
+          var temB2 = e.categorias.indexOf('B')>-1;
+          if(!temA2&&!temB2) return '';
+          var diasA = e.diasSelecionadosA||e.diasSelecionados||[];
+          var diasB = e.diasSelecionadosB||e.diasSelecionados||[];
+          var out = '';
+          if(temA2){ var fA=fmtDias(diasA); out+='<div style="font-size:11px;color:var(--teal-dk);margin-top:2px;font-weight:600;">📅 Cat. A: '+(fA?esc(fA):'todos os dias')+'</div>'; }
+          if(temB2){ var fB=fmtDias(diasB); out+='<div style="font-size:11px;color:var(--teal-dk);margin-top:2px;font-weight:600;">📅 Cat. B: '+(fB?esc(fB):'todos os dias')+'</div>'; }
+          return out;
         })()+
         '</div></div>'+
         '<div style="display:flex;align-items:center;gap:6px;">'+
@@ -5149,6 +5162,16 @@ window.__draftEntryTodos = function(wId, checked){
   if(checked) state.draftEntry[wId].diasSelecionados = [];
   renderAgendaTab();
 };
+window.__draftEntryDiaCat = function(wId, date, cat, checked){
+  if(!state.draftEntry) state.draftEntry = {};
+  if(!state.draftEntry[wId]) state.draftEntry[wId] = {cidade:'',cats:[],datasExatas:{},diasSelecionadosA:[],diasSelecionadosB:[]};
+  var field = cat==='A' ? 'diasSelecionadosA' : 'diasSelecionadosB';
+  var dias = state.draftEntry[wId][field] || [];
+  if(checked){ if(dias.indexOf(date)<0) dias.push(date); }
+  else { dias = dias.filter(function(d){return d!==date;}); }
+  state.draftEntry[wId][field] = dias;
+  renderAgendaTab();
+};
 window.__draftEntryDia = function(wId, date, checked){
   state.draftEntry[wId] = state.draftEntry[wId] || {cidade:'', cats:[], dataExata:'', datasExatas:{}, todosOsDias:false, diasSelecionados:[]};
   var dias = state.draftEntry[wId].diasSelecionados || [];
@@ -5226,10 +5249,9 @@ window.__addEntrada = async function(wId){
   if(!d.cidade){ showToast('Selecione a cidade.'); return; }
   if(!d.cats.length){ showToast('Selecione ao menos uma categoria.'); return; }
   /* A/B precisam ter dias selecionados */
-  var temABval = d.cats.some(function(c){return c==='A'||c==='B';});
-  if(temABval && d.todosOsDias === false && (!d.diasSelecionados || !d.diasSelecionados.length)){
-    showToast('Selecione ao menos um dia para as categorias A/B.'); return;
-  }
+  var temAval = d.cats.indexOf('A') > -1;
+  var temBval = d.cats.indexOf('B') > -1;
+  /* A e B podem ter dias separados ou sem seleção (= todos os dias) */
   var catsCDE = d.cats.filter(function(c){return c==='C'||c==='D'||c==='E'||c==='X';});
   var datasExatas = d.datasExatas || {};
   var semData = catsCDE.filter(function(c){
@@ -5265,8 +5287,10 @@ window.__addEntrada = async function(wId){
     cidade:d.cidade, categorias:d.cats.slice(),
     datasExatas: Object.assign({}, datasExatas),
     dataExata: catsCDE.length ? (datasExatas[catsCDE[0]]||'') : '',
-    todosOsDias: temAB ? false : null,
-    diasSelecionados: temAB ? (d.diasSelecionados||[]).slice() : [],
+    todosOsDias: null,
+    diasSelecionados: [],
+    diasSelecionadosA: temAval ? (d.diasSelecionadosA||[]).slice() : [],
+    diasSelecionadosB: temBval ? (d.diasSelecionadosB||[]).slice() : [],
     status:'Planejado', motivo:'', detalhes:'',
     atualizadoPor:'', atualizadoEm:''
   });
@@ -7447,12 +7471,6 @@ function renderRelatorioTab(){
 
 document.getElementById('tabContent').innerHTML = html;
   /* nav buttons via addEventListener — evita problemas de escaping em onclick */
-  /* Salvar vagas e meta */
-  var btnVagas = document.getElementById('btn-salvar-vagas');
-  if(btnVagas) btnVagas.addEventListener('click', function(){
-    window.__salvarTodasVagas(this.dataset.mes);
-  });
-
   var btnMF = document.getElementById('btn-mf');
   if(btnMF) btnMF.addEventListener('click', function(){
     var ini = (document.getElementById('m-ini')||{}).value||'';
@@ -7573,6 +7591,7 @@ window.__salvarVagaCateg = async function(mes, cidade, cat, valor){
 };
 
 window.__salvarTodasVagas = async function(mes){
+  if(!mes) mes = state.relMes || mesRelAtual();
   /* Lê todos os inputs da tabela e salva de uma vez */
   var vagas = {};
   document.querySelectorAll('[data-vaga-cidade]').forEach(function(inp){
@@ -7588,11 +7607,13 @@ window.__salvarTodasVagas = async function(mes){
   state.metasCateg[mes].meta_global = metaG;
   state.metasCateg[mes].vagas = vagas;
   var r = await storageSet('metas-categoria', JSON.stringify(state.metasCateg), true);
+  showToast('💾 Salvando...');
   if(r&&r.ok){
     showToast('✅ Vagas e meta salvas!');
     renderRelatorioTab();
   } else {
-    showToast('❌ Erro ao salvar. Tente novamente.');
+    showToast('❌ Erro ao salvar. Verifique conexão com Supabase.');
+    console.error('salvarTodasVagas falhou:', r);
   }
 };
 
