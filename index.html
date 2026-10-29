@@ -7592,7 +7592,8 @@ window.__salvarVagaCateg = async function(mes, cidade, cat, valor){
 
 window.__salvarTodasVagas = async function(mes){
   if(!mes) mes = state.relMes || mesRelAtual();
-  /* Lê todos os inputs da tabela e salva de uma vez */
+
+  /* Lê todos os inputs da tabela */
   var vagas = {};
   document.querySelectorAll('[data-vaga-cidade]').forEach(function(inp){
     var cid = inp.dataset.vagaCidade;
@@ -7607,41 +7608,37 @@ window.__salvarTodasVagas = async function(mes){
   state.metasCateg[mes].meta_global = metaG;
   state.metasCateg[mes].vagas = vagas;
 
-  /* Se o circuit breaker estiver aberto, tenta reabrir antes de salvar */
-  if(_supaCircuitoAberto){
-    showToast('⏳ Reconectando ao banco...');
-    var teste = await storageGet('meta-config', true);
-    if(teste !== null){
-      _supaCircuitoAberto = false;
-      _supaFalhas = 0;
-    } else {
-      showToast('❌ Banco offline. Clique em 🔄 Sincronizar e tente novamente.');
-      return;
-    }
-  }
+  /* Sempre reseta o circuit breaker antes de salvar —
+     evita falhas causadas por erros anteriores acumulados */
+  _supaCircuitoAberto = false;
+  _supaFalhas = 0;
 
   showToast('💾 Salvando ' + nomeMes(mes) + '...');
   var payload = JSON.stringify(state.metasCateg);
-  console.log('salvarTodasVagas: mes='+mes+', payload='+payload.length+'bytes');
 
   var r = await storageSet('metas-categoria', payload, true);
 
+  /* Se falhou na primeira tentativa, aguarda 2s e tenta mais uma vez */
+  if(!r || !r.ok){
+    showToast('⏳ Tentando novamente...');
+    await new Promise(function(res){ setTimeout(res, 2000); });
+    _supaCircuitoAberto = false;
+    _supaFalhas = 0;
+    r = await storageSet('metas-categoria', payload, true);
+  }
+
   if(r && r.ok){
-    showToast('✅ Vagas e meta de ' + nomeMes(mes) + ' salvas!');
+    showToast('✅ ' + nomeMes(mes) + ': vagas e meta salvas!');
     renderRelatorioTab();
   } else {
-    /* Diagnóstico detalhado */
-    var errMsg = '❌ Erro ao salvar';
-    if(r === false){
-      errMsg = '❌ Banco em modo offline. Clique 🔄 Sincronizar.';
-    } else if(r && r.status){
-      errMsg = '❌ Supabase HTTP ' + r.status + (r.msg ? ': ' + r.msg : '');
-    } else if(r && r.msg){
-      errMsg = '❌ ' + r.msg;
-    }
+    var errMsg = r===false
+      ? '❌ Banco offline. Clique 🔄 Sincronizar e tente novamente.'
+      : (r&&r.status)
+        ? '❌ Supabase HTTP '+r.status+(r.msg?' — '+r.msg:'')
+        : '❌ Erro ao salvar. Tente novamente em instantes.';
     showToast(errMsg);
-    console.error('salvarTodasVagas falhou — mes:', mes, '| r:', JSON.stringify(r),
-      '| payload bytes:', payload.length, '| circuito:', _supaCircuitoAberto);
+    console.error('salvarTodasVagas falhou:', JSON.stringify(r),
+      '| mes:', mes, '| payload:', payload.length, 'bytes');
   }
 };
 
