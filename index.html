@@ -3328,7 +3328,7 @@ function renderOverview(){
 
     /* Por categoria (top faltantes) */
     var catRes = {};
-    CATS_BASE.forEach(function(c){ catRes[c] = {vagas:0,real:0}; });
+    ['A','B','C','D','E','X'].forEach(function(c){ catRes[c] = {vagas:0,real:0}; });
     diariosOv.forEach(function(d){ if(catRes[d.categoria]) catRes[d.categoria].real += d.realizados; });
     if(vagasOvD.vagas){
       Object.entries(vagasOvD.vagas).forEach(function(kv){
