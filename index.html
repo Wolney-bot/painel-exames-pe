@@ -436,7 +436,8 @@ var state = {
   metaConfig: {},
   demandas: [],
   filtroPrioDemanda: 'Todas',
-  checklistsTroca: []
+  checklistsTroca: [],
+  metasCateg: {}
 };
 window.state = state;
 
@@ -624,7 +625,7 @@ window.__tentarReconectar = async function(){
     _ocultarBannerConexao();
     showToast('✅ Conexão restaurada! Sincronizando dados locais…');
     /* reenvia para Supabase qualquer dado salvo localmente durante a indisponibilidade */
-    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista','gestao-escala','bate-volta-lista','checklists-troca'];
+    var SK_ALL = ['chamados-lista','planejamento-lista','categoria-labels','semanas-lista','veiculos-lista','diarios-lista','usuarios-lista','checkins-lista','meta-config','demandas-lista','plan-acesso','colaboradores-lista','ausencias-lista','ocorrencias-lista','habilidades-lista','gestao-escala','bate-volta-lista','checklists-troca','metas-categoria'];
     var enviados = 0;
     for(var ki=0; ki<SK_ALL.length; ki++){
       var k = SK_ALL[ki];
@@ -709,6 +710,8 @@ async function init(){
   state.bateVoltas = bv ? JSON.parse(bv) : [];
   var ck = await storageGet('checklists-troca', true);
   if(ck){ try{ state.checklistsTroca = JSON.parse(ck); }catch(_){} }
+  var mc = await storageGet('metas-categoria', true);
+  if(mc){ try{ state.metasCateg = JSON.parse(mc); }catch(_){} }
 
   /* ── Pessoas: colaboradores, ausências, ocorrências, habilidades ── */
   var [cbr, aus, ocr, hab] = await Promise.all([
@@ -1026,6 +1029,8 @@ window.__sincronizar = async function(silent){
   if(pa2){ state.planAcesso    = JSON.parse(pa2); }
   var ck2 = await storageGet('checklists-troca', true);
   if(ck2){ try{ state.checklistsTroca = JSON.parse(ck2); }catch(_){} }
+  var mc2 = await storageGet('metas-categoria', true);
+  if(mc2){ try{ state.metasCateg = JSON.parse(mc2); }catch(_){} }
   if(!silent) showToast('✅ Dados atualizados com o banco.');
   if(state.sessao) setTab(state.activeTab);
 };
@@ -3258,6 +3263,98 @@ function renderOverview(){
     html += '</div>';
   })();
 
+  
+  /* ── ALERTA META PE ──────────────────────────────────────────── */
+  (function(){
+    var mesOv      = mesRelAtual();
+    var diariosOv  = (state.diarios||[]).filter(function(d){return d.mes===mesOv;});
+    var realizOv   = diariosOv.reduce(function(s,d){return s+d.realizados;},0);
+    var vagasOvD   = state.metasCateg && state.metasCateg[mesOv] ? state.metasCateg[mesOv] : {};
+    var metaGlobOv = vagasOvD.meta_global || 0;
+    var totalVagOv = Object.values(vagasOvD.vagas||{}).reduce(function(tot,cid){
+      return tot + Object.values(cid).reduce(function(s,v){return s+(parseInt(v)||0);},0);
+    },0);
+
+    /* só mostra se tiver meta configurada */
+    if(!metaGlobOv && !totalVagOv) return;
+
+    /* cálculo de ritmo */
+    var hoje2  = hojeLocal();
+    var anoM   = parseInt(mesOv.slice(0,4));
+    var mesM   = parseInt(mesOv.slice(5,7));
+    var diaHoje = parseInt(hoje2.slice(8,10));
+    var diasNoMes = new Date(anoM, mesM, 0).getDate();
+    var diasRest  = Math.max(diasNoMes - diaHoje, 0);
+    var metaRef   = metaGlobOv || totalVagOv;
+    var faltam    = Math.max(metaRef - realizOv, 0);
+    var pct       = metaRef>0 ? Math.round(realizOv/metaRef*100) : 0;
+    var ritmoAtual= diaHoje>0 ? Math.round(realizOv/diaHoje) : 0;
+    var ritmoNec  = diasRest>0 ? Math.round(faltam/diasRest) : faltam;
+    var noRhythm  = diasRest>0 && ritmoNec > ritmoAtual*1.1;
+
+    /* cor do painel */
+    var alertBg  = pct>=100 ? '#EBF7F0' : pct>=80 ? '#FFFBF0' : '#FFF5F5';
+    var alertBd  = pct>=100 ? '#6FCF97' : pct>=80 ? '#FFD700' : '#FC8181';
+    var alertCl  = pct>=100 ? '#276749' : pct>=80 ? '#856404' : '#C53030';
+    var alertIco = pct>=100 ? '🏆' : pct>=80 ? '⚡' : '⚠️';
+
+    html += '<div style="background:'+alertBg+';border:2px solid '+alertBd+';border-radius:14px;padding:14px 18px;margin-bottom:16px;">';
+    /* Linha 1: título + percentual */
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">';
+    html += '<div style="font-size:14.5px;font-weight:700;color:'+alertCl+';">'+alertIco+' Meta PE — '+nomeMes(mesOv)+'</div>';
+    html += '<div style="font-size:20px;font-weight:800;color:'+alertCl+';">'+pct+'%</div>';
+    html += '</div>';
+
+    /* Barra de progresso */
+    html += '<div style="background:rgba(0,0,0,.08);border-radius:999px;height:10px;margin-bottom:10px;overflow:hidden;">';
+    html += '<div style="background:'+alertBd+';height:100%;width:'+Math.min(pct,100)+'%;border-radius:999px;transition:width .4s;"></div>';
+    html += '</div>';
+
+    /* Linha 2: números */
+    html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;">';
+    html += '<div><span style="color:var(--ink-soft);">Realizado</span><br><b style="font-size:15px;color:'+alertCl+';">'+realizOv.toLocaleString('pt-BR')+'</b></div>';
+    html += '<div><span style="color:var(--ink-soft);">Meta</span><br><b style="font-size:15px;">'+metaRef.toLocaleString('pt-BR')+'</b></div>';
+    if(totalVagOv && totalVagOv!==metaRef) html += '<div><span style="color:var(--ink-soft);">Vagas abertas</span><br><b style="font-size:15px;">'+totalVagOv.toLocaleString('pt-BR')+'</b></div>';
+    html += '<div><span style="color:var(--ink-soft);">Faltam</span><br><b style="font-size:15px;color:'+(faltam>0?'var(--red)':'var(--green)')+'">'+faltam.toLocaleString('pt-BR')+'</b></div>';
+    html += '<div style="margin-left:auto;text-align:right;">';
+    html += '<span style="color:var(--ink-soft);">Ritmo atual</span><br><b>'+ritmoAtual.toLocaleString('pt-BR')+'/dia</b>';
+    if(diasRest>0){
+      html += '<br><span style="color:var(--ink-soft);">Necessário</span> ';
+      html += '<b style="color:'+(noRhythm?'var(--red)':'var(--green)')+'">'+ritmoNec.toLocaleString('pt-BR')+'/dia</b>';
+      html += '<br><span style="color:var(--ink-soft);font-size:11.5px;">'+diasRest+' dia(s) restante(s)</span>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    /* Por categoria (top faltantes) */
+    var catRes = {};
+    CATS_BASE.forEach(function(c){ catRes[c] = {vagas:0,real:0}; });
+    diariosOv.forEach(function(d){ if(catRes[d.categoria]) catRes[d.categoria].real += d.realizados; });
+    if(vagasOvD.vagas){
+      Object.entries(vagasOvD.vagas).forEach(function(kv){
+        Object.entries(kv[1]).forEach(function(cv){
+          if(catRes[cv[0]]) catRes[cv[0]].vagas += parseInt(cv[1])||0;
+        });
+      });
+    }
+    var catLinhas = Object.entries(catRes).filter(function(kv){return kv[1].vagas>0;});
+    if(catLinhas.length){
+      html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed '+alertBd+';display:flex;gap:8px;flex-wrap:wrap;">';
+      catLinhas.forEach(function(kv){
+        var c=kv[0], d=kv[1];
+        var cp = d.vagas>0?Math.round(d.real/d.vagas*100):0;
+        var cc = cp>=100?'#276749':cp>=70?'#856404':'#C53030';
+        html += '<div style="background:rgba(255,255,255,.6);border-radius:8px;padding:5px 10px;font-size:12px;">';
+        html += '<b style="color:var(--teal);">Cat. '+c+'</b> ';
+        html += '<span>'+d.real.toLocaleString('pt-BR')+'/'+d.vagas.toLocaleString('pt-BR')+'</span> ';
+        html += '<b style="color:'+cc+';">'+cp+'%</b>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  })();
+
   document.getElementById('tabContent').innerHTML = html;
 
   /* FT overview listeners */
@@ -3636,7 +3733,77 @@ function renderPlanejamentoTab(){
   var diariosMes = state.diarios.filter(function(d){ return d.mes === mes; });
 
   /* --- montagem HTML da tabela de metas --- */
-  var html = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
+
+  /* ── Vagas por categoria — entrada manual do PDF ────────────── */
+  var mesData     = state.metasCateg && state.metasCateg[mes] ? state.metasCateg[mes] : {};
+  var vagasData   = mesData.vagas || {};
+  var metaGlobal  = mesData.meta_global || 0;
+  var CATS_DISP   = ['A','B','C','D','E','X'];
+  var htmlRel = '';
+
+  /* Bloco de vagas */
+  htmlRel += '<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);">';
+  htmlRel += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">';
+  htmlRel += '<div>';
+  htmlRel += '<div style="font-size:15px;font-weight:700;color:var(--teal);">🎯 Meta de Produção — '+nomeMes(mes)+'</div>';
+  htmlRel += '<div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">Informe as vagas abertas por cidade e categoria conforme o PDF recebido</div>';
+  htmlRel += '</div>';
+  htmlRel += '<div style="display:flex;gap:8px;align-items:center;">';
+  htmlRel += '<label style="font-size:12.5px;font-weight:700;">Meta global PE:</label>';
+  htmlRel += '<input type="number" id="meta-global-input" value="'+(metaGlobal||37000)+'" min="0" step="1000" ';
+  htmlRel += 'style="width:110px;border:2px solid var(--teal);border-radius:8px;padding:5px 9px;font-size:14px;font-weight:700;color:var(--teal);text-align:center;">';
+  htmlRel += '<span style="font-size:12px;color:var(--ink-soft);">exames/mês</span>';
+  htmlRel += '</div>';
+  htmlRel += '</div>';
+
+  /* Tabela cidade × categoria */
+  var totalVagas = 0;
+  var totalVagasCat = {A:0,B:0,C:0,D:0,E:0,X:0};
+  htmlRel += '<div style="overflow-x:auto;">';
+  htmlRel += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:600px;">';
+  htmlRel += '<thead><tr style="background:var(--teal);color:#fff;">';
+  htmlRel += '<th style="padding:8px 12px;text-align:left;position:sticky;left:0;background:var(--teal);">Cidade</th>';
+  CATS_DISP.forEach(function(c){ htmlRel += '<th style="padding:8px 10px;text-align:center;">Cat. '+c+'</th>'; });
+  htmlRel += '<th style="padding:8px 10px;text-align:center;background:#134F46;">Total</th>';
+  htmlRel += '</tr></thead><tbody>';
+
+  TODAS_CIDADES.forEach(function(cidade, ri){
+    var cidVagas = vagasData[cidade] || {};
+    var cidTotal = CATS_DISP.reduce(function(s,c){return s+(parseInt(cidVagas[c])||0);},0);
+    totalVagas += cidTotal;
+    CATS_DISP.forEach(function(c){ totalVagasCat[c] = (totalVagasCat[c]||0)+(parseInt(cidVagas[c])||0); });
+
+    htmlRel += '<tr style="background:'+(ri%2===0?'#fafafa':'#fff')+';">';
+    htmlRel += '<td style="padding:6px 12px;font-weight:700;font-size:13px;position:sticky;left:0;background:'+(ri%2===0?'#fafafa':'#fff')+'">'+esc(cidade)+'</td>';
+    CATS_DISP.forEach(function(c){
+      var val = parseInt(cidVagas[c]) || 0;
+      htmlRel += '<td style="padding:4px 6px;text-align:center;">';
+      htmlRel += '<input type="number" min="0" value="'+val+'" ';
+      htmlRel += 'data-vaga-cidade="'+esc(cidade)+'" data-vaga-cat="'+c+'" ';
+      htmlRel += 'style="width:75px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12.5px;text-align:center;'+(val>0?'border-color:var(--teal);':'')+'"> ';
+      htmlRel += '</td>';
+    });
+    htmlRel += '<td style="padding:6px 10px;text-align:center;font-weight:700;color:'+(cidTotal>0?'var(--teal)':'var(--ink-soft)')+'">'+cidTotal.toLocaleString('pt-BR')+'</td>';
+    htmlRel += '</tr>';
+  });
+
+  /* Totais por categoria */
+  htmlRel += '<tr style="background:var(--teal);color:#fff;font-weight:700;">';
+  htmlRel += '<td style="padding:7px 12px;position:sticky;left:0;background:var(--teal);">TOTAL VAGAS</td>';
+  CATS_DISP.forEach(function(c){
+    htmlRel += '<td style="padding:7px 10px;text-align:center;">'+((totalVagasCat[c]||0).toLocaleString('pt-BR'))+'</td>';
+  });
+  htmlRel += '<td style="padding:7px 10px;text-align:center;font-size:13px;background:#134F46;">'+totalVagas.toLocaleString('pt-BR')+'</td>';
+  htmlRel += '</tr>';
+  htmlRel += '</tbody></table></div>';
+
+  htmlRel += '<div style="display:flex;justify-content:flex-end;margin-top:10px;gap:8px;">';
+  htmlRel += '<span style="font-size:12px;color:var(--ink-soft);align-self:center;">Total de vagas: <b>'+totalVagas.toLocaleString('pt-BR')+'</b> · Meta PE: <b>'+((metaGlobal||37000).toLocaleString('pt-BR'))+'</b></span>';
+  htmlRel += '<button class="btn btn-primary" id="btn-salvar-vagas" data-mes="'+esc(mes)+'" style="font-size:12.5px;padding:7px 16px;">💾 Salvar vagas e meta</button>';
+  htmlRel += '</div>';
+  htmlRel += '</div>';
+
+  var html = htmlRel + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'+
     '<div class="section-title" style="margin:0;">📋 Metas mensais por cidade</div>'+
     '<button class="btn btn-amber" onclick="window.__exportarPlanejamento()">⬇ Exportar CSV</button>'+
   '</div>';
@@ -7280,6 +7447,12 @@ function renderRelatorioTab(){
 
 document.getElementById('tabContent').innerHTML = html;
   /* nav buttons via addEventListener — evita problemas de escaping em onclick */
+  /* Salvar vagas e meta */
+  var btnVagas = document.getElementById('btn-salvar-vagas');
+  if(btnVagas) btnVagas.addEventListener('click', function(){
+    window.__salvarTodasVagas(this.dataset.mes);
+  });
+
   var btnMF = document.getElementById('btn-mf');
   if(btnMF) btnMF.addEventListener('click', function(){
     var ini = (document.getElementById('m-ini')||{}).value||'';
@@ -7377,6 +7550,51 @@ window.__setMetaConfig = async function(cidade, campo, val){
 
 window.__relMesAnterior = function(){ state.relMes = mesAnterior(state.relMes || mesRelAtual()); renderRelatorioTab(); };
 window.__relMesProximo  = function(){ state.relMes = mesProximo(state.relMes  || mesRelAtual()); renderRelatorioTab(); };
+
+
+window.__setMetaGlobal = async function(mes, valor){
+  valor = parseInt(valor) || 0;
+  if(!state.metasCateg) state.metasCateg = {};
+  if(!state.metasCateg[mes]) state.metasCateg[mes] = {meta_global:0, vagas:{}};
+  state.metasCateg[mes].meta_global = valor;
+  await storageSet('metas-categoria', JSON.stringify(state.metasCateg), true);
+  showToast('✅ Meta global salva: '+valor.toLocaleString('pt-BR')+' exames');
+  renderRelatorioTab();
+};
+
+window.__salvarVagaCateg = async function(mes, cidade, cat, valor){
+  valor = parseInt(valor) || 0;
+  if(!state.metasCateg) state.metasCateg = {};
+  if(!state.metasCateg[mes]) state.metasCateg[mes] = {meta_global:0, vagas:{}};
+  if(!state.metasCateg[mes].vagas) state.metasCateg[mes].vagas = {};
+  if(!state.metasCateg[mes].vagas[cidade]) state.metasCateg[mes].vagas[cidade] = {};
+  state.metasCateg[mes].vagas[cidade][cat] = valor;
+  await storageSet('metas-categoria', JSON.stringify(state.metasCateg), true);
+};
+
+window.__salvarTodasVagas = async function(mes){
+  /* Lê todos os inputs da tabela e salva de uma vez */
+  var vagas = {};
+  document.querySelectorAll('[data-vaga-cidade]').forEach(function(inp){
+    var cid = inp.dataset.vagaCidade;
+    var cat = inp.dataset.vagaCat;
+    var v   = parseInt(inp.value) || 0;
+    if(!vagas[cid]) vagas[cid] = {};
+    vagas[cid][cat] = v;
+  });
+  var metaG = parseInt((document.getElementById('meta-global-input')||{}).value) || 0;
+  if(!state.metasCateg) state.metasCateg = {};
+  if(!state.metasCateg[mes]) state.metasCateg[mes] = {};
+  state.metasCateg[mes].meta_global = metaG;
+  state.metasCateg[mes].vagas = vagas;
+  var r = await storageSet('metas-categoria', JSON.stringify(state.metasCateg), true);
+  if(r&&r.ok){
+    showToast('✅ Vagas e meta salvas!');
+    renderRelatorioTab();
+  } else {
+    showToast('❌ Erro ao salvar. Tente novamente.');
+  }
+};
 
 window.__exportarRelatorio = function(){
   var mes = state.relMes || mesRelAtual(); /* report month */
