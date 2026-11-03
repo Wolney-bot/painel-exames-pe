@@ -96,10 +96,24 @@ canvas{display:block;width:100%;height:100px;cursor:crosshair;touch-action:none;
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .loading{text-align:center;padding:50px;color:var(--ink-soft)}
 .empty{text-align:center;padding:50px;color:var(--ink-soft)}
+
+/* Lightbox */
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:9998;padding:14px}
+.lb.on{display:flex}
+.lb img{max-width:100%;max-height:100%;border-radius:8px}
+.lb-x{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:14px;background:#fff;border:none;border-radius:999px;width:36px;height:36px;font-size:18px;font-weight:700;cursor:pointer}
+.banner{background:var(--amber-lt);border:1.5px solid var(--amber-bd);color:var(--amber);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner button{margin-left:auto;background:none;border:1px solid var(--amber);color:var(--amber);border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.thumb{position:relative;display:inline-block}
+.thumb img{width:92px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--line);cursor:pointer}
+.thumb .x{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer}
+.btn-foto{background:#f0f4ff;border:1px solid #9ab0e0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#3355aa;cursor:pointer}
+.hide-file{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><div class="loading">⏳ Carregando…</div></div>
+<div class="lb" id="lb" onclick="if(event.target===this)closeLB()"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -107,6 +121,8 @@ canvas{display:block;width:100%;height:100px;cursor:crosshair;touch-action:none;
 var SB_URL = 'https://dvypppchbsntnhnqttdq.supabase.co';
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2eXBwcGNoYnNudG5obnF0dGRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTgzNDcsImV4cCI6MjA5ODQ3NDM0N30.QFjjTM8-g6w-nf_zuuEEn8bOo00l-ZBt6wlP5PxpfHE';
 var DB_KEY = 'checklists-troca';
+var DRAFT_KEY = 'ck_rascunho_v1';
+var MAX_FOTOS = 4;
 
 /* ── Dados de domínio ────────────────────────────────────────── */
 var CIDADES = ['Recife','Caruaru','Garanhuns','Petrolina','Arcoverde',
@@ -136,27 +152,37 @@ var ITENS = [
 var MOTIVOS = ['Substituição planejada','Problema mecânico','Sinistro / Acidente','Apoio operacional','Outro'];
 var CATS    = ['B','C','D','E'];
 
+
+
 /* ── Estado local ────────────────────────────────────────────── */
 var checklists = [];
-var view = 'list'; // list | new | detail
-var viewId = null;
-var sigC, sigX, sigDraw = false, sigLx = 0, sigLy = 0, sigOk = false;
-var itensState = {}; // {id: 'ok'|'nok'|'na'}
+var view = 'list';            // list | new | detail
+var detalheFotos = [];
+var sigC, sigDraw = false, sigLx = 0, sigLy = 0, sigOk = false;
+var itensState = {};
 var fuelVal = 0;
+var fotosCapturadas = [];
+var salvando = false;
+var snapTimer = null;
+var FIELD_IDS = ['fi-data','fi-cat','fi-placa','fi-op','fi-orig','fi-dest','fi-cid','fi-mot','fi-mot-nome','fi-obs','fi-resp'];
 
-/* ── Supabase XHR helpers ────────────────────────────────────── */
-function sbGet(key) {
+/* ── Supabase REST ───────────────────────────────────────────── */
+/* sbGetRaw distingue "não existe" (ok:true,value:null) de "falhou" (ok:false) —
+   assim nunca regravamos a lista por cima achando que estava vazia. */
+function sbGetRaw(key) {
   return new Promise(function(res) {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', SB_URL+'/rest/v1/kv_store?key=eq.'+encodeURIComponent(key)+'&select=value&limit=1', true);
     xhr.setRequestHeader('apikey', SB_KEY);
     xhr.setRequestHeader('Authorization', 'Bearer '+SB_KEY);
-    xhr.timeout = 12000;
+    xhr.timeout = 30000;
     xhr.onload = function() {
-      try { var d = JSON.parse(xhr.responseText); res(d && d[0] ? d[0].value : null); }
-      catch(_) { res(null); }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { var d = JSON.parse(xhr.responseText); res({ok:true, value:(d && d[0]) ? d[0].value : null}); }
+        catch(_) { res({ok:false, value:null}); }
+      } else { res({ok:false, value:null}); }
     };
-    xhr.onerror = xhr.ontimeout = function() { res(null); };
+    xhr.onerror = xhr.ontimeout = function() { res({ok:false, value:null}); };
     xhr.send();
   });
 }
@@ -168,74 +194,104 @@ function sbSet(key, value) {
     xhr.setRequestHeader('Authorization', 'Bearer '+SB_KEY);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.setRequestHeader('Prefer', 'resolution=merge-duplicates');
-    xhr.timeout = 12000;
+    xhr.timeout = 30000;
     xhr.onload = function() { res({ok: xhr.status >= 200 && xhr.status < 300}); };
     xhr.onerror = xhr.ontimeout = function() { res({ok: false}); };
     xhr.send(JSON.stringify({key: key, value: value}));
   });
 }
 
+/* ── Rascunho (sobrevive à câmera / recarga da página) ───────── */
+function readDraft() { try { var s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch(_) { return null; } }
+function writeDraft(o) { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(o)); return true; } catch(_) { return false; } }
+function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch(_) {} }
+function snapshotDraft() {
+  if (view !== 'new') return;
+  var d = {aberto:true, campos:{}, itens:itensState, fuel:fuelVal, fotos:fotosCapturadas, t:Date.now()};
+  FIELD_IDS.forEach(function(id) { var el = document.getElementById(id); if (el) d.campos[id] = el.value; });
+  if (!writeDraft(d)) { d.fotos = []; writeDraft(d); }   // sem espaço: guarda ao menos os campos
+}
+function schedSnap() { clearTimeout(snapTimer); snapTimer = setTimeout(snapshotDraft, 250); }
+function restoreDraft(d) {
+  FIELD_IDS.forEach(function(id) { var el = document.getElementById(id); if (el && d.campos && d.campos[id] !== undefined) el.value = d.campos[id]; });
+  updCDE();
+  itensState = {};
+  Object.keys(d.itens || {}).forEach(function(k) { itensState[k] = d.itens[k]; applyItemVisual(k, d.itens[k]); });
+  if (d.fuel) setFuelVisual(d.fuel);
+  fotosCapturadas = (d.fotos || []).slice();
+  updateFotoPreview();
+}
+function descartarRascunho() {
+  if (!confirm('Descartar o rascunho e começar um checklist em branco?')) return;
+  clearDraft(); fotosCapturadas = []; itensState = {}; fuelVal = 0; showNew();
+}
+function voltarLista() {
+  var d = readDraft(); if (d) { d.aberto = false; writeDraft(d); }
+  renderList();
+}
+
 /* ── Init ────────────────────────────────────────────────────── */
 async function init() {
-  var raw = await sbGet(DB_KEY);
-  try { checklists = raw ? JSON.parse(raw) : []; } catch(_) { checklists = []; }
-  renderList();
+  var app = document.getElementById('app');
+  app.addEventListener('input', schedSnap);
+  app.addEventListener('change', schedSnap);
+  var r = await sbGetRaw(DB_KEY);
+  if (r.ok) { try { checklists = r.value ? JSON.parse(r.value) : []; } catch(_) { checklists = []; } }
+  var d = readDraft();
+  if (d && d.aberto) { showNew(); } else { renderList(); }
+  if (!r.ok) toast('⚠️ Sem conexão com o banco. A lista pode estar incompleta.');
+}
+async function reloadList() {
+  toast('🔄 Atualizando…');
+  var r = await sbGetRaw(DB_KEY);
+  if (!r.ok) { toast('❌ Sem conexão. Tente de novo.'); return; }
+  try { checklists = r.value ? JSON.parse(r.value) : []; } catch(_) { checklists = []; }
+  renderList(); toast('✅ Lista atualizada.');
 }
 
 /* ── LISTA ───────────────────────────────────────────────────── */
 function renderList() {
   view = 'list';
   var rows = checklists.length
-    ? checklists.slice().reverse().map(function(c,i) {
+    ? checklists.slice().reverse().map(function(c) {
         var nokCount = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
-        var badge = nokCount > 0
-          ? '<span class="badge b-nok">⚠️ '+nokCount+' NOK</span>'
-          : '<span class="badge b-ok">✅ OK</span>';
-        return '<div class="row" onclick="showDetail('+( checklists.length-1-i)+')">'
-          +'<div class="row-h">'
-          +'<b style="font-size:14px;">🚗 '+e(c.placa)+'</b>'
+        var badge = nokCount > 0 ? '<span class="badge b-nok">⚠️ '+nokCount+' NOK</span>' : '<span class="badge b-ok">✅ OK</span>';
+        var nF = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
+        return '<div class="row" onclick="showDetailId(\''+e(c.id)+'\')">'
+          +'<div class="row-h"><b style="font-size:14px;">🚗 '+e(c.placa)+'</b>'
           +'<span style="font-size:13px;">'+e(c.cidade)+'</span>'
-          +'<span style="font-size:12px;color:var(--ink-soft);">Cat.'+e(c.cat)+'</span>'
-          +badge
-          +'<span style="font-size:11.5px;color:var(--ink-soft);margin-left:auto;">'+e(fd(c.data))+'</span>'
-          +'</div>'
-          +'<div class="row-s">'+e(c.origem)+' → '+e(c.destino)
-          +' · 🚗 '+e(c.motorista)+' · '+e(c.responsavel)+'</div>'
-          +'</div>';
+          +'<span style="font-size:12px;color:var(--ink-soft);">Cat.'+e(c.cat)+'</span>'+badge
+          +(nF?'<span style="font-size:12px;">📷 '+nF+'</span>':'')
+          +'<span style="font-size:11.5px;color:var(--ink-soft);margin-left:auto;">'+e(fd(c.data))+'</span></div>'
+          +'<div class="row-s">'+e(c.origem)+' → '+e(c.destino)+' · 🚗 '+e(c.motorista)+' · '+e(c.responsavel)+'</div></div>';
       }).join('')
-    : '<div class="empty">📋<br><br>Nenhum checklist registrado ainda.<br><small>Clique em "Novo Checklist" para começar.</small></div>';
-
-  R('<div class="hd"><div style="font-size:28px">🚗</div>'
-    +'<div><h1>Checklist — Troca de Veículo</h1><p>CNH Pernambuco · Operações</p></div></div>'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+    : '<div class="empty">📋<br><br>Nenhum checklist registrado ainda.<br><small>Toque em "Novo Checklist" para começar.</small></div>';
+  var temRasc = !!readDraft();
+  R('<div class="hd"><div style="font-size:28px">🚗</div><div><h1>Checklist — Troca de Veículo</h1><p>CNH Pernambuco · Operações</p></div></div>'
+    +(temRasc?'<div class="banner">📝 Você tem um checklist em andamento. <button onclick="showNew()">Continuar</button></div>':'')
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;">'
     +'<span style="font-size:13px;color:var(--ink-soft);">'+checklists.length+' registro(s)</span>'
-    +'<button class="btn btn-p" style="width:auto;padding:8px 16px;" onclick="showNew()">✚ Novo Checklist</button>'
-    +'</div>'+rows);
+    +'<div style="display:flex;gap:8px;"><button class="btn btn-g" style="padding:8px 12px;" onclick="reloadList()">🔄</button>'
+    +'<button class="btn btn-p" style="width:auto;padding:8px 16px;" onclick="showNew()">✚ Novo Checklist</button></div></div>'+rows);
 }
 
 /* ── NOVO FORMULÁRIO ─────────────────────────────────────────── */
 function showNew() {
   view = 'new';
-  itensState = {};
-  fuelVal = 0;
+  var rasc = readDraft();
+  itensState = {}; fuelVal = 0; fotosCapturadas = [];
   var today = new Date().toISOString().slice(0,10);
   var cOpts = '<option value="">Selecione…</option>'+CIDADES.map(function(c){return '<option>'+e(c)+'</option>';}).join('');
   var catOpts = CATS.map(function(c){return '<option value="'+c+'">Categoria '+c+'</option>';}).join('');
   var motOpts = MOTIVOS.map(function(m){return '<option>'+e(m)+'</option>';}).join('');
+  var itemsHtml = renderItemGroup('equip','📹 Câmeras e equipamentos')
+    + renderItemGroup('seg','🔐 Segurança e documentação')
+    + '<div id="cde-block" style="display:none">'+renderItemGroup('cde','🕐 Cat. C / D / E')+'</div>'
+    + renderItemGroup('cond','🚗 Condições do veículo');
+  var fuelSegs = [1,2,3,4,5,6,7,8].map(function(n){ return '<div class="fseg" id="fs'+n+'" onclick="setFuel('+n+')" title="'+Math.round(n/8*100)+'%"></div>'; }).join('');
 
-  var itemsHtml = renderItemGroup('equip','📹 Câmeras e equipamentos','equip')
-    + renderItemGroup('seg','🔐 Segurança e documentação','seg')
-    + '<div id="cde-block" style="display:none">'
-    + renderItemGroup('cde','🕐 Cat. C / D / E','cde')+'</div>'
-    + renderItemGroup('cond','🚗 Condições do veículo','cond');
-
-  var fuelSegs = [1,2,3,4,5,6,7,8].map(function(n){
-    return '<div class="fseg" id="fs'+n+'" onclick="setFuel('+n+')" title="'+Math.round(n/8*100)+'%"></div>';
-  }).join('');
-
-  R('<div class="hd"><div style="font-size:28px">📋</div>'
-    +'<div><h1>Novo Checklist</h1><p>Troca / Transferência de Veículo</p></div></div>'
-
+  R('<div class="hd"><div style="font-size:28px">📋</div><div><h1>Novo Checklist</h1><p>Troca / Transferência de Veículo</p></div></div>'
+    +(rasc?'<div class="banner">♻️ Recuperei o que você já tinha preenchido. <button onclick="descartarRascunho()">Descartar</button></div>':'')
     +'<div class="card"><div class="ctitle">📍 Dados da operação</div>'
     +'<div class="g2"><div class="f"><label>Data</label><input type="date" id="fi-data" value="'+today+'"></div>'
     +'<div class="f"><label>Categoria</label><select id="fi-cat" onchange="updCDE()">'+catOpts+'</select></div></div>'
@@ -245,282 +301,237 @@ function showNew() {
     +'<div class="f"><label>Cidade de destino</label><select id="fi-dest">'+cOpts+'</select></div></div>'
     +'<div class="g2"><div class="f"><label>Cidade da operação</label><select id="fi-cid">'+cOpts+'</select></div>'
     +'<div class="f"><label>Motivo</label><select id="fi-mot">'+motOpts+'</select></div></div>'
-    +'<div class="f"><label>Motorista</label><input type="text" id="fi-mot-nome" placeholder="Nome completo do motorista"></div>'
-    +'</div>'
-
-    +'<div class="card"><div class="ctitle">✅ Checklist de itens</div>'
-    +itemsHtml+'</div>'
-
-    +'<div class="card"><div class="ctitle">⛽ Nível de combustível</div>'
-    +'<div class="fuel">'+fuelSegs+'<span id="fuel-lbl" style="font-size:12px;color:var(--ink-soft);margin-left:6px;">— não informado</span></div>'
-    +'</div>'
-
-    +'<div class="card"><div class="ctitle">📝 Observações</div>'
-    +'<div class="f"><textarea id="fi-obs" placeholder="Avarias, itens faltantes, observações gerais…"></textarea></div></div>'
-
-    +'<div class="card"><div class="ctitle">📷 Fotos (opcional)</div>'
+    +'<div class="f"><label>Motorista</label><input type="text" id="fi-mot-nome" placeholder="Nome completo do motorista"></div></div>'
+    +'<div class="card"><div class="ctitle">✅ Checklist de itens</div>'+itemsHtml+'</div>'
+    +'<div class="card"><div class="ctitle">⛽ Nível de combustível</div><div class="fuel">'+fuelSegs+'<span id="fuel-lbl" style="font-size:12px;color:var(--ink-soft);margin-left:6px;">— não informado</span></div></div>'
+    +'<div class="card"><div class="ctitle">📝 Observações</div><div class="f"><textarea id="fi-obs" placeholder="Avarias, itens faltantes, observações gerais…"></textarea></div></div>'
+    +'<div class="card"><div class="ctitle">📷 Fotos (opcional, até '+MAX_FOTOS+')</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
-    +'<button class="btn" style="background:#f0f4ff;border:1px solid #9ab0e0;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600;color:#3355aa;cursor:pointer;" onclick="document.getElementById(\'foto-input\').click()">📷 Tirar/Carregar foto</button>'
-    +'<input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none;">'
-    +'<span id="foto-count" style="font-size:12px;color:var(--ink-soft);">Nenhuma foto adicionada</span>'
-    +'</div>'
-    +'<div id="foto-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>'
-    +'</div>'
+    +'<button type="button" class="btn-foto" id="btn-foto-cam">📷 Tirar foto</button>'
+    +'<button type="button" class="btn-foto" id="btn-foto-gal">🖼️ Da galeria</button>'
+    +'<input type="file" id="foto-cam" class="hide-file" accept="image/*" capture="environment" tabindex="-1">'
+    +'<input type="file" id="foto-gal" class="hide-file" accept="image/*" tabindex="-1">'
+    +'<span id="foto-count" style="font-size:12px;color:var(--ink-soft);">Nenhuma foto adicionada</span></div>'
+    +'<div id="foto-preview" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;"></div>'
+    +'<div style="font-size:11.5px;color:var(--ink-soft);margin-top:8px;">Se o celular recarregar ao abrir a câmera, o que você preencheu fica guardado.</div></div>'
     +'<div class="card"><div class="ctitle">✍️ Assinatura do responsável</div>'
     +'<div class="f"><label>Seu nome (líder / auxiliar)</label><input type="text" id="fi-resp" placeholder="Nome completo"></div>'
     +'<div class="sig-box"><canvas id="sig" width="640" height="100"></canvas>'
-    +'<div class="sig-toolbar"><span>Assine com o dedo ou mouse</span>'
-    +'<button class="btn btn-g" style="font-size:12px;padding:5px 10px;" onclick="clearSig()">🗑 Limpar</button></div></div>'
-    +'</div>'
-
+    +'<div class="sig-toolbar"><span>Assine com o dedo ou mouse</span><button type="button" class="btn btn-g" style="font-size:12px;padding:5px 10px;" onclick="clearSig()">🗑 Limpar</button></div></div></div>'
     +'<div style="display:flex;gap:10px;margin-bottom:24px;">'
-    +'<button class="btn btn-g" style="flex:1;" onclick="renderList()">← Voltar</button>'
-    +'<button class="btn btn-p" style="flex:2;" onclick="salvar()">💾 Salvar Checklist</button>'
-    +'</div>');
+    +'<button type="button" class="btn btn-g" style="flex:1;" onclick="voltarLista()">← Voltar</button>'
+    +'<button type="button" class="btn btn-p" id="btn-salvar" style="flex:2;" onclick="salvar()">💾 Salvar Checklist</button></div>');
 
-  initSig();
-  initFotos();
+  initSig(); initFotos();
+  if (rasc) restoreDraft(rasc);
+  snapshotDraft();   // marca o formulário como aberto
 }
 
-var fotosCapturadas = [];
-function initFotos() {
-  var inp = document.getElementById('foto-input');
-  if (!inp) return;
-  inp.addEventListener('change', function() {
-    var file = this.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      var img = new Image();
-      img.onload = function() {
-        var MAX = 1200, w = img.naturalWidth, h = img.naturalHeight;
-        if (w > MAX) { h = Math.round(h*MAX/w); w = MAX; }
-        var cv = document.createElement('canvas'); cv.width=w; cv.height=h;
-        cv.getContext('2d').drawImage(img,0,0,w,h);
-        var compressed = cv.toDataURL('image/jpeg', 0.72);
-        fotosCapturadas.push(compressed);
-        updateFotoPreview();
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-    this.value = '';
-  });
-}
-function updateFotoPreview() {
-  var prev = document.getElementById('foto-preview');
-  var cnt  = document.getElementById('foto-count');
-  if (!prev) return;
-  if (cnt) cnt.textContent = fotosCapturadas.length > 0 ? fotosCapturadas.length+' foto(s)' : 'Nenhuma foto adicionada';
-  prev.innerHTML = fotosCapturadas.map(function(f,i) {
-    return '<div style="position:relative;display:inline-block;">'
-      +'<img src="'+f+'" style="width:90px;height:70px;object-fit:cover;border-radius:7px;border:1.5px solid var(--line);">'
-      +'<button onclick="removeFoto('+i+')" style="position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>'
-      +'</div>';
-  }).join('');
-}
-function removeFoto(i) { fotosCapturadas.splice(i,1); updateFotoPreview(); }
-window.removeFoto = removeFoto;
-
-function renderItemGroup(group, title, _) {
-  var items = ITENS.filter(function(i){return i.g===group;});
-  var rows = items.map(function(item){
-    return '<div class="ci" id="ci-'+item.id+'">'
-      +'<span class="ci-name">'+item.l+'</span>'
-      +'<div class="opts">'
-      +'<label id="lbl-'+item.id+'-ok"   onclick="setItem(\''+item.id+'\',\'ok\')">✓ OK</label>'
-      +'<label id="lbl-'+item.id+'-nok"  onclick="setItem(\''+item.id+'\',\'nok\')">✗ NOK</label>'
-      +'<label id="lbl-'+item.id+'-na"   onclick="setItem(\''+item.id+'\',\'na\')">— N/A</label>'
-      +'</div></div>';
+function renderItemGroup(group, title) {
+  var rows = ITENS.filter(function(i){return i.g===group;}).map(function(item) {
+    return '<div class="ci" id="ci-'+item.id+'"><span class="ci-name">'+item.l+'</span><div class="opts">'
+      +'<label id="lbl-'+item.id+'-ok" onclick="setItem(\''+item.id+'\',\'ok\')">✓ OK</label>'
+      +'<label id="lbl-'+item.id+'-nok" onclick="setItem(\''+item.id+'\',\'nok\')">✗ NOK</label>'
+      +'<label id="lbl-'+item.id+'-na" onclick="setItem(\''+item.id+'\',\'na\')">— N/A</label></div></div>';
   }).join('');
   return '<div class="sh">'+title+'</div>'+rows;
 }
-
-function setItem(id, val) {
-  itensState[id] = val;
-  var row = document.getElementById('ci-'+id);
-  if (row) { row.className = 'ci '+val; }
-  ['ok','nok','na'].forEach(function(v) {
-    var l = document.getElementById('lbl-'+id+'-'+v);
-    if (l) l.className = (v===val ? 'sel-'+v : '');
-  });
+function applyItemVisual(id, val) {
+  var row = document.getElementById('ci-'+id); if (row) row.className = 'ci '+val;
+  ['ok','nok','na'].forEach(function(v) { var l = document.getElementById('lbl-'+id+'-'+v); if (l) l.className = (v===val ? 'sel-'+v : ''); });
 }
-
+function setItem(id, val) { itensState[id] = val; applyItemVisual(id, val); snapshotDraft(); }
 function updCDE() {
   var cat = (document.getElementById('fi-cat')||{}).value;
-  var b = document.getElementById('cde-block');
-  if (b) b.style.display = ['C','D','E'].indexOf(cat) >= 0 ? 'block' : 'none';
+  var b = document.getElementById('cde-block'); if (b) b.style.display = ['C','D','E'].indexOf(cat) >= 0 ? 'block' : 'none';
 }
-
-function setFuel(n) {
+function setFuelVisual(n) {
   fuelVal = n;
-  for (var i=1; i<=8; i++) {
-    var s = document.getElementById('fs'+i);
-    if (s) s.className = 'fseg'+(i<=n?' on':'');
-  }
-  var lbl = document.getElementById('fuel-lbl');
-  if (lbl) lbl.textContent = Math.round(n/8*100)+'%';
+  for (var i=1; i<=8; i++) { var s = document.getElementById('fs'+i); if (s) s.className = 'fseg'+(i<=n?' on':''); }
+  var lbl = document.getElementById('fuel-lbl'); if (lbl) lbl.textContent = Math.round(n/8*100)+'%';
 }
+function setFuel(n) { setFuelVisual(n); snapshotDraft(); }
 
-/* Signature */
-function initSig() {
-  var canvas = document.getElementById('sig');
-  if (!canvas) return;
-  sigC = canvas.getContext('2d');
-  sigC.strokeStyle = '#1A202C'; sigC.lineWidth = 2.2; sigC.lineCap = 'round';
-  sigOk = false;
-  function gp(ev) {
-    var r = canvas.getBoundingClientRect();
-    var sx = canvas.width/r.width, sy = canvas.height/r.height;
-    var src = ev.touches ? ev.touches[0] : ev;
-    return {x:(src.clientX-r.left)*sx, y:(src.clientY-r.top)*sy};
-  }
-  function start(ev) { sigDraw=true; var p=gp(ev); sigLx=p.x; sigLy=p.y; }
-  function move(ev)  { if(!sigDraw) return; var p=gp(ev); sigC.beginPath(); sigC.moveTo(sigLx,sigLy); sigC.lineTo(p.x,p.y); sigC.stroke(); sigLx=p.x; sigLy=p.y; sigOk=true; }
-  function end()     { sigDraw=false; }
-  canvas.addEventListener('mousedown',  start);
-  canvas.addEventListener('mousemove',  move);
-  canvas.addEventListener('mouseup',    end);
-  canvas.addEventListener('mouseleave', end);
-  canvas.addEventListener('touchstart', function(ev){ev.preventDefault();start(ev);},{passive:false});
-  canvas.addEventListener('touchmove',  function(ev){ev.preventDefault();move(ev);},{passive:false});
-  canvas.addEventListener('touchend',   end);
+/* ── Fotos ───────────────────────────────────────────────────── */
+function initFotos() {
+  var cam = document.getElementById('foto-cam'), gal = document.getElementById('foto-gal');
+  var bc = document.getElementById('btn-foto-cam'), bg = document.getElementById('btn-foto-gal');
+  if (bc && cam) bc.addEventListener('click', function(){ cam.click(); });
+  if (bg && gal) bg.addEventListener('click', function(){ gal.click(); });
+  [cam, gal].forEach(function(inp) {
+    if (!inp) return;
+    inp.addEventListener('change', function() { var f = this.files && this.files[0]; this.value = ''; if (f) addFotoFromFile(f); });
+  });
 }
-function clearSig() { if(sigC){var c=document.getElementById('sig');sigC.clearRect(0,0,c.width,c.height);sigOk=false;} }
+/* Usa URL do arquivo (não lê a foto inteira como texto) e reduz antes de guardar:
+   menos memória → menos chance do celular recarregar a página. */
+function addFotoFromFile(file) {
+  if (fotosCapturadas.length >= MAX_FOTOS) { toast('⚠️ Máximo de '+MAX_FOTOS+' fotos.'); return; }
+  toast('⏳ Processando foto…');
+  var U = window.URL || window.webkitURL;
+  var url = U.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    try {
+      var MAX = 1000, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      if (w > MAX || h > MAX) { var k = MAX / Math.max(w, h); w = Math.round(w*k); h = Math.round(h*k); }
+      var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      fotosCapturadas.push(cv.toDataURL('image/jpeg', 0.6));
+      updateFotoPreview(); snapshotDraft(); toast('✅ Foto adicionada ('+fotosCapturadas.length+')');
+    } catch(err) { toast('❌ Não consegui processar a foto. Tente outra.'); }
+    finally { try { U.revokeObjectURL(url); } catch(_) {} }
+  };
+  img.onerror = function() { try { U.revokeObjectURL(url); } catch(_) {} toast('❌ Foto inválida. Tente outra.'); };
+  img.src = url;
+}
+function updateFotoPreview() {
+  var prev = document.getElementById('foto-preview'), cnt = document.getElementById('foto-count');
+  if (cnt) cnt.textContent = fotosCapturadas.length ? fotosCapturadas.length+' foto(s)' : 'Nenhuma foto adicionada';
+  if (!prev) return;
+  prev.innerHTML = fotosCapturadas.map(function(f, i) {
+    return '<div class="thumb"><img src="'+f+'" onclick="lbNew('+i+')"><button type="button" class="x" onclick="removeFoto('+i+')">✕</button></div>';
+  }).join('');
+}
+function removeFoto(i) { fotosCapturadas.splice(i, 1); updateFotoPreview(); snapshotDraft(); }
+function lbNew(i) { openLB(fotosCapturadas[i]); }
+function lbDet(i) { openLB(detalheFotos[i]); }
+function openLB(src) {
+  var lb = document.getElementById('lb'); if (!src || !lb) return;
+  lb.innerHTML = '<button type="button" class="lb-x" onclick="closeLB()">✕</button><img src="'+src+'">';
+  lb.className = 'lb on';
+}
+function closeLB() { var lb = document.getElementById('lb'); if (lb) { lb.className = 'lb'; lb.innerHTML = ''; } }
+
+/* ── Assinatura ──────────────────────────────────────────────── */
+function initSig() {
+  var canvas = document.getElementById('sig'); if (!canvas) return;
+  sigC = canvas.getContext('2d'); sigC.strokeStyle = '#1A202C'; sigC.lineWidth = 2.2; sigC.lineCap = 'round'; sigOk = false;
+  function gp(ev) { var r = canvas.getBoundingClientRect(); var sx = canvas.width/r.width, sy = canvas.height/r.height; var src = ev.touches ? ev.touches[0] : ev; return {x:(src.clientX-r.left)*sx, y:(src.clientY-r.top)*sy}; }
+  function start(ev) { sigDraw = true; var p = gp(ev); sigLx = p.x; sigLy = p.y; }
+  function move(ev) { if (!sigDraw) return; var p = gp(ev); sigC.beginPath(); sigC.moveTo(sigLx, sigLy); sigC.lineTo(p.x, p.y); sigC.stroke(); sigLx = p.x; sigLy = p.y; sigOk = true; }
+  function end() { sigDraw = false; }
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); canvas.addEventListener('mouseup', end); canvas.addEventListener('mouseleave', end);
+  canvas.addEventListener('touchstart', function(ev){ev.preventDefault(); start(ev);}, {passive:false});
+  canvas.addEventListener('touchmove', function(ev){ev.preventDefault(); move(ev);}, {passive:false});
+  canvas.addEventListener('touchend', end);
+}
+function clearSig() { if (sigC) { var c = document.getElementById('sig'); sigC.clearRect(0, 0, c.width, c.height); sigOk = false; } }
 
 /* ── SALVAR ──────────────────────────────────────────────────── */
 async function salvar() {
-  var placa   = ((document.getElementById('fi-placa')||{}).value||'').trim().toUpperCase();
-  var orig    = (document.getElementById('fi-orig')||{}).value||'';
-  var dest    = (document.getElementById('fi-dest')||{}).value||'';
-  var mot     = ((document.getElementById('fi-mot-nome')||{}).value||'').trim();
-  var resp    = ((document.getElementById('fi-resp')||{}).value||'').trim();
-  var data    = (document.getElementById('fi-data')||{}).value||'';
-  var cid     = (document.getElementById('fi-cid')||{}).value || dest;
-  var cat     = (document.getElementById('fi-cat')||{}).value||'B';
-
-  if (!placa)  { toast('⚠️ Informe a placa.'); return; }
-  if (!orig)   { toast('⚠️ Selecione a cidade de origem.'); return; }
-  if (!dest)   { toast('⚠️ Selecione a cidade de destino.'); return; }
-  if (!mot)    { toast('⚠️ Informe o motorista.'); return; }
-  if (!resp)   { toast('⚠️ Informe o responsável.'); return; }
+  if (salvando) return;
+  var g = function(id){ return ((document.getElementById(id)||{}).value||'').trim(); };
+  var placa = g('fi-placa').toUpperCase(), orig = g('fi-orig'), dest = g('fi-dest'), mot = g('fi-mot-nome'), resp = g('fi-resp');
+  if (!placa) { toast('⚠️ Informe a placa.'); return; }
+  if (!orig)  { toast('⚠️ Selecione a cidade de origem.'); return; }
+  if (!dest)  { toast('⚠️ Selecione a cidade de destino.'); return; }
+  if (!mot)   { toast('⚠️ Informe o motorista.'); return; }
+  if (!resp)  { toast('⚠️ Informe o responsável.'); return; }
 
   var sig = '';
-  if (sigOk) { var cv = document.getElementById('sig'); if(cv) sig = cv.toDataURL('image/jpeg',0.5); }
-  var fotos = fotosCapturadas.slice();
-
-  var doc = {
-    id: 'CK'+Date.now().toString(36).toUpperCase(),
-    data: data, placa: placa, cat: cat,
-    op: ((document.getElementById('fi-op')||{}).value||'').trim(),
-    cidade: cid, origem: orig, destino: dest,
-    motivo: (document.getElementById('fi-mot')||{}).value||'',
-    motorista: mot, responsavel: resp,
-    itens: Object.assign({}, itensState),
-    combustivel: fuelVal,
-    obs: ((document.getElementById('fi-obs')||{}).value||'').trim(),
-    assinatura: sig,
-    fotos: fotos,
-    criadoEm: new Date().toISOString()
-  };
-
-  toast('💾 Salvando…');
-  checklists.push(doc);
-  var r = await sbSet(DB_KEY, JSON.stringify(checklists));
-  if (r.ok) {
+  if (sigOk) { var cv = document.getElementById('sig'); if (cv) sig = cv.toDataURL('image/jpeg', 0.5); }
+  salvando = true;
+  var btn = document.getElementById('btn-salvar'); if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando…'; }
+  try {
+    var id = 'CK'+Date.now().toString(36).toUpperCase();
+    /* 1) fotos: cada uma em sua própria chave (a lista fica leve) */
+    var fotoIds = [];
+    for (var i = 0; i < fotosCapturadas.length; i++) {
+      toast('📷 Enviando foto '+(i+1)+' de '+fotosCapturadas.length+'…');
+      var key = 'ckfoto-'+id+'-'+(i+1);
+      var rf = await sbSet(key, fotosCapturadas[i]);
+      if (!rf.ok) throw new Error('foto');
+      fotoIds.push(key);
+    }
+    var doc = {
+      id: id, data: g('fi-data'), placa: placa, cat: g('fi-cat') || 'B', op: g('fi-op'),
+      cidade: g('fi-cid') || dest, origem: orig, destino: dest, motivo: g('fi-mot'),
+      motorista: mot, responsavel: resp, itens: Object.assign({}, itensState),
+      combustivel: fuelVal, obs: g('fi-obs'), assinatura: sig, fotoIds: fotoIds,
+      criadoEm: new Date().toISOString()
+    };
+    /* 2) lista: busca a versão MAIS RECENTE do banco e acrescenta — não apaga o de ninguém */
+    toast('💾 Salvando…');
+    var lr = await sbGetRaw(DB_KEY);
+    if (!lr.ok) throw new Error('lista');
+    var lista = [];
+    try { lista = lr.value ? JSON.parse(lr.value) : []; } catch(_) { throw new Error('lista'); }
+    if (!lista.some(function(x){ return x.id === doc.id; })) lista.push(doc);
+    var wr = await sbSet(DB_KEY, JSON.stringify(lista));
+    if (!wr.ok) throw new Error('lista');
+    checklists = lista;
+    clearDraft(); fotosCapturadas = []; itensState = {}; fuelVal = 0;
     toast('✅ Checklist salvo!');
-    setTimeout(renderList, 1000);
-  } else {
-    checklists.pop();
-    toast('❌ Erro ao salvar. Verifique a conexão.');
+    setTimeout(renderList, 900);
+  } catch(err) {
+    toast('❌ Não foi possível salvar ('+(err && err.message === 'foto' ? 'envio da foto' : 'conexão')+'). Seus dados continuam aqui, tente de novo.');
+  } finally {
+    salvando = false;
+    var b2 = document.getElementById('btn-salvar'); if (b2) { b2.disabled = false; b2.textContent = '💾 Salvar Checklist'; }
   }
 }
 
 /* ── DETALHE ─────────────────────────────────────────────────── */
-function showDetail(idx) {
-  view = 'detail'; viewId = idx;
-  var c = checklists[idx];
+function showDetailId(id) {
+  var c = null; for (var i = 0; i < checklists.length; i++) { if (checklists[i].id === id) { c = checklists[i]; break; } }
   if (!c) { renderList(); return; }
-
+  view = 'detail'; detalheFotos = [];
   var nokN = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
-  var stBadge = nokN > 0
-    ? '<span class="badge b-nok">⚠️ '+nokN+' item(s) NOK</span>'
-    : '<span class="badge b-ok">✅ Todos OK</span>';
-
+  var stBadge = nokN > 0 ? '<span class="badge b-nok">⚠️ '+nokN+' item(s) NOK</span>' : '<span class="badge b-ok">✅ Todos OK</span>';
   var iHtml = ITENS.map(function(item) {
     var v = (c.itens||{})[item.id]; if (!v) return '';
     var l = v==='ok'?'<span class="v-ok">✓ OK</span>':v==='nok'?'<span class="v-nok">✗ NOK</span>':'<span class="v-na">— N/A</span>';
     return '<div class="vi"><span class="vi-n">'+item.l+'</span>'+l+'</div>';
   }).join('');
-
   var fuel = c.combustivel ? Math.round(c.combustivel/8*100)+'%' : '—';
+  var nF = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
+  var fotosCard = nF ? '<div class="card"><div class="ctitle">📷 Fotos ('+nF+')</div><div id="fotos-box" style="display:flex;gap:8px;flex-wrap:wrap;"><span style="font-size:12.5px;color:var(--ink-soft);">⏳ Carregando fotos…</span></div></div>' : '';
+  var obsCard = c.obs ? '<div class="card"><div class="ctitle">📝 Observações</div><p style="font-size:13.5px;line-height:1.6;">'+e(c.obs)+'</p></div>' : '';
+  var sigCard = c.assinatura ? '<div class="card"><div class="ctitle">✍️ Assinatura</div><img src="'+c.assinatura+'" style="max-width:100%;border-radius:8px;border:1px solid var(--line);"><p style="font-size:12px;color:var(--ink-soft);margin-top:6px;">'+e(c.responsavel)+'</p></div>' : '';
 
-  R('<div class="hd"><div style="font-size:28px">📋</div>'
-    +'<div><h1>'+e(c.placa)+' — Cat. '+e(c.cat)+'</h1>'
-    +'<p>'+e(fd(c.data))+' · '+e(c.origem)+' → '+e(c.destino)+'</p></div></div>'
-
-    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'
-    +stBadge
-    +'<span style="font-size:12px;color:var(--ink-soft);">por '+e(c.responsavel)+'</span>'
-    +'<button class="btn btn-del" style="margin-left:auto;" onclick="excluir('+idx+')">🗑 Excluir</button>'
-    +'</div>'
-
-    +'<div class="card"><div class="ctitle">📍 Informações</div>'
-    +'<div class="info-row">'
+  R('<div class="hd"><div style="font-size:28px">📋</div><div><h1>'+e(c.placa)+' — Cat. '+e(c.cat)+'</h1><p>'+e(fd(c.data))+' · '+e(c.origem)+' → '+e(c.destino)+'</p></div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'+stBadge+'<span style="font-size:12px;color:var(--ink-soft);">por '+e(c.responsavel)+'</span></div>'
+    +'<div class="card"><div class="ctitle">📍 Informações</div><div class="info-row">'
     +'<div class="kv"><span>Placa</span><b>'+e(c.placa)+'</b></div>'
     +'<div class="kv"><span>N° Operação</span><span>'+e(c.op||'—')+'</span></div>'
     +'<div class="kv"><span>Motorista</span><span>'+e(c.motorista)+'</span></div>'
     +'<div class="kv"><span>Motivo</span><span>'+e(c.motivo)+'</span></div>'
     +'<div class="kv"><span>Combustível</span><span>'+fuel+'</span></div>'
-    +'<div class="kv"><span>Responsável</span><span>'+e(c.responsavel)+'</span></div>'
-    +'</div></div>'
-
+    +'<div class="kv"><span>Responsável</span><span>'+e(c.responsavel)+'</span></div></div></div>'
     +'<div class="card"><div class="ctitle">✅ Checklist</div>'+(iHtml||'<p style="color:var(--ink-soft);font-size:13px;">Nenhum item registrado.</p>')+'</div>'
-
-    +(c.obs?'<div class="card"><div class="ctitle">📝 Observações</div><p style="font-size:13.5px;line-height:1.6;">'+e(c.obs)+'</p></div>':'')
-
-    +(c.fotos&&c.fotos.length?'<div class="card"><div class="ctitle">📷 Fotos ('+c.fotos.length+')</div>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'+c.fotos.map(function(f){return '<a href="'+f+'" target="_blank"><img src="'+f+'" style="width:100px;height:80px;object-fit:cover;border-radius:8px;border:1.5px solid var(--line);"></a>';}).join('')+'</div></div>':'')+
-    +(c.assinatura?'<div class="card"><div class="ctitle">✍️ Assinatura</div>'
-      +'<img src="'+c.assinatura+'" style="max-width:100%;border-radius:8px;border:1px solid var(--line);">'
-      +'<p style="font-size:12px;color:var(--ink-soft);margin-top:6px;">'+e(c.responsavel)+'</p></div>':'')
-
-    +'<button class="btn" style="background:none;border:1.5px solid var(--line);width:100%;padding:12px;margin-bottom:24px;" onclick="renderList()">← Voltar à lista</button>');
+    + obsCard + fotosCard + sigCard
+    +'<button type="button" class="btn" style="background:none;border:1.5px solid var(--line);width:100%;padding:12px;margin-bottom:24px;" onclick="renderList()">← Voltar à lista</button>');
+  if (nF) carregarFotos(c);
 }
-
-async function excluir(idx) {
-  if (!confirm('Excluir este checklist permanentemente?')) return;
-  checklists.splice(idx, 1);
-  var r = await sbSet(DB_KEY, JSON.stringify(checklists));
-  if (r.ok) { toast('🗑 Excluído.'); renderList(); }
-  else { checklists.splice(idx, 0, checklists[idx]); toast('❌ Erro ao excluir.'); }
+async function carregarFotos(c) {
+  var box, i;
+  var fotos = [];
+  if (c.fotos && c.fotos.length) fotos = c.fotos.slice();            // formato antigo (dentro do registro)
+  if (c.fotoIds && c.fotoIds.length) {
+    for (i = 0; i < c.fotoIds.length; i++) { var r = await sbGetRaw(c.fotoIds[i]); fotos.push(r.ok && r.value ? r.value : null); }
+  }
+  if (view !== 'detail') return;
+  detalheFotos = fotos; box = document.getElementById('fotos-box'); if (!box) return;
+  box.innerHTML = fotos.map(function(f, k) {
+    return f ? '<div class="thumb"><img src="'+f+'" onclick="lbDet('+k+')"></div>'
+             : '<div style="width:92px;height:72px;border:1.5px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-soft);text-align:center;">não carregou</div>';
+  }).join('') || '<span style="font-size:12.5px;color:var(--ink-soft);">Sem fotos.</span>';
 }
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function R(html) { document.getElementById('app').innerHTML = html; }
-function e(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fd(s){
-  if(!s) return '—';
-  if(s.includes('-')&&s.length>=10){var p=s.slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0];}
-  return s;
-}
-function toast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'toast on';
-  clearTimeout(t._t); t._t = setTimeout(function(){t.className='toast';}, 2800);
-}
+function e(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fd(s){ if(!s) return '—'; if(s.indexOf('-')>=0&&s.length>=10){var p=s.slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0];} return s; }
+function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(t._t); t._t = setTimeout(function(){ t.className = 'toast'; }, 3200); }
 
-window.showNew = showNew;
-window.renderList = renderList;
-window.showDetail = showDetail;
-window.excluir = excluir;
-window.salvar = salvar;
-window.setItem = setItem;
-window.updCDE = updCDE;
-window.setFuel = setFuel;
-window.clearSig = clearSig;
+window.showNew = showNew; window.renderList = renderList; window.voltarLista = voltarLista; window.reloadList = reloadList;
+window.showDetailId = showDetailId; window.salvar = salvar; window.setItem = setItem; window.updCDE = updCDE; window.setFuel = setFuel;
+window.clearSig = clearSig; window.removeFoto = removeFoto; window.lbNew = lbNew; window.lbDet = lbDet; window.closeLB = closeLB;
+window.descartarRascunho = descartarRascunho;
 
 init();
+
 </script>
 </body>
 </html>
