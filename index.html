@@ -581,6 +581,9 @@ async function storageSet(key, value, shared){
         return false;
       }
       if(_supaFalhas>0){ _supaFalhas=0; _supaCircuitoAberto=false; _ocultarBannerConexao(); }
+      /* gravou no banco: a cópia local "pendente" ficou obsoleta — remove para que a
+         reconexão não reenvie uma versão antiga por cima de dados mais novos */
+      try{ localStorage.removeItem(LS_PREFIX+key); }catch(e){}
       return true;
     }catch(e){
       _supaFalhas++;
@@ -5810,11 +5813,11 @@ function renderVeiculosTab(){
     html += '<div class="rel-bloco" style="margin-top:18px;">';
     html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
     html += '<span>📋 Checklists de troca — preenchidos pelos colaboradores</span>';
-    html += '<span style="font-size:12px;color:var(--ink-soft);">'+cks.length+' registro(s)</span>';
+    html += '<span style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:8px;">'+cks.length+' registro(s) <button class="btn btn-ghost" style="font-size:11.5px;padding:3px 9px;" onclick="window.__atualizarChecklists()">🔄 Atualizar</button></span>';
     html += '</div><div class="rel-body" style="padding:0;"><div style="overflow-x:auto;">';
     html += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px;">';
     html += '<thead><tr style="background:var(--teal);color:#fff;">';
-    ['Data','Placa','Cat.','Origem → Destino','Motorista','Responsável','Status','Obs.'].forEach(function(h){
+    ['Data','Placa','Cat.','Origem → Destino','Motorista','Responsável','Status','Obs.','Abrir'].forEach(function(h){
       html += '<th style="padding:7px 10px;text-align:left;white-space:nowrap;">'+h+'</th>';
     });
     html += '</tr></thead><tbody>';
@@ -5823,7 +5826,8 @@ function renderVeiculosTab(){
       var bg   = ri%2===0 ? '#fafafa' : '#fff';
       var dDsp = c.data ? (function(s){var p=s.slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0];})(c.data) : '—';
       var fuel = c.combustivel ? Math.round(parseInt(c.combustivel)/8*100)+'%' : '';
-      html += '<tr style="background:'+bg+';border-bottom:1px solid var(--line);">';
+      var nFck = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
+      html += '<tr data-ckid="'+esc(c.id||'')+'" title="Clique para abrir" style="background:'+bg+';border-bottom:1px solid var(--line);cursor:pointer;">';
       html += '<td style="padding:6px 10px;white-space:nowrap;">'+esc(dDsp)+'</td>';
       html += '<td style="padding:6px 10px;font-weight:700;">'+esc(c.placa||'—')+'</td>';
       html += '<td style="padding:6px 10px;">'+esc(c.cat||'—')+'</td>';
@@ -5835,13 +5839,18 @@ function renderVeiculosTab(){
       else       html += '<span style="background:#EBF7F0;color:var(--green);border-radius:20px;padding:2px 8px;font-weight:700;font-size:11.5px;">✅ OK</span>';
       html += '</td>';
       html += '<td style="padding:6px 10px;font-size:12px;color:var(--ink-soft);">'+esc((c.obs||'').slice(0,50)+(c.obs&&c.obs.length>50?'…':''))+'</td>';
+      html += '<td style="padding:6px 10px;white-space:nowrap;"><button class="btn btn-ghost" style="font-size:11.5px;padding:3px 9px;">🔍 Abrir'+(nFck?' · 📷'+nFck:'')+'</button></td>';
       html += '</tr>';
       if(nokN>0){
         var nokItens=Object.entries(c.itens||{}).filter(function(kv){return kv[1]==='nok';}).map(function(kv){return esc(ITEM_LBL[kv[0]]||kv[0]);}).join(', ');
-        html += '<tr style="background:#FFF5F5;"><td colspan="8" style="padding:4px 10px 7px 20px;font-size:12px;color:var(--red);">⚠️ NOK: '+nokItens+'</td></tr>';
+        html += '<tr data-ckid="'+esc(c.id||'')+'" style="background:#FFF5F5;cursor:pointer;"><td colspan="9" style="padding:4px 10px 7px 20px;font-size:12px;color:var(--red);">⚠️ NOK: '+nokItens+'</td></tr>';
       }
     });
     html += '</tbody></table></div></div></div>';
+  } else {
+    html += '<div class="rel-bloco" style="margin-top:18px;"><div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span>📋 Checklists de troca — preenchidos pelos colaboradores</span>'
+      +'<button class="btn btn-ghost" style="font-size:11.5px;padding:3px 9px;" onclick="window.__atualizarChecklists()">🔄 Atualizar</button></div>'
+      +'<div class="rel-body" style="font-size:13px;color:var(--ink-soft);">Nenhum checklist recebido ainda. Quando um colaborador preencher, clique em 🔄 Atualizar.</div></div>';
   }
   
   html += '<div style="text-align:right;margin-bottom:8px;"><button class="btn btn-ghost" onclick="window.__exportarFrota()" style="font-size:12px;">⬇ Exportar frota (.csv)</button></div>';document.getElementById('tabContent').innerHTML = html;
@@ -6184,7 +6193,7 @@ window.__toggleFdsCidadeCat = async function(btn){
   var tPayload = JSON.stringify(state.gestaoEscala);
   try {
     if(sb){ var tr=await sb.from('kv_store').upsert({key:'gestao-escala',value:tPayload},{onConflict:'key'});
-      if(!tr.error){ try{localStorage.setItem('painelpe_gestao-escala',tPayload);}catch(_){} _supaFalhas=0;_supaCircuitoAberto=false; }
+      if(!tr.error){ try{localStorage.removeItem('painelpe_gestao-escala');}catch(_){} _supaFalhas=0;_supaCircuitoAberto=false; }
       else throw new Error(tr.error.message); }
     else throw new Error('sb null');
   } catch(_){ _supaFalhas=0;_supaCircuitoAberto=false; await storageSet('gestao-escala',tPayload,true); }
@@ -6240,7 +6249,7 @@ window.__addCidadeFds = async function(dataSab, inputId, mes){
       var gr = await sb.from('kv_store').upsert(
         {key:'gestao-escala', value:gePayload}, {onConflict:'key'});
       if(!gr.error){
-        try{ localStorage.setItem('painelpe_gestao-escala', gePayload); }catch(_){}
+        try{ localStorage.removeItem('painelpe_gestao-escala'); }catch(_){}
         _supaFalhas = 0; _supaCircuitoAberto = false;
         salvo = true;
       } else { throw new Error(gr.error.message); }
@@ -6249,7 +6258,7 @@ window.__addCidadeFds = async function(dataSab, inputId, mes){
     /* fallback XHR */
     _supaFalhas = 0; _supaCircuitoAberto = false;
     var r2 = await storageSet('gestao-escala', gePayload, true);
-    if(r2 && r2.ok) salvo = true;
+    if(r2 === true || (r2 && r2.ok)) salvo = true;
     else console.error('__addCidadeFds fallback falhou:', e1.message, r2);
   }
 
@@ -6273,7 +6282,7 @@ window.__rmCidadeFds = async function(dataSab, cidade){
       var gr = await sb.from('kv_store').upsert(
         {key:'gestao-escala', value:gePayload}, {onConflict:'key'});
       if(!gr.error){
-        try{ localStorage.setItem('painelpe_gestao-escala', gePayload); }catch(_){}
+        try{ localStorage.removeItem('painelpe_gestao-escala'); }catch(_){}
         _supaFalhas=0; _supaCircuitoAberto=false;
       } else { throw new Error(gr.error.message); }
     } else { throw new Error('sb não inicializado'); }
@@ -7758,7 +7767,7 @@ window.__salvarTodasVagas = async function(mes){
     }
 
     /* Atualiza localStorage também */
-    try { localStorage.setItem('painelpe_metas-categoria', payload); } catch(_){}
+    try { localStorage.removeItem('painelpe_metas-categoria'); } catch(_){}
 
     /* Reseta contadores de falha */
     _supaFalhas = 0;
@@ -7775,7 +7784,7 @@ window.__salvarTodasVagas = async function(mes){
     try {
       _supaFalhas = 0; _supaCircuitoAberto = false;
       var r2 = await storageSet('metas-categoria', payload, true);
-      if(r2 && r2.ok){
+      if(r2 === true || (r2 && r2.ok)){
         showToast('✅ ' + nomeMes(mes) + ': vagas e meta salvas!');
         if(state.activeTab === 'planejamento') renderPlanejamentoTab();
         return;
@@ -7889,6 +7898,122 @@ window._abrirMailtoAlimentacao = function(para, assunto, corpo){
 };
 
 
+
+/* ── Checklists de troca: abrir, ampliar foto, excluir (admin) ───────── */
+var CK_GRUPOS = [
+  {t:'📹 Câmeras e equipamentos', it:[['cam_f','Câmera frontal'],['cam_l','Câmera lateral'],['cam_i','Câmera interna'],['cam_t','Câmera traseira'],['biom','Leitor biométrico'],['case','Case']]},
+  {t:'🔐 Segurança e documentação', it:[['chrod','Chave de roda'],['mac','Macaco'],['tri','Triângulo'],['est','Estepe'],['crlv','CRLV']]},
+  {t:'🕐 Cat. C / D / E', it:[['taco','Tacógrafo']]},
+  {t:'🚗 Condições do veículo', it:[['pneus','Pneus'],['vidros','Vidros / Retrovisores'],['lint','Limpeza interna'],['lext','Limpeza externa'],['avar','Avarias visíveis']]}
+];
+window.__ckFotosAtual = [];
+window.__fecharChecklist = function(){
+  var m = document.getElementById('ck-modal'); if(m) m.parentNode.removeChild(m);
+  var l = document.getElementById('ck-lb'); if(l) l.parentNode.removeChild(l);
+  document.body.style.overflow = '';
+};
+window.__abrirChecklist = function(id){
+  var c = (state.checklistsTroca||[]).filter(function(x){return x.id===id;})[0];
+  if(!c){ showToast('Checklist não encontrado. Clique em 🔄 Atualizar.'); return; }
+  window.__fecharChecklist();
+  var nokN = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
+  var fuel = c.combustivel ? Math.round(parseInt(c.combustivel)/8*100)+'%' : '—';
+  var nF = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
+  var dDsp = c.data ? dataParaDisplay(c.data) : '—';
+  var itensHtml = CK_GRUPOS.map(function(g){
+    var linhas = g.it.map(function(p){
+      var v = (c.itens||{})[p[0]]; if(!v) return '';
+      var bg = v==='nok' ? '#FFF5F5' : v==='ok' ? '#EBF7F0' : '#FFFBF0';
+      var cl = v==='nok' ? 'var(--red)' : v==='ok' ? 'var(--green)' : '#856404';
+      var tx = v==='nok' ? '✗ NOK' : v==='ok' ? '✓ OK' : '— N/A';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;background:'+bg+';border-radius:7px;padding:6px 10px;margin-bottom:4px;font-size:13px;"><span>'+esc(p[1])+'</span><b style="color:'+cl+';">'+tx+'</b></div>';
+    }).join('');
+    return linhas ? '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin:12px 0 5px;">'+g.t+'</div>'+linhas : '';
+  }).join('') || '<div style="font-size:13px;color:var(--ink-soft);">Nenhum item registrado.</div>';
+  var kv = function(k,v){ return '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;"><span style="color:var(--ink-soft);min-width:120px;font-size:12px;">'+k+'</span><span style="font-weight:600;">'+v+'</span></div>'; };
+  var admin = !!(state.sessao && state.sessao.isAdmin);
+  var ov = document.createElement('div');
+  ov.id = 'ck-modal'; ov.setAttribute('data-ckid', '');   // (vazio: não dispara a abertura ao clicar dentro)
+  ov.setAttribute('data-aberto', id);
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:9990;overflow:auto;padding:18px 12px;';
+  ov.innerHTML = '<div style="max-width:680px;margin:0 auto;background:#fff;border-radius:14px;padding:16px 18px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3);">'
+    +'<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">'
+    +'<div><div style="font-size:17px;font-weight:800;color:var(--teal);">🚗 '+esc(c.placa||'—')+' <span style="font-size:13px;font-weight:600;color:var(--ink-soft);">Cat. '+esc(c.cat||'—')+'</span></div>'
+    +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">'+esc(dDsp)+' · '+esc(c.origem||'—')+' → '+esc(c.destino||'—')+'</div></div>'
+    +'<div style="margin-left:auto;display:flex;gap:6px;align-items:center;">'
+    +(nokN>0?'<span style="background:#FFF5F5;color:var(--red);border-radius:20px;padding:3px 10px;font-weight:700;font-size:12px;">⚠️ '+nokN+' NOK</span>':'<span style="background:#EBF7F0;color:var(--green);border-radius:20px;padding:3px 10px;font-weight:700;font-size:12px;">✅ Todos OK</span>')
+    +'<button class="btn btn-ghost" onclick="window.__fecharChecklist()" style="font-size:13px;padding:4px 11px;">✕ Fechar</button></div></div>'
+    +'<div style="margin-top:12px;">'+kv('N° Operação',esc(c.op||'—'))+kv('Motorista',esc(c.motorista||'—'))+kv('Motivo',esc(c.motivo||'—'))+kv('Cidade da operação',esc(c.cidade||'—'))+kv('Combustível',fuel)+kv('Preenchido por',esc(c.responsavel||'—'))+(c.criadoEm?kv('Registrado em',esc(String(c.criadoEm).replace('T',' ').slice(0,16))):'')+'</div>'
+    +'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">✅ Itens verificados</div>'+itensHtml
+    +(c.obs?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">📝 Observações</div><div style="font-size:13.5px;line-height:1.55;background:#f8f8f8;border-radius:8px;padding:9px 12px;margin-top:5px;white-space:pre-wrap;">'+esc(c.obs)+'</div>':'')
+    +(nF?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">📷 Fotos ('+nF+')</div><div id="ck-fotos-box" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"><span style="font-size:12.5px;color:var(--ink-soft);">⏳ Carregando fotos…</span></div>':'')
+    +(c.assinatura?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">✍️ Assinatura</div><img src="'+c.assinatura+'" style="max-width:100%;border:1px solid var(--line);border-radius:8px;margin-top:5px;"><div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">'+esc(c.responsavel||'')+'</div>':'')
+    +'<div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end;">'
+    +(admin?'<button class="btn" onclick="window.__excluirChecklist(\''+esc(id)+'\')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;">🗑 Excluir checklist</button>':'')
+    +'<button class="btn btn-ghost" onclick="window.__fecharChecklist()">Fechar</button></div></div>';
+  ov.addEventListener('click', function(ev){ if(ev.target === ov) window.__fecharChecklist(); });
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+  if(nF) window.__ckCarregarFotos(c);
+};
+window.__ckCarregarFotos = async function(c){
+  var fotos = (c.fotos||[]).slice();
+  var ids = c.fotoIds || [];
+  for(var i=0;i<ids.length;i++){
+    var v = null; try{ v = await storageGet(ids[i], true); }catch(_){}
+    fotos.push(v || null);
+  }
+  var m = document.getElementById('ck-modal');
+  if(!m || m.getAttribute('data-aberto') !== c.id) return;    // fechou ou abriu outro enquanto carregava
+  window.__ckFotosAtual = fotos;
+  var box = document.getElementById('ck-fotos-box'); if(!box) return;
+  box.innerHTML = fotos.map(function(f,k){
+    return f ? '<img src="'+f+'" onclick="window.__ckFoto('+k+')" style="width:100px;height:80px;object-fit:cover;border-radius:8px;border:1.5px solid var(--line);cursor:pointer;">'
+             : '<div style="width:100px;height:80px;border:1.5px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-soft);text-align:center;">não carregou</div>';
+  }).join('') || '<span style="font-size:12.5px;color:var(--ink-soft);">Sem fotos.</span>';
+};
+window.__ckFoto = function(i){
+  var src = window.__ckFotosAtual[i]; if(!src) return;
+  var old = document.getElementById('ck-lb'); if(old) old.parentNode.removeChild(old);
+  var lb = document.createElement('div'); lb.id = 'ck-lb';
+  lb.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);z-index:9995;display:flex;align-items:center;justify-content:center;padding:14px;cursor:zoom-out;';
+  lb.innerHTML = '<img src="'+src+'" style="max-width:100%;max-height:100%;border-radius:8px;">';
+  lb.addEventListener('click', function(){ lb.parentNode.removeChild(lb); });
+  document.body.appendChild(lb);
+};
+window.__atualizarChecklists = async function(){
+  showToast('🔄 Buscando checklists…');
+  var raw = await storageGet('checklists-troca', true);
+  if(raw === null){ showToast('Nenhum checklist encontrado (ou sem conexão com o banco).'); return; }
+  try{ state.checklistsTroca = JSON.parse(raw); }catch(_){ showToast('❌ Dados ilegíveis no banco.'); return; }
+  if(state.activeTab === 'veiculos') renderVeiculosTab();
+  showToast('✅ ' + state.checklistsTroca.length + ' checklist(s).');
+};
+window.__excluirChecklist = async function(id){
+  if(!(state.sessao && state.sessao.isAdmin)){ showToast('Somente o administrador pode excluir.'); return; }
+  var c = (state.checklistsTroca||[]).filter(function(x){return x.id===id;})[0];
+  if(!c){ showToast('Checklist não encontrado.'); return; }
+  if(!confirm('Excluir permanentemente o checklist de '+(c.placa||'—')+' ('+(c.data?dataParaDisplay(c.data):'—')+')?\nAs fotos dele também serão apagadas. Não dá para desfazer.')) return;
+  showToast('🗑 Excluindo…');
+  /* parte da versão MAIS RECENTE do banco: não apaga o que outro celular acabou de salvar */
+  var raw = await storageGet('checklists-troca', true);
+  if(raw === null){ showToast('❌ Sem conexão com o banco. Nada foi excluído.'); return; }
+  var lista; try{ lista = JSON.parse(raw); }catch(_){ showToast('❌ Lista do banco ilegível. Nada foi excluído.'); return; }
+  var nova = lista.filter(function(x){ return x.id !== id; });
+  if(nova.length !== lista.length){
+    var payload = JSON.stringify(nova), ok = false;
+    try{ if(sb){ var r = await sb.from('kv_store').upsert({key:'checklists-troca', value:payload},{onConflict:'key'}); ok = !r.error; } }catch(_){}
+    if(!ok){ _supaFalhas = 0; _supaCircuitoAberto = false; var r2 = await storageSet('checklists-troca', payload, true); ok = (r2 === true) || !!(r2 && r2.ok); }
+    if(!ok){ try{ localStorage.removeItem('painelpe_checklists-troca'); }catch(_){} showToast('❌ Não foi possível excluir. Tente de novo.'); return; }
+    try{ localStorage.removeItem('painelpe_checklists-troca'); }catch(_){}
+    (c.fotoIds||[]).forEach(function(k){ storageSet(k, '', true).catch(function(){}); });   // libera o espaço das fotos
+  }
+  state.checklistsTroca = nova;
+  window.__fecharChecklist();
+  if(state.activeTab === 'veiculos') renderVeiculosTab();
+  showToast('🗑 Checklist excluído.');
+};
+
 window.__exportarFrota = function(){
   /* Gera CSV no formato FROTA PE: CIDADE | VEÍCULO | N°OP | PLACA | KM | ANO */
   var polos = [
@@ -7961,6 +8086,12 @@ window.__exportarFrota = function(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   showToast('✅ Frota exportada! Abra no Excel.');
 };
+
+/* abrir checklist ao clicar na linha (delegado — funciona após qualquer re-render) */
+document.addEventListener('click', function(ev){
+  var el = ev.target && ev.target.closest ? ev.target.closest('tr[data-ckid]') : null;
+  if(el && el.getAttribute('data-ckid')) window.__abrirChecklist(el.getAttribute('data-ckid'));
+});
 
 init();
 })();
