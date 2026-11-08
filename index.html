@@ -365,12 +365,21 @@ var LOCAVEL_NOME = 'Na Locavel (Oficina)';
 var CHECKLIST_BASE = [
   'Câmera frontal','Câmera lateral','Câmera interna','Câmera traseira',
   'Leitor biométrico','Case','Chave de roda','Macaco',
-  'Triângulo','Estepe','CRLV'
+  'Triângulo','Estepe','CRLV','Cartão de abastecimento'
 ];
 function getChecklistItems(categoria){
   var items = CHECKLIST_BASE.slice();
   if(['C','D','E'].indexOf(categoria) > -1) items.push('Tacógrafo');
   return items;
+}
+/* Itens do veículo = base (+ tacógrafo) + personalizados, SEM repetir o que já existe na base
+   (ex.: quem criou "Cartão de abastecimento" à mão não vê o item duplicado; a marcação é preservada). */
+function normItemCk(s){ return String(s||'').trim().toLowerCase(); }
+function itensChecklistVeiculo(v){
+  var base = getChecklistItems(v.categoria), vistos = {};
+  base.forEach(function(i){ vistos[normItemCk(i)] = true; });
+  var extras = (v.checklistCustom||[]).filter(function(i){ var k = normItemCk(i); if(!k || vistos[k]) return false; vistos[k] = true; return true; });
+  return base.concat(extras);
 }
 var TURNO_ESPECIAL = { 'Recife':'duplo_ambos', 'Petrolina':'dividido' };
 var MINUTOS_PROVA = 12;
@@ -5712,8 +5721,8 @@ function renderVeiculosTab(){
     row += '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">';
     row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 9px;" onclick="window.__expandVeiculo(\''+v.id+'\',\'historico\')">'+
       (isExpanded && exp.aba==='historico' ? '▲ Histórico' : '▼ Histórico')+'</button>';
-    var todosItens = getChecklistItems(v.categoria).concat(v.checklistCustom||[]);
-    var okCk = Object.values(v.checklist||{}).filter(Boolean).length;
+    var todosItens = itensChecklistVeiculo(v);
+    var okCk = todosItens.filter(function(i){ return (v.checklist||{})[i]; }).length;   /* só conta itens que existem hoje */
     row += '<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 9px;color:'+(okCk===todosItens.length?'var(--green)':'var(--amber-dk)')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'checklist\')">'+
       '✅ '+okCk+'/'+todosItens.length+'</button>';
     if(isTransito){
@@ -5809,7 +5818,7 @@ function renderVeiculosTab(){
   /* ── Checklists de troca recebidos pelos colaboradores ─────── */
   var cks = (state.checklistsTroca||[]).slice().reverse();
   if(cks.length){
-    var ITEM_LBL = {cam_f:'Câmera frontal',cam_l:'Câmera lateral',cam_i:'Câmera interna',cam_t:'Câmera traseira',biom:'Leitor biométrico','case':'Case',chrod:'Chave de roda',mac:'Macaco',tri:'Triângulo',est:'Estepe',crlv:'CRLV',taco:'Tacógrafo',pneus:'Pneus',vidros:'Vidros/Retrovisores',lint:'Limpeza interna',lext:'Limpeza externa',avar:'Avarias'};
+    var ITEM_LBL = {cartao:'Cartão de abastecimento',cam_f:'Câmera frontal',cam_l:'Câmera lateral',cam_i:'Câmera interna',cam_t:'Câmera traseira',biom:'Leitor biométrico','case':'Case',chrod:'Chave de roda',mac:'Macaco',tri:'Triângulo',est:'Estepe',crlv:'CRLV',taco:'Tacógrafo',pneus:'Pneus',vidros:'Vidros/Retrovisores',lint:'Limpeza interna',lext:'Limpeza externa',avar:'Avarias'};
     html += '<div class="rel-bloco" style="margin-top:18px;">';
     html += '<div class="rel-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
     html += '<span>📋 Checklists de troca — preenchidos pelos colaboradores</span>';
@@ -5817,7 +5826,7 @@ function renderVeiculosTab(){
     html += '</div><div class="rel-body" style="padding:0;"><div style="overflow-x:auto;">';
     html += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px;">';
     html += '<thead><tr style="background:var(--teal);color:#fff;">';
-    ['Data','Placa','Cat.','Origem → Destino','Motorista','Responsável','Status','Obs.','Abrir'].forEach(function(h){
+    ['Data','Ord.','Placa','Cat.','Origem → Destino','Motorista','Responsável','Status','Obs.','Abrir'].forEach(function(h){
       html += '<th style="padding:7px 10px;text-align:left;white-space:nowrap;">'+h+'</th>';
     });
     html += '</tr></thead><tbody>';
@@ -5829,7 +5838,8 @@ function renderVeiculosTab(){
       var nFck = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
       html += '<tr data-ckid="'+esc(c.id||'')+'" title="Clique para abrir" style="background:'+bg+';border-bottom:1px solid var(--line);cursor:pointer;">';
       html += '<td style="padding:6px 10px;white-space:nowrap;">'+esc(dDsp)+'</td>';
-      html += '<td style="padding:6px 10px;font-weight:700;">'+esc(c.placa||'—')+'</td>';
+      html += '<td style="padding:6px 10px;font-weight:700;color:var(--teal);">'+esc(c.op||'—')+'</td>';
+      html += '<td style="padding:6px 10px;font-weight:700;">'+esc(c.placa||'—')+(c.editadoEm?' <span title="Editado pelo responsável" style="font-size:10.5px;font-weight:600;color:#856404;background:#FFFBF0;border:1px solid #FFD700;border-radius:5px;padding:0 5px;">✏️ editado</span>':'')+'</td>';
       html += '<td style="padding:6px 10px;">'+esc(c.cat||'—')+'</td>';
       html += '<td style="padding:6px 10px;">'+esc(c.origem||'—')+' → '+esc(c.destino||'—')+'</td>';
       html += '<td style="padding:6px 10px;">'+esc(c.motorista||'—')+'</td>';
@@ -5843,7 +5853,7 @@ function renderVeiculosTab(){
       html += '</tr>';
       if(nokN>0){
         var nokItens=Object.entries(c.itens||{}).filter(function(kv){return kv[1]==='nok';}).map(function(kv){return esc(ITEM_LBL[kv[0]]||kv[0]);}).join(', ');
-        html += '<tr data-ckid="'+esc(c.id||'')+'" style="background:#FFF5F5;cursor:pointer;"><td colspan="9" style="padding:4px 10px 7px 20px;font-size:12px;color:var(--red);">⚠️ NOK: '+nokItens+'</td></tr>';
+        html += '<tr data-ckid="'+esc(c.id||'')+'" style="background:#FFF5F5;cursor:pointer;"><td colspan="10" style="padding:4px 10px 7px 20px;font-size:12px;color:var(--red);">⚠️ NOK: '+nokItens+'</td></tr>';
       }
     });
     html += '</tbody></table></div></div></div>';
@@ -6710,6 +6720,21 @@ window.__toggleChecklist = async function(id, item, checked){
   await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
   renderVeiculosTab();
 };
+window.__salvarCartaoVeiculo = async function(id){
+  var v = state.veiculos.filter(function(x){return x.id===id;})[0];
+  var inp = document.getElementById('ck-cartao-'+id);
+  if(!v || !inp) return;
+  var novo = inp.value.trim();
+  if(novo === (v.cartaoAbast||'')){ showToast('Nada mudou no cartão.'); return; }
+  v.cartaoAbast = novo;
+  v.atualizadoPor = state.perfil.nome+' ('+state.perfil.papel+')';
+  v.atualizadoEm  = nowStr();
+  addHistorico(v,'manutencao','Cartão de abastecimento '+(novo?'atualizado':'removido'),{cidade:v.cidade});
+  var okSet = await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  if(okSet === true || (okSet && okSet.ok)) showToast(novo ? '💳 Cartão do veículo salvo.' : '💳 Cartão removido do veículo.');
+  renderVeiculosTab();
+};
+
 window.__addChecklistItem = async function(id){
   var input = document.getElementById('ck-new-'+id);
   if(!input || !input.value.trim()) return;
@@ -6717,7 +6742,7 @@ window.__addChecklistItem = async function(id){
   if(!v) return;
   if(!v.checklistCustom) v.checklistCustom = [];
   var item = input.value.trim();
-  if(v.checklistCustom.indexOf(item)===-1 && CHECKLIST_BASE.indexOf(item)===-1 && item!=="Tacógrafo"){
+  if(!itensChecklistVeiculo(v).some(function(i){ return normItemCk(i)===normItemCk(item); }) && normItemCk(item)!=='tacógrafo'){
     v.checklistCustom.push(item);
     await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
     showToast('Item adicionado.');
@@ -6729,7 +6754,7 @@ function renderVeiculoDetail(v){
   var exp = state.veiculoExpandido;
   if(!exp || exp.id!==v.id) return '';
   var aba = exp.aba;
-  var todosItens = getChecklistItems(v.categoria).concat(v.checklistCustom||[]);
+  var todosItens = itensChecklistVeiculo(v);
   var ck = v.checklist || {};
   var okCount = todosItens.filter(function(i){return ck[i];}).length;
   var hist = v.historico || [];
@@ -6811,12 +6836,18 @@ function renderVeiculoDetail(v){
       '<div style="font-size:12.5px;font-weight:700;color:'+(okCount===todosItens.length?'var(--green)':'var(--ink-soft)')+';">'+okCount+'/'+todosItens.length+' itens OK</div>'+
       (v.checklistPor ? '<div style="font-size:11px;color:var(--ink-soft);">'+esc(v.checklistPor)+' · '+esc(v.checklistEm)+'</div>' : '')+
     '</div>';
+    html += '<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:10px;padding:9px 12px;margin-bottom:10px;">'+
+        '<label style="flex:1;min-width:200px;font-size:12px;font-weight:700;color:#3355aa;">💳 Cartão de abastecimento deste veículo'+
+          '<input id="ck-cartao-'+v.id+'" type="text" value="'+esc(v.cartaoAbast||'')+'" placeholder="Final ou código do cartão (não digite o número completo)" onkeydown="if(event.key===\'Enter\')window.__salvarCartaoVeiculo(\''+v.id+'\')" style="display:block;width:100%;border:1px solid #9ab0e0;border-radius:8px;padding:7px 10px;font-size:13px;margin-top:4px;font-weight:500;"></label>'+
+        '<button class="btn btn-primary" style="font-size:12px;padding:7px 14px;" onclick="window.__salvarCartaoVeiculo(\''+v.id+'\')">💾 Salvar cartão</button>'+
+        '<div style="flex-basis:100%;font-size:11px;color:var(--ink-soft);">O item <b>Cartão de abastecimento</b> abaixo é a conferência: marque quando o cartão estiver no veículo.</div>'+
+      '</div>';
     html += '<div class="ck-grid">';
     todosItens.forEach(function(item){
       var ok = !!ck[item];
       html += '<label class="ck-item '+(ok?'ok':'nok')+'">'+
         '<input type="checkbox" '+(ok?'checked':'')+' onchange="window.__toggleChecklist(\''+v.id+'\',\''+esc(item)+'\',this.checked)">'+
-        '<span>'+esc(item)+'</span>'+
+        '<span>'+esc(item)+(item==='Cartão de abastecimento' ? (v.cartaoAbast ? ' <small style="color:#3355aa;font-weight:600;">· '+esc(v.cartaoAbast)+'</small>' : ' <small style="color:var(--amber-dk);">· não cadastrado (preencha acima)</small>') : '')+'</span>'+
       '</label>';
     });
     html += '</div>'+
@@ -7902,7 +7933,7 @@ window._abrirMailtoAlimentacao = function(para, assunto, corpo){
 /* ── Checklists de troca: abrir, ampliar foto, excluir (admin) ───────── */
 var CK_GRUPOS = [
   {t:'📹 Câmeras e equipamentos', it:[['cam_f','Câmera frontal'],['cam_l','Câmera lateral'],['cam_i','Câmera interna'],['cam_t','Câmera traseira'],['biom','Leitor biométrico'],['case','Case']]},
-  {t:'🔐 Segurança e documentação', it:[['chrod','Chave de roda'],['mac','Macaco'],['tri','Triângulo'],['est','Estepe'],['crlv','CRLV']]},
+  {t:'🔐 Segurança e documentação', it:[['chrod','Chave de roda'],['mac','Macaco'],['tri','Triângulo'],['est','Estepe'],['crlv','CRLV'],['cartao','Cartão de abastecimento']]},
   {t:'🕐 Cat. C / D / E', it:[['taco','Tacógrafo']]},
   {t:'🚗 Condições do veículo', it:[['pneus','Pneus'],['vidros','Vidros / Retrovisores'],['lint','Limpeza interna'],['lext','Limpeza externa'],['avar','Avarias visíveis']]}
 ];
@@ -7938,12 +7969,12 @@ window.__abrirChecklist = function(id){
   ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:9990;overflow:auto;padding:18px 12px;';
   ov.innerHTML = '<div style="max-width:680px;margin:0 auto;background:#fff;border-radius:14px;padding:16px 18px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3);">'
     +'<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">'
-    +'<div><div style="font-size:17px;font-weight:800;color:var(--teal);">🚗 '+esc(c.placa||'—')+' <span style="font-size:13px;font-weight:600;color:var(--ink-soft);">Cat. '+esc(c.cat||'—')+'</span></div>'
+    +'<div><div style="font-size:17px;font-weight:800;color:var(--teal);">🚗 '+esc(c.placa||'—')+(c.op?' <span style="font-size:13px;font-weight:600;color:var(--ink-soft);">· Nº '+esc(c.op)+'</span>':'')+' <span style="font-size:13px;font-weight:600;color:var(--ink-soft);">Cat. '+esc(c.cat||'—')+'</span></div>'
     +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">'+esc(dDsp)+' · '+esc(c.origem||'—')+' → '+esc(c.destino||'—')+'</div></div>'
     +'<div style="margin-left:auto;display:flex;gap:6px;align-items:center;">'
     +(nokN>0?'<span style="background:#FFF5F5;color:var(--red);border-radius:20px;padding:3px 10px;font-weight:700;font-size:12px;">⚠️ '+nokN+' NOK</span>':'<span style="background:#EBF7F0;color:var(--green);border-radius:20px;padding:3px 10px;font-weight:700;font-size:12px;">✅ Todos OK</span>')
     +'<button class="btn btn-ghost" onclick="window.__fecharChecklist()" style="font-size:13px;padding:4px 11px;">✕ Fechar</button></div></div>'
-    +'<div style="margin-top:12px;">'+kv('N° Operação',esc(c.op||'—'))+kv('Motorista',esc(c.motorista||'—'))+kv('Motivo',esc(c.motivo||'—'))+kv('Cidade da operação',esc(c.cidade||'—'))+kv('Combustível',fuel)+kv('Preenchido por',esc(c.responsavel||'—'))+(c.criadoEm?kv('Registrado em',esc(String(c.criadoEm).replace('T',' ').slice(0,16))):'')+'</div>'
+    +'<div style="margin-top:12px;">'+kv('N° de ordem do veículo',esc(c.op||'—'))+kv('Cartão de abastecimento',esc(c.cartao||'—'))+kv('Motorista',esc(c.motorista||'—'))+kv('Motivo',esc(c.motivo||'—'))+kv('Cidade da operação',esc(c.cidade||'—'))+kv('Combustível',fuel)+kv('Preenchido por',esc(c.responsavel||'—'))+(c.criadoEm?kv('Registrado em',esc(String(c.criadoEm).replace('T',' ').slice(0,16))):'')+(c.editadoEm?kv('✏️ Editado em',esc(String(c.editadoEm).replace('T',' ').slice(0,16))+' por '+esc(c.editadoPor||'—')+(c.edicoes>1?' ('+c.edicoes+' edições)':'')):'')+'</div>'
     +'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">✅ Itens verificados</div>'+itensHtml
     +(c.obs?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">📝 Observações</div><div style="font-size:13.5px;line-height:1.55;background:#f8f8f8;border-radius:8px;padding:9px 12px;margin-top:5px;white-space:pre-wrap;">'+esc(c.obs)+'</div>':'')
     +(nF?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">📷 Fotos ('+nF+')</div><div id="ck-fotos-box" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"><span style="font-size:12.5px;color:var(--ink-soft);">⏳ Carregando fotos…</span></div>':'')
