@@ -121,7 +121,9 @@ canvas{display:block;width:100%;height:100px;cursor:crosshair;touch-action:none;
 var SB_URL = 'https://dvypppchbsntnhnqttdq.supabase.co';
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2eXBwcGNoYnNudG5obnF0dGRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4OTgzNDcsImV4cCI6MjA5ODQ3NDM0N30.QFjjTM8-g6w-nf_zuuEEn8bOo00l-ZBt6wlP5PxpfHE';
 var DB_KEY = 'checklists-troca';
-var DRAFT_KEY = 'ck_rascunho_v1';
+var DRAFT_KEY = 'ck_rascunho_v1';          // rascunho de checklist NOVO
+var DRAFT_EDIT_KEY = 'ck_rascunho_edit_v1'; // rascunho de uma EDIÇÃO
+var MEUS_KEY = 'ck_meus_v1';               // ids que ESTE aparelho preencheu (podem ser editados aqui)
 var MAX_FOTOS = 4;
 
 /* ── Dados de domínio ────────────────────────────────────────── */
@@ -142,6 +144,7 @@ var ITENS = [
   {id:'tri',    g:'seg',   l:'⚠️ Triângulo'},
   {id:'est',    g:'seg',   l:'🛞 Estepe'},
   {id:'crlv',   g:'seg',   l:'📋 CRLV (documento)'},
+  {id:'cartao',  g:'seg',   l:'💳 Cartão de abastecimento'},
   {id:'taco',   g:'cde',   l:'🕐 Tacógrafo'},
   {id:'pneus',  g:'cond',  l:'🛞 Pneus (estado geral)'},
   {id:'vidros', g:'cond',  l:'🪟 Vidros / Retrovisores'},
@@ -156,15 +159,19 @@ var CATS    = ['B','C','D','E'];
 
 /* ── Estado local ────────────────────────────────────────────── */
 var checklists = [];
-var view = 'list';            // list | new | detail
+var frota = [];                // veículos da frota (para busca)
+var view = 'list';             // list | new | edit | detail
+var editId = null;             // id do checklist em edição
 var detalheFotos = [];
 var sigC, sigDraw = false, sigLx = 0, sigLy = 0, sigOk = false;
 var itensState = {};
 var fuelVal = 0;
-var fotosCapturadas = [];
+var fotosCapturadas = [];      // fotos NOVAS (dataURL)
+var fotosExistentes = [];      // edição: fotos já gravadas [{key, data}] (key null = foto de registro antigo)
+var fotosRemovidas = [];       // edição: chaves de fotos que o usuário tirou
 var salvando = false;
 var snapTimer = null;
-var FIELD_IDS = ['fi-data','fi-cat','fi-placa','fi-op','fi-orig','fi-dest','fi-cid','fi-mot','fi-mot-nome','fi-obs','fi-resp'];
+var FIELD_IDS = ['fi-data','fi-cat','fi-placa','fi-op','fi-cartao','fi-orig','fi-dest','fi-cid','fi-mot','fi-mot-nome','fi-obs','fi-resp'];
 
 /* ── Supabase REST ───────────────────────────────────────────── */
 /* sbGetRaw distingue "não existe" (ok:true,value:null) de "falhou" (ok:false) —
@@ -201,15 +208,23 @@ function sbSet(key, value) {
   });
 }
 
+/* ── "Meus checklists": quem preencheu neste aparelho pode editar ─ */
+function meusIds() { try { return JSON.parse(localStorage.getItem(MEUS_KEY) || '[]'); } catch(_) { return []; } }
+function addMeu(id) { var a = meusIds(); if (a.indexOf(id) < 0) { a.push(id); try { localStorage.setItem(MEUS_KEY, JSON.stringify(a.slice(-300))); } catch(_) {} } }
+function ehMeu(id) { return meusIds().indexOf(id) >= 0; }
+function achar(id) { for (var i = 0; i < checklists.length; i++) { if (checklists[i].id === id) return checklists[i]; } return null; }
+
 /* ── Rascunho (sobrevive à câmera / recarga da página) ───────── */
-function readDraft() { try { var s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch(_) { return null; } }
-function writeDraft(o) { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(o)); return true; } catch(_) { return false; } }
-function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch(_) {} }
+function draftKey() { return editId ? DRAFT_EDIT_KEY : DRAFT_KEY; }
+function readDraftK(k) { try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch(_) { return null; } }
+function writeDraftK(k, o) { try { localStorage.setItem(k, JSON.stringify(o)); return true; } catch(_) { return false; } }
+function clearDraftK(k) { try { localStorage.removeItem(k); } catch(_) {} }
 function snapshotDraft() {
-  if (view !== 'new') return;
-  var d = {aberto:true, campos:{}, itens:itensState, fuel:fuelVal, fotos:fotosCapturadas, t:Date.now()};
+  if (view !== 'new' && view !== 'edit') return;
+  var d = {aberto:true, editId:editId, campos:{}, itens:itensState, fuel:fuelVal, fotos:fotosCapturadas, removidas:fotosRemovidas, t:Date.now()};
   FIELD_IDS.forEach(function(id) { var el = document.getElementById(id); if (el) d.campos[id] = el.value; });
-  if (!writeDraft(d)) { d.fotos = []; writeDraft(d); }   // sem espaço: guarda ao menos os campos
+  var k = draftKey();
+  if (!writeDraftK(k, d)) { d.fotos = []; writeDraftK(k, d); }   // sem espaço: guarda ao menos os campos
 }
 function schedSnap() { clearTimeout(snapTimer); snapTimer = setTimeout(snapshotDraft, 250); }
 function restoreDraft(d) {
@@ -219,27 +234,33 @@ function restoreDraft(d) {
   Object.keys(d.itens || {}).forEach(function(k) { itensState[k] = d.itens[k]; applyItemVisual(k, d.itens[k]); });
   if (d.fuel) setFuelVisual(d.fuel);
   fotosCapturadas = (d.fotos || []).slice();
+  fotosRemovidas = (d.removidas || []).slice();
   updateFotoPreview();
 }
 function descartarRascunho() {
-  if (!confirm('Descartar o rascunho e começar um checklist em branco?')) return;
-  clearDraft(); fotosCapturadas = []; itensState = {}; fuelVal = 0; showNew();
+  if (!confirm(editId ? 'Descartar as alterações e voltar aos dados salvos?' : 'Descartar o rascunho e começar um checklist em branco?')) return;
+  clearDraftK(draftKey()); fotosCapturadas = []; fotosRemovidas = []; itensState = {}; fuelVal = 0;
+  if (editId) startEdit(editId, true); else showNew();
 }
 function voltarLista() {
-  var d = readDraft(); if (d) { d.aberto = false; writeDraft(d); }
-  renderList();
+  var k = draftKey(), d = readDraftK(k); if (d) { d.aberto = false; writeDraftK(k, d); }
+  var estavaEditando = editId; editId = null;
+  if (estavaEditando && achar(estavaEditando)) showDetailId(estavaEditando); else renderList();
 }
 
 /* ── Init ────────────────────────────────────────────────────── */
 async function init() {
   var app = document.getElementById('app');
-  app.addEventListener('input', schedSnap);
-  app.addEventListener('change', schedSnap);
+  app.addEventListener('input', function(ev) { if (ev.target && ev.target.id === 'fi-busca') aplicarVeiculoBusca(); schedSnap(); });
+  app.addEventListener('change', function(ev) { if (ev.target && ev.target.id === 'fi-busca') aplicarVeiculoBusca(); schedSnap(); });
   var r = await sbGetRaw(DB_KEY);
   if (r.ok) { try { checklists = r.value ? JSON.parse(r.value) : []; } catch(_) { checklists = []; } }
-  var d = readDraft();
-  if (d && d.aberto) { showNew(); } else { renderList(); }
+  var de = readDraftK(DRAFT_EDIT_KEY), dn = readDraftK(DRAFT_KEY);
+  if (de && de.aberto && de.editId && achar(de.editId) && ehMeu(de.editId)) { startEdit(de.editId); }
+  else if (dn && dn.aberto) { showNew(); }
+  else { renderList(); }
   if (!r.ok) toast('⚠️ Sem conexão com o banco. A lista pode estar incompleta.');
+  carregarFrota();
 }
 async function reloadList() {
   toast('🔄 Atualizando…');
@@ -249,9 +270,44 @@ async function reloadList() {
   renderList(); toast('✅ Lista atualizada.');
 }
 
+/* ── Frota: busca de veículo (preenche placa, nº de ordem, cartão, categoria) ─ */
+function parseNomeVeic(nome) {
+  var m = /^\s*(\d{1,3})\s*-\s*(.+?)\s*$/.exec(nome || '');
+  return m ? {op:m[1], placa:m[2]} : {op:'', placa:String(nome || '').trim()};
+}
+function rotuloVeic(v) { return (v.op ? v.op+' · ' : '')+v.placa+' · '+v.cidade+(v.cat ? ' (Cat. '+v.cat+')' : ''); }
+async function carregarFrota() {
+  var r = await sbGetRaw('veiculos-lista');
+  if (r.ok && r.value) {
+    try {
+      frota = (JSON.parse(r.value) || []).filter(function(v){ return v && v.nome && v.ativo !== false; }).map(function(v) {
+        var p = parseNomeVeic(v.nome); return {op:p.op, placa:p.placa, cat:v.categoria || '', cidade:v.cidade || '', cartao:v.cartaoAbast || ''};
+      }).sort(function(a, b) { return (parseInt(a.op,10) || 9999) - (parseInt(b.op,10) || 9999) || a.placa.localeCompare(b.placa); });
+    } catch(_) { frota = []; }
+  }
+  preencherListaFrota();
+}
+function preencherListaFrota() {
+  var dl = document.getElementById('dl-frota'); if (!dl) return;
+  dl.innerHTML = frota.map(function(v){ return '<option value="'+e(rotuloVeic(v))+'"></option>'; }).join('');
+  var h = document.getElementById('fi-busca-hint');
+  if (h) h.textContent = frota.length ? frota.length+' veículos na frota — escolha um para preencher automaticamente' : 'Lista da frota indisponível: preencha os dados à mão.';
+}
+function aplicarVeiculoBusca() {
+  var inp = document.getElementById('fi-busca'); if (!inp) return;
+  var v = null; for (var i = 0; i < frota.length; i++) { if (rotuloVeic(frota[i]) === inp.value) { v = frota[i]; break; } }
+  if (!v) return;
+  /* identificação do veículo SEMPRE sobrescreve (mesmo vazia): nunca deixar nº de ordem/cartão do veículo anterior */
+  var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('fi-placa', v.placa); set('fi-op', v.op); set('fi-cartao', v.cartao);
+  var cat = document.getElementById('fi-cat');
+  if (cat && v.cat) { for (var k = 0; k < cat.options.length; k++) { if (cat.options[k].value === v.cat) { cat.value = v.cat; break; } } }
+  updCDE(); toast('✅ Dados do veículo preenchidos.'); snapshotDraft();
+}
+
 /* ── LISTA ───────────────────────────────────────────────────── */
 function renderList() {
-  view = 'list';
+  view = 'list'; editId = null;
   var rows = checklists.length
     ? checklists.slice().reverse().map(function(c) {
         var nokCount = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
@@ -259,14 +315,16 @@ function renderList() {
         var nF = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
         return '<div class="row" onclick="showDetailId(\''+e(c.id)+'\')">'
           +'<div class="row-h"><b style="font-size:14px;">🚗 '+e(c.placa)+'</b>'
+          +(c.op?'<span style="font-size:12px;font-weight:700;color:var(--teal);">Nº '+e(c.op)+'</span>':'')
           +'<span style="font-size:13px;">'+e(c.cidade)+'</span>'
           +'<span style="font-size:12px;color:var(--ink-soft);">Cat.'+e(c.cat)+'</span>'+badge
           +(nF?'<span style="font-size:12px;">📷 '+nF+'</span>':'')
+          +(c.editadoEm?'<span style="font-size:11px;color:var(--amber);">✏️ editado</span>':'')
           +'<span style="font-size:11.5px;color:var(--ink-soft);margin-left:auto;">'+e(fd(c.data))+'</span></div>'
           +'<div class="row-s">'+e(c.origem)+' → '+e(c.destino)+' · 🚗 '+e(c.motorista)+' · '+e(c.responsavel)+'</div></div>';
       }).join('')
     : '<div class="empty">📋<br><br>Nenhum checklist registrado ainda.<br><small>Toque em "Novo Checklist" para começar.</small></div>';
-  var temRasc = !!readDraft();
+  var temRasc = !!(readDraftK(DRAFT_KEY));
   R('<div class="hd"><div style="font-size:28px">🚗</div><div><h1>Checklist — Troca de Veículo</h1><p>CNH Pernambuco · Operações</p></div></div>'
     +(temRasc?'<div class="banner">📝 Você tem um checklist em andamento. <button onclick="showNew()">Continuar</button></div>':'')
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;">'
@@ -275,28 +333,43 @@ function renderList() {
     +'<button class="btn btn-p" style="width:auto;padding:8px 16px;" onclick="showNew()">✚ Novo Checklist</button></div></div>'+rows);
 }
 
-/* ── NOVO FORMULÁRIO ─────────────────────────────────────────── */
-function showNew() {
-  view = 'new';
-  var rasc = readDraft();
-  itensState = {}; fuelVal = 0; fotosCapturadas = [];
+/* ── FORMULÁRIO (novo e edição) ──────────────────────────────── */
+function showNew() { editId = null; view = 'new'; renderForm(null, readDraftK(DRAFT_KEY)); }
+async function startEdit(id, semRascunho) {
+  var c = achar(id);
+  if (!c) { renderList(); return; }
+  if (!ehMeu(id)) { toast('⚠️ Só quem preencheu este checklist (neste aparelho) pode editar.'); return; }
+  editId = id; view = 'edit';
+  var rasc = semRascunho ? null : readDraftK(DRAFT_EDIT_KEY);
+  if (rasc && rasc.editId !== id) rasc = null;
+  renderForm(c, rasc);
+  await carregarFotosEdicao(c);
+}
+function renderForm(rec, rasc) {
+  var edit = !!rec;
+  itensState = {}; fuelVal = 0; fotosCapturadas = []; fotosExistentes = []; fotosRemovidas = [];
   var today = new Date().toISOString().slice(0,10);
   var cOpts = '<option value="">Selecione…</option>'+CIDADES.map(function(c){return '<option>'+e(c)+'</option>';}).join('');
   var catOpts = CATS.map(function(c){return '<option value="'+c+'">Categoria '+c+'</option>';}).join('');
   var motOpts = MOTIVOS.map(function(m){return '<option>'+e(m)+'</option>';}).join('');
   var itemsHtml = renderItemGroup('equip','📹 Câmeras e equipamentos')
-    + renderItemGroup('seg','🔐 Segurança e documentação')
+    + renderItemGroup('seg','🔐 Segurança, documentação e abastecimento')
     + '<div id="cde-block" style="display:none">'+renderItemGroup('cde','🕐 Cat. C / D / E')+'</div>'
     + renderItemGroup('cond','🚗 Condições do veículo');
   var fuelSegs = [1,2,3,4,5,6,7,8].map(function(n){ return '<div class="fseg" id="fs'+n+'" onclick="setFuel('+n+')" title="'+Math.round(n/8*100)+'%"></div>'; }).join('');
 
-  R('<div class="hd"><div style="font-size:28px">📋</div><div><h1>Novo Checklist</h1><p>Troca / Transferência de Veículo</p></div></div>'
+  R('<div class="hd"><div style="font-size:28px">'+(edit?'✏️':'📋')+'</div><div><h1>'+(edit?'Editar Checklist':'Novo Checklist')+'</h1><p>'+(edit?e(rec.placa)+(rec.op?' · Nº '+e(rec.op):'')+' — suas alterações substituem o registro':'Troca / Transferência de Veículo')+'</p></div></div>'
     +(rasc?'<div class="banner">♻️ Recuperei o que você já tinha preenchido. <button onclick="descartarRascunho()">Descartar</button></div>':'')
+    +'<div class="card"><div class="ctitle">🔎 Veículo da frota</div>'
+    +'<div class="f"><label>Buscar por nº de ordem, placa ou cidade (opcional)</label><input type="text" id="fi-busca" list="dl-frota" placeholder="Ex: 06 ou PGR…" autocomplete="off"><datalist id="dl-frota"></datalist>'
+    +'<span id="fi-busca-hint" style="font-size:11.5px;color:var(--ink-soft);">Carregando a frota…</span></div></div>'
     +'<div class="card"><div class="ctitle">📍 Dados da operação</div>'
     +'<div class="g2"><div class="f"><label>Data</label><input type="date" id="fi-data" value="'+today+'"></div>'
     +'<div class="f"><label>Categoria</label><select id="fi-cat" onchange="updCDE()">'+catOpts+'</select></div></div>'
-    +'<div class="g2"><div class="f"><label>Placa</label><input type="text" id="fi-placa" placeholder="AAA-0000" style="text-transform:uppercase"></div>'
-    +'<div class="f"><label>N° Operação</label><input type="text" id="fi-op" placeholder="Ex: 06"></div></div>'
+    +'<div class="g2"><div class="f"><label>Nº de ordem do veículo</label><input type="text" id="fi-op" placeholder="Ex: 06" inputmode="numeric"></div>'
+    +'<div class="f"><label>Placa</label><input type="text" id="fi-placa" placeholder="AAA-0000" style="text-transform:uppercase"></div></div>'
+    +'<div class="f"><label>💳 Cartão de abastecimento (nº ou final do cartão)</label><input type="text" id="fi-cartao" placeholder="Ex: final 4821 ou código interno" autocomplete="off">'
+    +'<span style="font-size:11.5px;color:var(--ink-soft);">Informe só o final ou o código interno. Não digite o número completo do cartão.</span></div>'
     +'<div class="g2"><div class="f"><label>Cidade de origem</label><select id="fi-orig">'+cOpts+'</select></div>'
     +'<div class="f"><label>Cidade de destino</label><select id="fi-dest">'+cOpts+'</select></div></div>'
     +'<div class="g2"><div class="f"><label>Cidade da operação</label><select id="fi-cid">'+cOpts+'</select></div>'
@@ -316,15 +389,39 @@ function showNew() {
     +'<div style="font-size:11.5px;color:var(--ink-soft);margin-top:8px;">Se o celular recarregar ao abrir a câmera, o que você preencheu fica guardado.</div></div>'
     +'<div class="card"><div class="ctitle">✍️ Assinatura do responsável</div>'
     +'<div class="f"><label>Seu nome (líder / auxiliar)</label><input type="text" id="fi-resp" placeholder="Nome completo"></div>'
+    +(edit&&rec.assinatura?'<div style="margin-bottom:8px;"><div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">Assinatura atual (desenhe abaixo só se quiser substituir):</div><img id="sig-atual" src="'+rec.assinatura+'" style="max-width:100%;max-height:90px;border:1px solid var(--line);border-radius:8px;"></div>':'')
     +'<div class="sig-box"><canvas id="sig" width="640" height="100"></canvas>'
     +'<div class="sig-toolbar"><span>Assine com o dedo ou mouse</span><button type="button" class="btn btn-g" style="font-size:12px;padding:5px 10px;" onclick="clearSig()">🗑 Limpar</button></div></div></div>'
     +'<div style="display:flex;gap:10px;margin-bottom:24px;">'
-    +'<button type="button" class="btn btn-g" style="flex:1;" onclick="voltarLista()">← Voltar</button>'
-    +'<button type="button" class="btn btn-p" id="btn-salvar" style="flex:2;" onclick="salvar()">💾 Salvar Checklist</button></div>');
+    +'<button type="button" class="btn btn-g" style="flex:1;" onclick="voltarLista()">'+(edit?'← Cancelar':'← Voltar')+'</button>'
+    +'<button type="button" class="btn btn-p" id="btn-salvar" style="flex:2;" onclick="salvar()">'+(edit?'💾 Salvar alterações':'💾 Salvar Checklist')+'</button></div>');
 
-  initSig(); initFotos();
+  initSig(); initFotos(); preencherListaFrota();
+  if (edit) preencherDoRegistro(rec);
   if (rasc) restoreDraft(rasc);
   snapshotDraft();   // marca o formulário como aberto
+}
+function preencherDoRegistro(c) {
+  var m = {'fi-data':c.data,'fi-cat':c.cat,'fi-placa':c.placa,'fi-op':c.op,'fi-cartao':c.cartao,'fi-orig':c.origem,'fi-dest':c.destino,'fi-cid':c.cidade,'fi-mot':c.motivo,'fi-mot-nome':c.motorista,'fi-resp':c.responsavel,'fi-obs':c.obs};
+  Object.keys(m).forEach(function(id) { var el = document.getElementById(id); if (el && m[id] !== undefined && m[id] !== null) el.value = m[id]; });
+  updCDE();
+  Object.keys(c.itens || {}).forEach(function(k) { itensState[k] = c.itens[k]; applyItemVisual(k, c.itens[k]); });
+  if (c.combustivel) setFuelVisual(parseInt(c.combustivel, 10));
+}
+/* fotos já gravadas: as chaves entram NA HORA (para nunca serem perdidas ao salvar); as imagens carregam em seguida */
+async function carregarFotosEdicao(c) {
+  var removidas = fotosRemovidas.slice();
+  var lista = [];
+  (c.fotoIds || []).forEach(function(k) { if (removidas.indexOf(k) < 0) lista.push({key:k, data:null}); });
+  (c.fotos || []).forEach(function(f) { if (f) lista.push({key:null, data:f}); });   // formato antigo: será regravado em chave própria
+  fotosExistentes = lista; updateFotoPreview();
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].key && !lista[i].data) {
+      var r = await sbGetRaw(lista[i].key);
+      if (view !== 'edit' || editId !== c.id) return;
+      if (r.ok && r.value) { lista[i].data = r.value; updateFotoPreview(); }
+    }
+  }
 }
 
 function renderItemGroup(group, title) {
@@ -353,6 +450,7 @@ function setFuelVisual(n) {
 function setFuel(n) { setFuelVisual(n); snapshotDraft(); }
 
 /* ── Fotos ───────────────────────────────────────────────────── */
+function totalFotos() { return fotosExistentes.length + fotosCapturadas.length; }
 function initFotos() {
   var cam = document.getElementById('foto-cam'), gal = document.getElementById('foto-gal');
   var bc = document.getElementById('btn-foto-cam'), bg = document.getElementById('btn-foto-gal');
@@ -366,7 +464,7 @@ function initFotos() {
 /* Usa URL do arquivo (não lê a foto inteira como texto) e reduz antes de guardar:
    menos memória → menos chance do celular recarregar a página. */
 function addFotoFromFile(file) {
-  if (fotosCapturadas.length >= MAX_FOTOS) { toast('⚠️ Máximo de '+MAX_FOTOS+' fotos.'); return; }
+  if (totalFotos() >= MAX_FOTOS) { toast('⚠️ Máximo de '+MAX_FOTOS+' fotos.'); return; }
   toast('⏳ Processando foto…');
   var U = window.URL || window.webkitURL;
   var url = U.createObjectURL(file);
@@ -378,7 +476,7 @@ function addFotoFromFile(file) {
       var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, w, h);
       fotosCapturadas.push(cv.toDataURL('image/jpeg', 0.6));
-      updateFotoPreview(); snapshotDraft(); toast('✅ Foto adicionada ('+fotosCapturadas.length+')');
+      updateFotoPreview(); snapshotDraft(); toast('✅ Foto adicionada ('+totalFotos()+')');
     } catch(err) { toast('❌ Não consegui processar a foto. Tente outra.'); }
     finally { try { U.revokeObjectURL(url); } catch(_) {} }
   };
@@ -387,14 +485,26 @@ function addFotoFromFile(file) {
 }
 function updateFotoPreview() {
   var prev = document.getElementById('foto-preview'), cnt = document.getElementById('foto-count');
-  if (cnt) cnt.textContent = fotosCapturadas.length ? fotosCapturadas.length+' foto(s)' : 'Nenhuma foto adicionada';
+  var n = totalFotos();
+  if (cnt) cnt.textContent = n ? n+' foto(s)' : 'Nenhuma foto adicionada';
   if (!prev) return;
-  prev.innerHTML = fotosCapturadas.map(function(f, i) {
+  var h = fotosExistentes.map(function(f, i) {
+    return '<div class="thumb">'+(f.data ? '<img src="'+f.data+'" onclick="lbEx('+i+')">' : '<div style="width:92px;height:72px;border:1.5px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-soft);">⏳</div>')
+      +'<button type="button" class="x" onclick="removeFotoEx('+i+')">✕</button></div>';
+  }).join('');
+  h += fotosCapturadas.map(function(f, i) {
     return '<div class="thumb"><img src="'+f+'" onclick="lbNew('+i+')"><button type="button" class="x" onclick="removeFoto('+i+')">✕</button></div>';
   }).join('');
+  prev.innerHTML = h;
 }
 function removeFoto(i) { fotosCapturadas.splice(i, 1); updateFotoPreview(); snapshotDraft(); }
+function removeFotoEx(i) {
+  var f = fotosExistentes.splice(i, 1)[0];
+  if (f && f.key && fotosRemovidas.indexOf(f.key) < 0) fotosRemovidas.push(f.key);
+  updateFotoPreview(); snapshotDraft();
+}
 function lbNew(i) { openLB(fotosCapturadas[i]); }
+function lbEx(i) { openLB(fotosExistentes[i] && fotosExistentes[i].data); }
 function lbDet(i) { openLB(detalheFotos[i]); }
 function openLB(src) {
   var lb = document.getElementById('lb'); if (!src || !lb) return;
@@ -418,65 +528,99 @@ function initSig() {
 }
 function clearSig() { if (sigC) { var c = document.getElementById('sig'); sigC.clearRect(0, 0, c.width, c.height); sigOk = false; } }
 
-/* ── SALVAR ──────────────────────────────────────────────────── */
+/* ── SALVAR (novo ou edição) ─────────────────────────────────── */
+function lerForm() {
+  var g = function(id){ return ((document.getElementById(id)||{}).value||'').trim(); };
+  return {data:g('fi-data'), cat:g('fi-cat') || 'B', placa:g('fi-placa').toUpperCase(), op:g('fi-op'), cartao:g('fi-cartao'),
+    origem:g('fi-orig'), destino:g('fi-dest'), cidade:g('fi-cid') || g('fi-dest'), motivo:g('fi-mot'), motorista:g('fi-mot-nome'), responsavel:g('fi-resp'), obs:g('fi-obs')};
+}
 async function salvar() {
   if (salvando) return;
-  var g = function(id){ return ((document.getElementById(id)||{}).value||'').trim(); };
-  var placa = g('fi-placa').toUpperCase(), orig = g('fi-orig'), dest = g('fi-dest'), mot = g('fi-mot-nome'), resp = g('fi-resp');
-  if (!placa) { toast('⚠️ Informe a placa.'); return; }
-  if (!orig)  { toast('⚠️ Selecione a cidade de origem.'); return; }
-  if (!dest)  { toast('⚠️ Selecione a cidade de destino.'); return; }
-  if (!mot)   { toast('⚠️ Informe o motorista.'); return; }
-  if (!resp)  { toast('⚠️ Informe o responsável.'); return; }
-
-  var sig = '';
-  if (sigOk) { var cv = document.getElementById('sig'); if (cv) sig = cv.toDataURL('image/jpeg', 0.5); }
+  var f = lerForm();
+  if (!f.placa)       { toast('⚠️ Informe a placa.'); return; }
+  if (!f.origem)      { toast('⚠️ Selecione a cidade de origem.'); return; }
+  if (!f.destino)     { toast('⚠️ Selecione a cidade de destino.'); return; }
+  if (!f.motorista)   { toast('⚠️ Informe o motorista.'); return; }
+  if (!f.responsavel) { toast('⚠️ Informe o responsável.'); return; }
+  var sigNova = '';
+  if (sigOk) { var cv = document.getElementById('sig'); if (cv) sigNova = cv.toDataURL('image/jpeg', 0.5); }
   salvando = true;
-  var btn = document.getElementById('btn-salvar'); if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando…'; }
+  var btn = document.getElementById('btn-salvar'), rotulo = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando…'; }
   try {
-    var id = 'CK'+Date.now().toString(36).toUpperCase();
-    /* 1) fotos: cada uma em sua própria chave (a lista fica leve) */
-    var fotoIds = [];
-    for (var i = 0; i < fotosCapturadas.length; i++) {
-      toast('📷 Enviando foto '+(i+1)+' de '+fotosCapturadas.length+'…');
-      var key = 'ckfoto-'+id+'-'+(i+1);
-      var rf = await sbSet(key, fotosCapturadas[i]);
-      if (!rf.ok) throw new Error('foto');
-      fotoIds.push(key);
-    }
-    var doc = {
-      id: id, data: g('fi-data'), placa: placa, cat: g('fi-cat') || 'B', op: g('fi-op'),
-      cidade: g('fi-cid') || dest, origem: orig, destino: dest, motivo: g('fi-mot'),
-      motorista: mot, responsavel: resp, itens: Object.assign({}, itensState),
-      combustivel: fuelVal, obs: g('fi-obs'), assinatura: sig, fotoIds: fotoIds,
-      criadoEm: new Date().toISOString()
-    };
-    /* 2) lista: busca a versão MAIS RECENTE do banco e acrescenta — não apaga o de ninguém */
-    toast('💾 Salvando…');
-    var lr = await sbGetRaw(DB_KEY);
-    if (!lr.ok) throw new Error('lista');
-    var lista = [];
-    try { lista = lr.value ? JSON.parse(lr.value) : []; } catch(_) { throw new Error('lista'); }
-    if (!lista.some(function(x){ return x.id === doc.id; })) lista.push(doc);
-    var wr = await sbSet(DB_KEY, JSON.stringify(lista));
-    if (!wr.ok) throw new Error('lista');
-    checklists = lista;
-    clearDraft(); fotosCapturadas = []; itensState = {}; fuelVal = 0;
-    toast('✅ Checklist salvo!');
-    setTimeout(renderList, 900);
+    if (editId) await gravarEdicao(f, sigNova); else await gravarNovo(f, sigNova);
   } catch(err) {
-    toast('❌ Não foi possível salvar ('+(err && err.message === 'foto' ? 'envio da foto' : 'conexão')+'). Seus dados continuam aqui, tente de novo.');
+    var m = err && err.message;
+    if (m === 'sumiu') { clearDraftK(DRAFT_EDIT_KEY); editId = null; toast('❌ Este checklist foi excluído pelo administrador e não pode mais ser editado.'); setTimeout(renderList, 1200); }
+    else toast('❌ Não foi possível salvar ('+(m === 'foto' ? 'envio da foto' : 'conexão')+'). Seus dados continuam aqui, tente de novo.');
   } finally {
     salvando = false;
-    var b2 = document.getElementById('btn-salvar'); if (b2) { b2.disabled = false; b2.textContent = '💾 Salvar Checklist'; }
+    var b2 = document.getElementById('btn-salvar'); if (b2) { b2.disabled = false; b2.textContent = rotulo; }
   }
+}
+async function enviarFotos(id, prefixo, fotos) {
+  var chaves = [];
+  for (var i = 0; i < fotos.length; i++) {
+    toast('📷 Enviando foto '+(i+1)+' de '+fotos.length+'…');
+    var key = 'ckfoto-'+id+'-'+prefixo+(i+1);
+    var rf = await sbSet(key, fotos[i]);
+    if (!rf.ok) throw new Error('foto');
+    chaves.push(key);
+  }
+  return chaves;
+}
+async function lerListaAtual() {
+  var lr = await sbGetRaw(DB_KEY);
+  if (!lr.ok) throw new Error('lista');
+  try { return lr.value ? JSON.parse(lr.value) : []; } catch(_) { throw new Error('lista'); }
+}
+async function gravarNovo(f, sigNova) {
+  var id = 'CK'+Date.now().toString(36).toUpperCase();
+  var fotoIds = await enviarFotos(id, '', fotosCapturadas);       // cada foto em sua própria chave (lista leve)
+  var doc = {id:id, data:f.data, placa:f.placa, cat:f.cat, op:f.op, cartao:f.cartao, cidade:f.cidade, origem:f.origem, destino:f.destino,
+    motivo:f.motivo, motorista:f.motorista, responsavel:f.responsavel, itens:Object.assign({}, itensState), combustivel:fuelVal,
+    obs:f.obs, assinatura:sigNova, fotoIds:fotoIds, criadoEm:new Date().toISOString()};
+  toast('💾 Salvando…');
+  var lista = await lerListaAtual();                                // versão MAIS RECENTE do banco: não apaga o de ninguém
+  if (!lista.some(function(x){ return x.id === doc.id; })) lista.push(doc);
+  var wr = await sbSet(DB_KEY, JSON.stringify(lista));
+  if (!wr.ok) throw new Error('lista');
+  addMeu(id); checklists = lista;
+  clearDraftK(DRAFT_KEY); fotosCapturadas = []; itensState = {}; fuelVal = 0;
+  toast('✅ Checklist salvo!');
+  setTimeout(renderList, 900);
+}
+async function gravarEdicao(f, sigNova) {
+  var id = editId;
+  /* fotos: mantém as que já estavam gravadas; envia as novas (e as do formato antigo) com chaves próprias */
+  var manter = fotosExistentes.filter(function(x){ return x.key; }).map(function(x){ return x.key; });
+  var enviar = fotosExistentes.filter(function(x){ return !x.key && x.data; }).map(function(x){ return x.data; }).concat(fotosCapturadas);
+  var novas = await enviarFotos(id, 'e'+Date.now().toString(36).toUpperCase()+'-', enviar);
+  toast('💾 Salvando alterações…');
+  var lista = await lerListaAtual();
+  var idx = -1; for (var i = 0; i < lista.length; i++) { if (lista[i].id === id) { idx = i; break; } }
+  if (idx < 0) throw new Error('sumiu');
+  var antigo = lista[idx];
+  var upd = Object.assign({}, antigo, {data:f.data, placa:f.placa, cat:f.cat, op:f.op, cartao:f.cartao, cidade:f.cidade, origem:f.origem, destino:f.destino,
+    motivo:f.motivo, motorista:f.motorista, responsavel:f.responsavel, itens:Object.assign({}, itensState), combustivel:fuelVal, obs:f.obs,
+    assinatura:sigNova || antigo.assinatura || '', fotoIds:manter.concat(novas),
+    editadoEm:new Date().toISOString(), editadoPor:f.responsavel, edicoes:(antigo.edicoes || 0) + 1});
+  delete upd.fotos;
+  lista[idx] = upd;
+  var wr = await sbSet(DB_KEY, JSON.stringify(lista));
+  if (!wr.ok) throw new Error('lista');
+  checklists = lista; clearDraftK(DRAFT_EDIT_KEY);
+  fotosRemovidas.forEach(function(k) { sbSet(k, ''); });           // libera o espaço das fotos retiradas
+  fotosCapturadas = []; fotosExistentes = []; fotosRemovidas = []; editId = null;
+  toast('✅ Alterações salvas!');
+  setTimeout(function(){ showDetailId(id); }, 700);
 }
 
 /* ── DETALHE ─────────────────────────────────────────────────── */
 function showDetailId(id) {
-  var c = null; for (var i = 0; i < checklists.length; i++) { if (checklists[i].id === id) { c = checklists[i]; break; } }
+  var c = achar(id);
   if (!c) { renderList(); return; }
-  view = 'detail'; detalheFotos = [];
+  view = 'detail'; editId = null; detalheFotos = [];
   var nokN = Object.values(c.itens||{}).filter(function(v){return v==='nok';}).length;
   var stBadge = nokN > 0 ? '<span class="badge b-nok">⚠️ '+nokN+' item(s) NOK</span>' : '<span class="badge b-ok">✅ Todos OK</span>';
   var iHtml = ITENS.map(function(item) {
@@ -489,12 +633,17 @@ function showDetailId(id) {
   var fotosCard = nF ? '<div class="card"><div class="ctitle">📷 Fotos ('+nF+')</div><div id="fotos-box" style="display:flex;gap:8px;flex-wrap:wrap;"><span style="font-size:12.5px;color:var(--ink-soft);">⏳ Carregando fotos…</span></div></div>' : '';
   var obsCard = c.obs ? '<div class="card"><div class="ctitle">📝 Observações</div><p style="font-size:13.5px;line-height:1.6;">'+e(c.obs)+'</p></div>' : '';
   var sigCard = c.assinatura ? '<div class="card"><div class="ctitle">✍️ Assinatura</div><img src="'+c.assinatura+'" style="max-width:100%;border-radius:8px;border:1px solid var(--line);"><p style="font-size:12px;color:var(--ink-soft);margin-top:6px;">'+e(c.responsavel)+'</p></div>' : '';
+  var podeEditar = ehMeu(c.id);
+  var editInfo = c.editadoEm ? '<div class="banner" style="margin-bottom:12px;">✏️ Editado em '+e(String(c.editadoEm).replace('T',' ').slice(0,16))+' por '+e(c.editadoPor||'—')+(c.edicoes>1?' ('+c.edicoes+' edições)':'')+'</div>' : '';
 
-  R('<div class="hd"><div style="font-size:28px">📋</div><div><h1>'+e(c.placa)+' — Cat. '+e(c.cat)+'</h1><p>'+e(fd(c.data))+' · '+e(c.origem)+' → '+e(c.destino)+'</p></div></div>'
-    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'+stBadge+'<span style="font-size:12px;color:var(--ink-soft);">por '+e(c.responsavel)+'</span></div>'
+  R('<div class="hd"><div style="font-size:28px">📋</div><div><h1>'+e(c.placa)+(c.op?' · Nº '+e(c.op):'')+' — Cat. '+e(c.cat)+'</h1><p>'+e(fd(c.data))+' · '+e(c.origem)+' → '+e(c.destino)+'</p></div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'+stBadge+'<span style="font-size:12px;color:var(--ink-soft);">por '+e(c.responsavel)+'</span>'
+    +(podeEditar?'<button type="button" class="btn btn-g" style="margin-left:auto;padding:6px 14px;" onclick="startEdit(\''+e(c.id)+'\')">✏️ Editar</button>':'')+'</div>'
+    + editInfo
     +'<div class="card"><div class="ctitle">📍 Informações</div><div class="info-row">'
     +'<div class="kv"><span>Placa</span><b>'+e(c.placa)+'</b></div>'
-    +'<div class="kv"><span>N° Operação</span><span>'+e(c.op||'—')+'</span></div>'
+    +'<div class="kv"><span>Nº de ordem</span><span>'+e(c.op||'—')+'</span></div>'
+    +'<div class="kv"><span>Cartão de abastec.</span><span>'+e(c.cartao||'—')+'</span></div>'
     +'<div class="kv"><span>Motorista</span><span>'+e(c.motorista)+'</span></div>'
     +'<div class="kv"><span>Motivo</span><span>'+e(c.motivo)+'</span></div>'
     +'<div class="kv"><span>Combustível</span><span>'+fuel+'</span></div>'
@@ -526,8 +675,8 @@ function fd(s){ if(!s) return '—'; if(s.indexOf('-')>=0&&s.length>=10){var p=s
 function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast on'; clearTimeout(t._t); t._t = setTimeout(function(){ t.className = 'toast'; }, 3200); }
 
 window.showNew = showNew; window.renderList = renderList; window.voltarLista = voltarLista; window.reloadList = reloadList;
-window.showDetailId = showDetailId; window.salvar = salvar; window.setItem = setItem; window.updCDE = updCDE; window.setFuel = setFuel;
-window.clearSig = clearSig; window.removeFoto = removeFoto; window.lbNew = lbNew; window.lbDet = lbDet; window.closeLB = closeLB;
+window.showDetailId = showDetailId; window.startEdit = startEdit; window.salvar = salvar; window.setItem = setItem; window.updCDE = updCDE; window.setFuel = setFuel;
+window.clearSig = clearSig; window.removeFoto = removeFoto; window.removeFotoEx = removeFotoEx; window.lbNew = lbNew; window.lbEx = lbEx; window.lbDet = lbDet; window.closeLB = closeLB;
 window.descartarRascunho = descartarRascunho;
 
 init();
