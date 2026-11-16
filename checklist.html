@@ -348,7 +348,7 @@ async function startEdit(id, semRascunho) {
 function renderForm(rec, rasc) {
   var edit = !!rec;
   itensState = {}; fuelVal = 0; fotosCapturadas = []; fotosExistentes = []; fotosRemovidas = [];
-  var today = new Date().toISOString().slice(0,10);
+  var dd = new Date(), today = dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');   // data LOCAL (UTC adiantava o dia após 21h)
   var cOpts = '<option value="">Selecione…</option>'+CIDADES.map(function(c){return '<option>'+e(c)+'</option>';}).join('');
   var catOpts = CATS.map(function(c){return '<option value="'+c+'">Categoria '+c+'</option>';}).join('');
   var motOpts = MOTIVOS.map(function(m){return '<option>'+e(m)+'</option>';}).join('');
@@ -375,7 +375,7 @@ function renderForm(rec, rasc) {
     +'<div class="g2"><div class="f"><label>Cidade da operação</label><select id="fi-cid">'+cOpts+'</select></div>'
     +'<div class="f"><label>Motivo</label><select id="fi-mot">'+motOpts+'</select></div></div>'
     +'<div class="f"><label>Motorista</label><input type="text" id="fi-mot-nome" placeholder="Nome completo do motorista"></div></div>'
-    +'<div class="card"><div class="ctitle">✅ Checklist de itens</div>'+itemsHtml+'</div>'
+    +'<div class="card"><div class="ctitle">✅ Checklist de itens</div><div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">Os itens marcados OK / NOK atualizam automaticamente a aba Equipamentos do veículo no painel.</div>'+itemsHtml+'</div>'
     +'<div class="card"><div class="ctitle">⛽ Nível de combustível</div><div class="fuel">'+fuelSegs+'<span id="fuel-lbl" style="font-size:12px;color:var(--ink-soft);margin-left:6px;">— não informado</span></div></div>'
     +'<div class="card"><div class="ctitle">📝 Observações</div><div class="f"><textarea id="fi-obs" placeholder="Avarias, itens faltantes, observações gerais…"></textarea></div></div>'
     +'<div class="card"><div class="ctitle">📷 Fotos (opcional, até '+MAX_FOTOS+')</div>'
@@ -537,6 +537,7 @@ function lerForm() {
 async function salvar() {
   if (salvando) return;
   var f = lerForm();
+  if (!f.data)        { toast('⚠️ Informe a data.'); return; }
   if (!f.placa)       { toast('⚠️ Informe a placa.'); return; }
   if (!f.origem)      { toast('⚠️ Selecione a cidade de origem.'); return; }
   if (!f.destino)     { toast('⚠️ Selecione a cidade de destino.'); return; }
@@ -638,7 +639,9 @@ function showDetailId(id) {
 
   R('<div class="hd"><div style="font-size:28px">📋</div><div><h1>'+e(c.placa)+(c.op?' · Nº '+e(c.op):'')+' — Cat. '+e(c.cat)+'</h1><p>'+e(fd(c.data))+' · '+e(c.origem)+' → '+e(c.destino)+'</p></div></div>'
     +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'+stBadge+'<span style="font-size:12px;color:var(--ink-soft);">por '+e(c.responsavel)+'</span>'
-    +(podeEditar?'<button type="button" class="btn btn-g" style="margin-left:auto;padding:6px 14px;" onclick="startEdit(\''+e(c.id)+'\')">✏️ Editar</button>':'')+'</div>'
+    +(podeEditar?'<button type="button" class="btn btn-g" style="margin-left:auto;padding:6px 14px;" onclick="startEdit(\''+e(c.id)+'\')">✏️ Editar</button>'
+      :'<button type="button" class="btn btn-g" style="margin-left:auto;padding:6px 14px;" onclick="pedirConfirmacao(\''+e(c.id)+'\')">✏️ Fui eu que preenchi</button>')+'</div>'
+    +'<div id="conf-resp-box"></div>'
     + editInfo
     +'<div class="card"><div class="ctitle">📍 Informações</div><div class="info-row">'
     +'<div class="kv"><span>Placa</span><b>'+e(c.placa)+'</b></div>'
@@ -668,6 +671,23 @@ async function carregarFotos(c) {
   }).join('') || '<span style="font-size:12.5px;color:var(--ink-soft);">Sem fotos.</span>';
 }
 
+/* ── Editar de outro aparelho: o responsável confirma o próprio nome ─────────── */
+function normNome(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim(); }
+function pedirConfirmacao(id) {
+  var box = document.getElementById('conf-resp-box'); if (!box) return;
+  box.innerHTML = '<div class="card"><div class="ctitle">✏️ Confirme que foi você</div>'
+    +'<div class="f"><label>Digite seu nome exatamente como assinou o checklist</label><input type="text" id="conf-nome" placeholder="Nome completo" autocomplete="off"></div>'
+    +'<button type="button" class="btn btn-p" onclick="validarResponsavel(\''+e(id)+'\')">Confirmar e editar</button></div>';
+  var el = document.getElementById('conf-nome'); if (el) el.focus();
+}
+function validarResponsavel(id) {
+  var c = achar(id); if (!c) { renderList(); return; }
+  var n = normNome((document.getElementById('conf-nome') || {}).value);
+  if (!n) { toast('⚠️ Digite o nome do responsável.'); return; }
+  if (n !== normNome(c.responsavel)) { toast('⚠️ O nome não confere com o responsável deste checklist.'); return; }
+  addMeu(id); startEdit(id);
+}
+
 /* ── Helpers ─────────────────────────────────────────────────── */
 function R(html) { document.getElementById('app').innerHTML = html; }
 function e(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -677,7 +697,7 @@ function toast(msg) { var t = document.getElementById('toast'); t.textContent = 
 window.showNew = showNew; window.renderList = renderList; window.voltarLista = voltarLista; window.reloadList = reloadList;
 window.showDetailId = showDetailId; window.startEdit = startEdit; window.salvar = salvar; window.setItem = setItem; window.updCDE = updCDE; window.setFuel = setFuel;
 window.clearSig = clearSig; window.removeFoto = removeFoto; window.removeFotoEx = removeFotoEx; window.lbNew = lbNew; window.lbEx = lbEx; window.lbDet = lbDet; window.closeLB = closeLB;
-window.descartarRascunho = descartarRascunho;
+window.descartarRascunho = descartarRascunho; window.pedirConfirmacao = pedirConfirmacao; window.validarResponsavel = validarResponsavel;
 
 init();
 
