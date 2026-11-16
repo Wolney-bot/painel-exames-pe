@@ -722,7 +722,7 @@ async function init(){
   var bv = await storageGet('bate-volta-lista', true);
   state.bateVoltas = bv ? JSON.parse(bv) : [];
   var ck = await storageGet('checklists-troca', true);
-  if(ck){ try{ state.checklistsTroca = JSON.parse(ck); }catch(_){} }
+  if(ck){ try{ state.checklistsTroca = ckLimpa(JSON.parse(ck)); }catch(_){} }
   var mc = await storageGet('metas-categoria', true);
   if(mc){ try{ state.metasCateg = JSON.parse(mc); }catch(_){} }
 
@@ -884,6 +884,8 @@ function renderShellForUser(){
   renderNav();
   renderConfigBanner();
   setTab('overview');
+  /* confere o checklist mais recente de cada veículo com a aba Equipamentos */
+  sincronizarChecklistsComVeiculos(true).catch(function(){});
 }
 
 function renderConfigBanner(){
@@ -1041,11 +1043,12 @@ window.__sincronizar = async function(silent){
   if(bv2){ state.bateVoltas    = JSON.parse(bv2); }
   if(pa2){ state.planAcesso    = JSON.parse(pa2); }
   var ck2 = await storageGet('checklists-troca', true);
-  if(ck2){ try{ state.checklistsTroca = JSON.parse(ck2); }catch(_){} }
+  if(ck2){ try{ state.checklistsTroca = ckLimpa(JSON.parse(ck2)); }catch(_){} }
   var mc2 = await storageGet('metas-categoria', true);
   if(mc2){ try{ state.metasCateg = JSON.parse(mc2); }catch(_){} }
   if(!silent) showToast('✅ Dados atualizados com o banco.');
   if(state.sessao) setTab(state.activeTab);
+  if(!silent) sincronizarChecklistsComVeiculos(true).catch(function(){});
 };
 
 /* ===================================================================
@@ -5501,7 +5504,7 @@ function renderVeiculosTab(){
 
   frotaHtml += '</div>';
 
-  var html = frotaHtml +
+  var html = renderSugestoesChecklistHtml() + frotaHtml +
     '<div class="card" style="margin-bottom:16px;">'+
     '<div class="section-title">🚐 Cadastrar veículo</div>'+
     '<div class="add-vehicle-form">'+
@@ -6750,6 +6753,33 @@ window.__addChecklistItem = async function(id){
   renderVeiculosTab();
 };
 
+/* todos os checklists de troca deste veículo (mais recente primeiro) */
+function checklistsDoVeiculo(v){
+  return (state.checklistsTroca||[]).filter(function(c){ return c && c.id && ckVeiculoDoChecklist(c) === v; })
+    .sort(function(a,b){ return ckChave(b).localeCompare(ckChave(a)); });
+}
+function renderChecklistsDoVeiculoHtml(v){
+  var lista = checklistsDoVeiculo(v);
+  var nomes = {}; CK_GRUPOS.forEach(function(g){ g.it.forEach(function(p){ nomes[p[0]] = p[1]; }); });
+  if(!lista.length) return '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px;">Nenhum checklist de troca registrado para este veículo.<br><span style="font-size:11.5px;">A busca é feita pela placa ('+esc(ckPlacaDoVeiculo(v)||'—')+').</span></div>';
+  var h = '<div style="padding:10px 14px;"><div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">'+lista.length+' checklist(s) — o mais recente é o que alimenta a aba Equipamentos.</div>';
+  lista.forEach(function(c, i){
+    var nok = Object.keys(c.itens||{}).filter(function(k){ return c.itens[k]==='nok'; });
+    var nF = (c.fotoIds && c.fotoIds.length) || (c.fotos && c.fotos.length) || 0;
+    h += '<div style="background:#fff;border:1px solid '+(i===0?'#9ab0e0':'var(--line)')+';border-radius:10px;padding:9px 12px;margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">'
+      +'<div style="flex:1;min-width:220px;">'
+      +'<div style="font-weight:700;font-size:13px;">'+esc(ckDataBR(c))+' · '+esc(c.origem||'—')+' → '+esc(c.destino||'—')
+        +(i===0?' <span style="font-size:10.5px;font-weight:700;color:#3355aa;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:5px;padding:0 5px;">mais recente</span>':'')
+        +(c.editadoEm?' <span style="font-size:10.5px;font-weight:600;color:#856404;background:#FFFBF0;border:1px solid #FFD700;border-radius:5px;padding:0 5px;">✏️ editado</span>':'')+'</div>'
+      +'<div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">🚗 '+esc(c.motorista||'—')+' · '+esc(c.responsavel||'—')+(c.motivo?' · '+esc(c.motivo):'')+(nF?' · 📷 '+nF:'')+'</div>'
+      +(nok.length?'<div style="font-size:12px;color:var(--red);margin-top:3px;">⚠️ NOK: '+nok.map(function(k){ return esc(nomes[k]||k); }).join(', ')+'</div>':'<div style="font-size:12px;color:var(--green);margin-top:3px;">✅ Todos OK</div>')
+      +(c.obs?'<div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">📝 '+esc(String(c.obs).slice(0,120))+(String(c.obs).length>120?'…':'')+'</div>':'')
+      +'</div>'
+      +'<button class="btn btn-ghost" style="font-size:11.5px;padding:4px 10px;" onclick="window.__abrirChecklist(\''+esc(c.id)+'\')">🔍 Abrir</button></div>';
+  });
+  return h + '</div>';
+}
+
 function renderVeiculoDetail(v){
   var exp = state.veiculoExpandido;
   if(!exp || exp.id!==v.id) return '';
@@ -6763,9 +6793,13 @@ function renderVeiculoDetail(v){
   html += '<div class="hist-tabs">'+
     '<button class="hist-tab '+(aba==='historico'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'historico\')">📋 Histórico</button>'+
     '<button class="hist-tab '+(aba==='checklist'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'checklist\')">✅ Equipamentos ('+okCount+'/'+todosItens.length+')</button>'+
+    '<button class="hist-tab '+(aba==='cks'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'cks\')">📋 Checklists de troca ('+checklistsDoVeiculo(v).length+')</button>'+
     '<button class="hist-tab '+(aba==='batevolta'?'active':'')+'" onclick="window.__expandVeiculo(\''+v.id+'\',\'batevolta\')">🔄 Bate e Volta</button>'+
   '</div>';
 
+  if(aba==='cks'){
+    return html + renderChecklistsDoVeiculoHtml(v) + '</div>';
+  }
   if(aba==='batevolta'){
     var trips = (state.bateVoltas||[]).filter(function(t){return t.veiculoId===v.id;}).sort(function(a,b){return b.data.localeCompare(a.data);});
     var colabAll = (state.colaboradores||[]).filter(function(c){return c.status==='Ativo';}).sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
@@ -6836,6 +6870,7 @@ function renderVeiculoDetail(v){
       '<div style="font-size:12.5px;font-weight:700;color:'+(okCount===todosItens.length?'var(--green)':'var(--ink-soft)')+';">'+okCount+'/'+todosItens.length+' itens OK</div>'+
       (v.checklistPor ? '<div style="font-size:11px;color:var(--ink-soft);">'+esc(v.checklistPor)+' · '+esc(v.checklistEm)+'</div>' : '')+
     '</div>';
+    if(v.ckFonte && v.ckFonte.id){ html += '<div style="font-size:11.5px;color:#3355aa;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:8px;padding:6px 10px;margin-bottom:10px;">📋 Conferido pelo checklist de troca de '+esc(v.ckFonte.data ? dataParaDisplay(String(v.ckFonte.data).slice(0,10)) : '—')+(v.ckFonte.resp?' ('+esc(v.ckFonte.resp)+')':'')+' — itens ✓ OK / ✗ NOK já refletidos abaixo. Você pode ajustar manualmente.</div>'; }
     html += '<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;background:#f0f4ff;border:1px solid #9ab0e0;border-radius:10px;padding:9px 12px;margin-bottom:10px;">'+
         '<label style="flex:1;min-width:200px;font-size:12px;font-weight:700;color:#3355aa;">💳 Cartão de abastecimento deste veículo'+
           '<input id="ck-cartao-'+v.id+'" type="text" value="'+esc(v.cartaoAbast||'')+'" placeholder="Final ou código do cartão (não digite o número completo)" onkeydown="if(event.key===\'Enter\')window.__salvarCartaoVeiculo(\''+v.id+'\')" style="display:block;width:100%;border:1px solid #9ab0e0;border-radius:8px;padding:7px 10px;font-size:13px;margin-top:4px;font-weight:500;"></label>'+
@@ -7930,6 +7965,289 @@ window._abrirMailtoAlimentacao = function(para, assunto, corpo){
 
 
 
+/* ── Checklist ↔ veículo: Equipamentos automáticos + sugestão de mudança de cidade ───────── */
+var CK_ID_ROTULO = {cam_f:'Câmera frontal',cam_l:'Câmera lateral',cam_i:'Câmera interna',cam_t:'Câmera traseira',biom:'Leitor biométrico','case':'Case',chrod:'Chave de roda',mac:'Macaco',tri:'Triângulo',est:'Estepe',crlv:'CRLV',cartao:'Cartão de abastecimento',taco:'Tacógrafo'};
+/* nomes de cidade como aparecem no formulário público do checklist */
+var CK_CIDADES = ['Recife','Caruaru','Garanhuns','Petrolina','Arcoverde','Afogados da Ingazeira','Belo Jardim','Pesqueira','Araripina','Ouricuri','Salgueiro','Serra Talhada','Vitória de Santo Antão','Timbaúba','Limoeiro','Palmares','Surubim','Sta Cruz do Capibaribe'];
+var CK_MOTIVOS = ['Substituição planejada','Problema mecânico','Sinistro / Acidente','Apoio operacional','Outro'];
+var CK_ALIAS_CIDADE = {'vitoria de santo antao':'Vitória','sta cruz do capibaribe':'Santa Cruz','santa cruz do capibaribe':'Santa Cruz','afogados da ingazeira':'Afogados'};
+/* lista de checklists vinda do banco: descarta entradas inválidas (null, sem id) para nunca quebrar telas */
+function ckLimpa(a){ return Array.isArray(a) ? a.filter(function(c){ return c && typeof c === 'object' && c.id; }) : []; }
+function ckTxt(s){ return nomeSemAcento(String(s||'')).replace(/\s+/g,' ').trim(); }
+function ckPlaca(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+/* nome de cidade do checklist → nome usado no painel ('' se não reconhecer) */
+function cidadePainel(nome){
+  var k = ckTxt(nome); if(!k) return '';
+  if(CK_ALIAS_CIDADE[k]) return CK_ALIAS_CIDADE[k];
+  for(var i=0;i<TODAS_CIDADES.length;i++){ if(ckTxt(TODAS_CIDADES[i])===k) return TODAS_CIDADES[i]; }
+  return '';
+}
+function ckPlacaDoVeiculo(v){
+  var m = /^\s*\d{1,3}\s*-\s*(.+?)\s*$/.exec(v.nome||'');
+  return ckPlaca(m ? m[1] : v.nome);
+}
+/* veículo do painel que corresponde ao checklist (pela placa; nunca adivinha: ambíguo = nenhum) */
+function ckVeiculoDoChecklist(c){
+  var pn = ckPlaca(c && c.placa); if(pn.length < 6) return null;
+  var achados = (state.veiculos||[]).filter(function(v){ return v && v.ativo !== false && ckPlacaDoVeiculo(v) === pn; });
+  return achados.length === 1 ? achados[0] : null;
+}
+/* chave de ordenação: data do checklist (ou, se faltar, a do registro); sem nenhuma data = o mais antigo */
+function ckChave(c){ return String(c.data || String(c.criadoEm||'').slice(0,10) || '0000-00-00').slice(0,10)+'|'+String(c.criadoEm||''); }
+function ckVersao(c){ return c.id+'|'+(c.editadoEm||''); }
+/* checklist mais recente de cada veículo */
+function checklistsPorVeiculo(){
+  var mapa = {};
+  (state.checklistsTroca||[]).forEach(function(c){
+    if(!c || !c.id) return;
+    var v = ckVeiculoDoChecklist(c); if(!v) return;
+    var at = mapa[v.id];
+    if(!at || ckChave(c) > ckChave(at.c)) mapa[v.id] = {v:v, c:c};
+  });
+  return mapa;
+}
+function ckDataBR(c){ return c && c.data ? dataParaDisplay(String(c.data).slice(0,10)) : '—'; }
+/* aplica os itens OK/NOK do checklist em v.checklist (aba Equipamentos). N/A e itens sem registro não mexem em nada. */
+function ckAplicarEquip(v, c){
+  if(!v.checklist) v.checklist = {};
+  var lista = itensChecklistVeiculo(v), marc = [], desm = [];
+  Object.keys(c.itens||{}).forEach(function(id){
+    var rot = CK_ID_ROTULO[id]; if(!rot) return;
+    var est = c.itens[id]; if(est !== 'ok' && est !== 'nok') return;
+    var alvo = lista.filter(function(i){ return normItemCk(i) === normItemCk(rot); })[0];
+    if(!alvo) return;                                   // ex.: Tacógrafo em veículo que não é C/D/E
+    var quer = (est === 'ok');
+    if(!!v.checklist[alvo] !== quer){ v.checklist[alvo] = quer; (quer ? marc : desm).push(alvo); }
+  });
+  return {marc:marc, desm:desm};
+}
+var _ckSyncRodando = false;
+/* Confere o checklist mais recente de cada veículo com a aba Equipamentos (uma vez por versão do checklist). */
+async function sincronizarChecklistsComVeiculos(silencioso){
+  if(_ckSyncRodando || !state.sessao) return 0;
+  _ckSyncRodando = true;
+  try{
+    var mapa = checklistsPorVeiculo(), veics = 0, itens = 0;
+    Object.keys(mapa).forEach(function(vid){
+      var v = mapa[vid].v, c = mapa[vid].c, ver = ckVersao(c);
+      if(v.ckSync === ver) return;
+      var r = ckAplicarEquip(v, c), cartaoNovo = false;
+      if(c.cartao && !String(v.cartaoAbast||'').trim()){ v.cartaoAbast = String(c.cartao).trim(); cartaoNovo = true; }
+      v.ckSync = ver;
+      v.ckFonte = {id:c.id, data:c.data||'', resp:c.responsavel||''};
+      var n = r.marc.length + r.desm.length + (cartaoNovo?1:0);
+      if(n){
+        v.checklistPor = 'Checklist de troca ('+(c.responsavel||'—')+')'; v.checklistEm = nowStr();
+        var partes = [];
+        if(r.marc.length) partes.push('✓ '+r.marc.join(', '));
+        if(r.desm.length) partes.push('✗ '+r.desm.join(', '));
+        if(cartaoNovo) partes.push('💳 cartão '+v.cartaoAbast);
+        addHistorico(v, 'checklist', 'Equipamentos conferidos pelo checklist de '+ckDataBR(c)+' ('+(c.responsavel||'—')+'): '+partes.join(' · '), {cidade:v.cidade});
+        itens += n;
+      }
+      veics++;
+    });
+    if(!veics) return 0;
+    var ok = await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+    if(!(ok === true || (ok && ok.ok))) showToast('⚠️ Não consegui gravar a conferência dos equipamentos agora. Tente 🔄 sincronizar.');
+    else if(itens) showToast('✅ Equipamentos conferidos pelos checklists: '+itens+' item(ns) em '+veics+' veículo(s).');
+    if(state.activeTab === 'veiculos' && veics) renderVeiculosTab();
+    return veics;
+  } finally { _ckSyncRodando = false; }
+}
+function ckUltimaMudancaCidade(v){
+  var u = '';
+  (v.historico||[]).forEach(function(h){
+    var d = String(h.descricao||'');
+    if((d.indexOf('Cidade alterada')===0 || d.indexOf('Chegou em')===0) && h.dataISO && h.dataISO > u) u = h.dataISO;
+  });
+  return u;
+}
+/* sugestões: checklist mais recente indica cidade de destino diferente da cidade cadastrada do veículo */
+function sugestoesCidadeChecklist(){
+  var mapa = checklistsPorVeiculo(), out = [];
+  Object.keys(mapa).forEach(function(vid){
+    var v = mapa[vid].v, c = mapa[vid].c;
+    var para = cidadePainel(c.destino);
+    if(!para || para === v.cidade) return;
+    var ver = ckVersao(c);
+    if(v.ckCidadeIgnorada === ver) return;                       // o ADM já dispensou esta sugestão
+    var ult = ckUltimaMudancaCidade(v);
+    if(ult && c.data && ult >= String(c.data).slice(0,10)) return; // cidade já foi mexida depois deste checklist
+    out.push({v:v, c:c, de:v.cidade, para:para, ver:ver});
+  });
+  out.sort(function(a,b){ return ckChave(b.c).localeCompare(ckChave(a.c)); });
+  return out;
+}
+function renderSugestoesChecklistHtml(){
+  var s = sugestoesCidadeChecklist(); if(!s.length) return '';
+  var h = '<div class="card" style="margin-bottom:14px;border:1.5px solid var(--amber);background:#FFFBF0;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
+    +'<div><div class="section-title" style="margin:0;">📍 Mudança de cidade sugerida pelos checklists</div>'
+    +'<div style="font-size:11.5px;color:var(--ink-soft);">Baseado na cidade de destino do checklist mais recente de cada veículo. Nada muda até você confirmar.</div></div>'
+    +(s.length>1?'<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="window.__aplicarCidadesChecklist()">✔ Confirmar todas ('+s.length+')</button>':'')
+    +'</div>';
+  s.forEach(function(x){
+    h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-top:6px;">'
+      +'<div style="flex:1;min-width:220px;"><b>🚗 '+esc(x.v.nome||'—')+'</b> <span style="font-size:11.5px;color:var(--ink-soft);">Cat. '+esc(x.v.categoria||'?')+'</span>'
+      +'<div style="font-size:12.5px;margin-top:2px;"><span style="color:var(--ink-soft);">'+esc(x.de||'—')+'</span> <b style="color:var(--teal-dk);">→ '+esc(x.para)+'</b></div>'
+      +'<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">Checklist de '+esc(ckDataBR(x.c))+' · '+esc(x.c.origem||'—')+' → '+esc(x.c.destino||'—')+' · '+esc(x.c.responsavel||'—')+'</div></div>'
+      +'<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="window.__aplicarCidadeChecklist(\''+esc(x.v.id)+'\')">✔ Confirmar</button>'
+      +'<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="window.__ignorarCidadeChecklist(\''+esc(x.v.id)+'\')">Ignorar</button>'
+      +'<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="window.__abrirChecklist(\''+esc(x.c.id)+'\')">🔍 Ver checklist</button>'
+      +'</div>';
+  });
+  return h + '</div>';
+}
+function ckMoverCidade(s){
+  var v = s.v, de = v.cidade, para = s.para;
+  var emTransito = v.status==='Indisponível' && v.motivo==='Em deslocamento para outra cidade';
+  v.cidade = para;
+  if(emTransito){ v.status = 'Disponível'; v.motivo = ''; v.motivoOutroDescricao = ''; }
+  if(emTransito || v.cidadeDestino === para) v.cidadeDestino = '';
+  v.atualizadoPor = state.perfil ? state.perfil.nome+' ('+state.perfil.papel+')' : '—';
+  v.atualizadoEm = nowStr();
+  addHistorico(v, 'deslocamento', 'Cidade alterada: '+de+' → '+para+' (confirmado a partir do checklist de '+ckDataBR(s.c)+')', {cidade:para, cidadeOrigem:de, cidadeDestino:para});
+}
+window.__aplicarCidadeChecklist = async function(vid){
+  var s = sugestoesCidadeChecklist().filter(function(x){ return x.v.id === vid; })[0];
+  if(!s){ showToast('Essa sugestão não está mais disponível.'); renderVeiculosTab(); return; }
+  ckMoverCidade(s);
+  var ok = await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast((ok === true || (ok && ok.ok)) ? '✅ '+(s.v.nome||'Veículo')+' agora em '+s.para+'.' : '⚠️ Aplicado aqui, mas ainda não gravou no banco. Use 🔄 sincronizar.');
+  renderVeiculosTab();
+};
+window.__aplicarCidadesChecklist = async function(){
+  var lista = sugestoesCidadeChecklist(); if(!lista.length) return;
+  if(!confirm('Confirmar a mudança de cidade de '+lista.length+' veículo(s) conforme os checklists?')) return;
+  lista.forEach(ckMoverCidade);
+  var ok = await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast((ok === true || (ok && ok.ok)) ? '✅ '+lista.length+' veículo(s) atualizados.' : '⚠️ Aplicado aqui, mas ainda não gravou no banco. Use 🔄 sincronizar.');
+  renderVeiculosTab();
+};
+window.__ignorarCidadeChecklist = async function(vid){
+  var s = sugestoesCidadeChecklist().filter(function(x){ return x.v.id === vid; })[0];
+  if(!s) { renderVeiculosTab(); return; }
+  s.v.ckCidadeIgnorada = s.ver;
+  await storageSet('veiculos-lista', JSON.stringify(state.veiculos), true);
+  showToast('Sugestão dispensada.');
+  renderVeiculosTab();
+};
+
+/* grava a lista de checklists no banco (lê/mescla fica a cargo de quem chama) */
+async function gravarChecklistsBanco(lista){
+  var payload = JSON.stringify(lista), ok = false;
+  try{ if(sb){ var r = await sb.from('kv_store').upsert({key:'checklists-troca', value:payload},{onConflict:'key'}); ok = !r.error; } }catch(_){}
+  if(!ok){ _supaFalhas = 0; _supaCircuitoAberto = false; var r2 = await storageSet('checklists-troca', payload, true); ok = (r2 === true) || !!(r2 && r2.ok); }
+  try{ localStorage.removeItem('painelpe_checklists-troca'); }catch(_){}
+  return ok;
+}
+
+/* ── Edição do checklist pelo ADM ────────────────────────────────────── */
+window.__editarChecklist = function(id){
+  if(!(state.sessao && state.sessao.isAdmin)){ showToast('Somente o administrador pode editar.'); return; }
+  var c = (state.checklistsTroca||[]).filter(function(x){return x.id===id;})[0];
+  if(!c){ showToast('Checklist não encontrado. Clique em 🔄 Atualizar.'); return; }
+  window.__fecharChecklist();
+  window.__ckEditBase = c.editadoEm || '';
+  var estilo = 'display:block;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:13px;margin-top:2px;background:#fff;';
+  var campo = function(rot, inner){ return '<label style="font-size:12px;font-weight:600;display:block;">'+rot+inner+'</label>'; };
+  var txt = function(k, val, ph){ return '<input id="cke-'+k+'" type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'" style="'+estilo+'">'; };
+  var sel = function(k, opts, val){
+    var l = opts.slice(); if(val && l.indexOf(val) < 0) l.unshift(val);
+    return '<select id="cke-'+k+'" style="'+estilo+'"><option value="">—</option>'+l.map(function(o){ return '<option'+(o===val?' selected':'')+'>'+esc(o)+'</option>'; }).join('')+'</select>';
+  };
+  var cats = ['A','B','C','D','E','X'];
+  var comb = ['1','2','3','4','5','6','7','8'].map(function(n){ return '<option value="'+n+'"'+(String(c.combustivel)===n?' selected':'')+'>'+Math.round(parseInt(n,10)/8*100)+'%</option>'; }).join('');
+  var itensHtml = CK_GRUPOS.map(function(g){
+    return '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin:12px 0 5px;">'+g.t+'</div>'
+      + g.it.map(function(p){
+        var cur = (c.itens||{})[p[0]] || '';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:13px;"><span>'+esc(p[1])+'</span>'
+          +'<select id="cke-it-'+p[0]+'" style="border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:13px;background:#fff;">'
+          +'<option value="">sem registro</option><option value="ok"'+(cur==='ok'?' selected':'')+'>✓ OK</option><option value="nok"'+(cur==='nok'?' selected':'')+'>✗ NOK</option><option value="na"'+(cur==='na'?' selected':'')+'>— N/A</option></select></div>';
+      }).join('');
+  }).join('');
+  var ov = document.createElement('div');
+  ov.id = 'ck-modal'; ov.setAttribute('data-ckid',''); ov.setAttribute('data-aberto', id);
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:9990;overflow:auto;padding:18px 12px;';
+  ov.innerHTML = '<div style="max-width:680px;margin:0 auto;background:#fff;border-radius:14px;padding:16px 18px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3);">'
+    +'<div style="display:flex;align-items:center;gap:10px;"><div style="font-size:17px;font-weight:800;color:var(--teal);">✏️ Editar checklist — '+esc(c.placa||'—')+'</div>'
+    +'<button class="btn btn-ghost" onclick="window.__abrirChecklist(\''+esc(id)+'\')" style="margin-left:auto;font-size:13px;padding:4px 11px;">Cancelar</button></div>'
+    +'<div style="font-size:12px;color:var(--ink-soft);margin:4px 0 10px;">As fotos e a assinatura originais permanecem. A alteração fica registrada como edição do administrador.</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;">'
+    + campo('Data','<input id="cke-data" type="date" value="'+esc(String(c.data||'').slice(0,10))+'" style="'+estilo+'">')
+    + campo('Categoria', sel('cat', cats, c.cat||''))
+    + campo('Nº de ordem', txt('op', c.op, 'Ex: 06'))
+    + campo('Placa', txt('placa', c.placa, 'AAA0A00'))
+    + campo('💳 Cartão de abastecimento', txt('cartao', c.cartao, 'Final ou código'))
+    + campo('Cidade de origem', sel('orig', CK_CIDADES, c.origem||''))
+    + campo('Cidade de destino', sel('dest', CK_CIDADES, c.destino||''))
+    + campo('Cidade da operação', sel('cid', CK_CIDADES, c.cidade||''))
+    + campo('Motivo', sel('mot', CK_MOTIVOS, c.motivo||''))
+    + campo('Motorista', txt('mot-nome', c.motorista, ''))
+    + campo('Responsável', txt('resp', c.responsavel, ''))
+    + campo('Combustível','<select id="cke-comb" style="'+estilo+'"><option value="">—</option>'+comb+'</select>')
+    +'</div>'
+    +'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">✅ Itens verificados</div>'+itensHtml
+    +'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">📝 Observações</div>'
+    +'<textarea id="cke-obs" rows="3" style="'+estilo+'resize:vertical;">'+esc(c.obs||'')+'</textarea>'
+    +'<div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end;">'
+    +'<button class="btn btn-ghost" onclick="window.__abrirChecklist(\''+esc(id)+'\')">Cancelar</button>'
+    +'<button class="btn btn-primary" id="cke-salvar" onclick="window.__salvarEdicaoChecklist(\''+esc(id)+'\')">💾 Salvar alterações</button></div></div>';
+  ov.addEventListener('click', function(ev){ if(ev.target === ov) window.__abrirChecklist(id); });
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+};
+window.__salvarEdicaoChecklist = async function(id){
+  if(!(state.sessao && state.sessao.isAdmin)){ showToast('Somente o administrador pode editar.'); return; }
+  if(window.__ckSalvando) return;
+  var g = function(k){ var el = document.getElementById('cke-'+k); return el ? String(el.value||'').trim() : ''; };
+  var f = {data:g('data'), cat:g('cat')||'B', placa:g('placa').toUpperCase(), op:g('op'), cartao:g('cartao'),
+    origem:g('orig'), destino:g('dest'), cidade:g('cid')||g('dest'), motivo:g('mot'), motorista:g('mot-nome'), responsavel:g('resp'), obs:g('obs')};
+  if(!f.data){ showToast('⚠️ Informe a data.'); return; }
+  if(!f.placa){ showToast('⚠️ Informe a placa.'); return; }
+  if(!f.origem){ showToast('⚠️ Selecione a cidade de origem.'); return; }
+  if(!f.destino){ showToast('⚠️ Selecione a cidade de destino.'); return; }
+  if(!f.motorista){ showToast('⚠️ Informe o motorista.'); return; }
+  if(!f.responsavel){ showToast('⚠️ Informe o responsável.'); return; }
+  window.__ckSalvando = true;
+  var btn = document.getElementById('cke-salvar'); if(btn){ btn.disabled = true; btn.textContent = '⏳ Salvando…'; }
+  var reabilitar = function(){ window.__ckSalvando = false; var b = document.getElementById('cke-salvar'); if(b){ b.disabled = false; b.textContent = '💾 Salvar alterações'; } };
+  try{
+    /* parte da versão MAIS RECENTE do banco: não apaga o que outro celular acabou de salvar */
+    var raw = await storageGet('checklists-troca', true);
+    if(raw === null){ showToast('❌ Sem conexão com o banco. Nada foi alterado.'); return reabilitar(); }
+    var lista; try{ lista = ckLimpa(JSON.parse(raw)); }catch(_){ showToast('❌ Lista do banco ilegível. Nada foi alterado.'); return reabilitar(); }
+    var idx = -1; for(var i=0;i<lista.length;i++){ if(lista[i].id === id){ idx = i; break; } }
+    if(idx < 0){ showToast('❌ Este checklist não existe mais (foi excluído).'); state.checklistsTroca = lista; window.__ckSalvando = false; window.__fecharChecklist(); if(state.activeTab==='veiculos') renderVeiculosTab(); return; }
+    var antigo = lista[idx];
+    if((antigo.editadoEm || '') !== (window.__ckEditBase || '')){
+      state.checklistsTroca = lista; window.__ckSalvando = false;
+      showToast('⚠️ Outra pessoa alterou este checklist enquanto você editava. Reabri com a versão atual — refaça a alteração.');
+      window.__abrirChecklist(id); return;
+    }
+    var itens = Object.assign({}, antigo.itens||{});
+    CK_GRUPOS.forEach(function(gr){ gr.it.forEach(function(p){
+      var el = document.getElementById('cke-it-'+p[0]); if(!el) return;
+      if(el.value) itens[p[0]] = el.value; else delete itens[p[0]];
+    }); });
+    var upd = Object.assign({}, antigo, f, {itens:itens, combustivel: g('comb') ? parseInt(g('comb'),10) : 0,
+      editadoEm:new Date().toISOString(), editadoPor:(state.perfil ? state.perfil.nome : 'ADM')+' (ADM)', edicoes:(antigo.edicoes||0)+1});
+    lista[idx] = upd;
+    var ok = await gravarChecklistsBanco(lista);
+    if(!ok){ showToast('❌ Não foi possível salvar. Seus dados continuam na tela, tente de novo.'); return reabilitar(); }
+    state.checklistsTroca = lista;
+    window.__ckSalvando = false;
+    showToast('✅ Checklist atualizado.');
+    await sincronizarChecklistsComVeiculos(true);      // confere de novo com a aba Equipamentos do veículo
+    if(state.activeTab === 'veiculos') renderVeiculosTab();
+    window.__abrirChecklist(id);
+  }catch(err){
+    showToast('❌ Erro ao salvar. Tente de novo.'); reabilitar();
+  }
+};
+
 /* ── Checklists de troca: abrir, ampliar foto, excluir (admin) ───────── */
 var CK_GRUPOS = [
   {t:'📹 Câmeras e equipamentos', it:[['cam_f','Câmera frontal'],['cam_l','Câmera lateral'],['cam_i','Câmera interna'],['cam_t','Câmera traseira'],['biom','Leitor biométrico'],['case','Case']]},
@@ -7980,6 +8298,7 @@ window.__abrirChecklist = function(id){
     +(nF?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">📷 Fotos ('+nF+')</div><div id="ck-fotos-box" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"><span style="font-size:12.5px;color:var(--ink-soft);">⏳ Carregando fotos…</span></div>':'')
     +(c.assinatura?'<div style="font-size:14px;font-weight:700;color:var(--teal);margin-top:14px;">✍️ Assinatura</div><img src="'+c.assinatura+'" style="max-width:100%;border:1px solid var(--line);border-radius:8px;margin-top:5px;"><div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">'+esc(c.responsavel||'')+'</div>':'')
     +'<div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end;">'
+    +(admin?'<button class="btn btn-primary" onclick="window.__editarChecklist(\''+esc(id)+'\')" style="border-radius:8px;padding:8px 16px;font-weight:700;">✏️ Editar checklist</button>':'')
     +(admin?'<button class="btn" onclick="window.__excluirChecklist(\''+esc(id)+'\')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;">🗑 Excluir checklist</button>':'')
     +'<button class="btn btn-ghost" onclick="window.__fecharChecklist()">Fechar</button></div></div>';
   ov.addEventListener('click', function(ev){ if(ev.target === ov) window.__fecharChecklist(); });
@@ -8016,9 +8335,10 @@ window.__atualizarChecklists = async function(){
   showToast('🔄 Buscando checklists…');
   var raw = await storageGet('checklists-troca', true);
   if(raw === null){ showToast('Nenhum checklist encontrado (ou sem conexão com o banco).'); return; }
-  try{ state.checklistsTroca = JSON.parse(raw); }catch(_){ showToast('❌ Dados ilegíveis no banco.'); return; }
+  try{ state.checklistsTroca = ckLimpa(JSON.parse(raw)); }catch(_){ showToast('❌ Dados ilegíveis no banco.'); return; }
+  var nSync = await sincronizarChecklistsComVeiculos(true);
   if(state.activeTab === 'veiculos') renderVeiculosTab();
-  showToast('✅ ' + state.checklistsTroca.length + ' checklist(s).');
+  if(!nSync) showToast('✅ ' + state.checklistsTroca.length + ' checklist(s).');
 };
 window.__excluirChecklist = async function(id){
   if(!(state.sessao && state.sessao.isAdmin)){ showToast('Somente o administrador pode excluir.'); return; }
@@ -8029,14 +8349,11 @@ window.__excluirChecklist = async function(id){
   /* parte da versão MAIS RECENTE do banco: não apaga o que outro celular acabou de salvar */
   var raw = await storageGet('checklists-troca', true);
   if(raw === null){ showToast('❌ Sem conexão com o banco. Nada foi excluído.'); return; }
-  var lista; try{ lista = JSON.parse(raw); }catch(_){ showToast('❌ Lista do banco ilegível. Nada foi excluído.'); return; }
+  var lista; try{ lista = ckLimpa(JSON.parse(raw)); }catch(_){ showToast('❌ Lista do banco ilegível. Nada foi excluído.'); return; }
   var nova = lista.filter(function(x){ return x.id !== id; });
   if(nova.length !== lista.length){
-    var payload = JSON.stringify(nova), ok = false;
-    try{ if(sb){ var r = await sb.from('kv_store').upsert({key:'checklists-troca', value:payload},{onConflict:'key'}); ok = !r.error; } }catch(_){}
-    if(!ok){ _supaFalhas = 0; _supaCircuitoAberto = false; var r2 = await storageSet('checklists-troca', payload, true); ok = (r2 === true) || !!(r2 && r2.ok); }
-    if(!ok){ try{ localStorage.removeItem('painelpe_checklists-troca'); }catch(_){} showToast('❌ Não foi possível excluir. Tente de novo.'); return; }
-    try{ localStorage.removeItem('painelpe_checklists-troca'); }catch(_){}
+    var ok = await gravarChecklistsBanco(nova);
+    if(!ok){ showToast('❌ Não foi possível excluir. Tente de novo.'); return; }
     (c.fotoIds||[]).forEach(function(k){ storageSet(k, '', true).catch(function(){}); });   // libera o espaço das fotos
   }
   state.checklistsTroca = nova;
@@ -8049,8 +8366,8 @@ window.__exportarFrota = function(){
   /* Gera CSV no formato FROTA PE: CIDADE | VEÍCULO | N°OP | PLACA | KM | ANO */
   var polos = [
     {label:'POLO 1', cidades:['Recife']},
-    {label:'POLO 2', cidades:['Vitória','Timbaúba','Surubim','Sta Cruz do Capibaribe','Limoeiro','Palmares']},
-    {label:'POLO 3', cidades:['Arcoverde','Afogados da Ingazeira','Caruaru','Garanhuns','Pesqueira','Belo Jardim']},
+    {label:'POLO 2', cidades:['Vitória','Timbaúba','Surubim','Santa Cruz','Limoeiro','Palmares']},
+    {label:'POLO 3', cidades:['Arcoverde','Afogados','Caruaru','Garanhuns','Pesqueira','Belo Jardim']},
     {label:'POLO 4', cidades:['Araripina','Ouricuri','Salgueiro','Serra Talhada','Petrolina']}
   ];
   function catToTipo(cat){
@@ -8069,6 +8386,7 @@ window.__exportarFrota = function(){
     if(parts.length>=2){ return {op:parts[0].trim(), placa:parts.slice(1).join('-').trim()}; }
     return {op:'S/N', placa:nome.trim()};
   }
+  var nomeFrota = {'Santa Cruz':'Sta Cruz do Capibaribe','Afogados':'Afogados da Ingazeira'};   /* nomes como na planilha Frota PE */
   var linhas = ['CIDADE;VEÍCULO;N° OP;PLACA;KM;ANO'];
   polos.forEach(function(polo){
     linhas.push(polo.label+';;;;;');
@@ -8089,7 +8407,7 @@ window.__exportarFrota = function(){
         var p = parseNome(v.nome);
         var tipo = catToTipo(v.categoria);
         var stat = v.status==='Indisponível' ? ' (INDISPONÍVEL)' : '';
-        linhas.push(cidade.toUpperCase()+';'+tipo+stat+';'+p.op+';'+p.placa+';;');
+        linhas.push((nomeFrota[cidade]||cidade).toUpperCase()+';'+tipo+stat+';'+p.op+';'+p.placa+';;');
         addedBlank = true;
       });
       if(addedBlank){ linhas.push(';;;;;'); }
